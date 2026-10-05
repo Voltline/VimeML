@@ -151,6 +151,8 @@ activemq-data/
 
 # Environments
 .env
+.env.*
+!.env.example
 .envrc
 .venv
 env/
@@ -218,3 +220,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local datasets and generated artifacts
+/datasets/**/*.parquet
+/datasets/**/*.tsv
+/outputs/
+/artifacts/
+
+.DS_Store

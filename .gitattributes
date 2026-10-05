@@ -1,0 +1,7 @@
+# Keep portable code/config stable in Windows and macOS checkouts.
+*.py text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.jsonl text eol=lf
+*.txt text eol=lf

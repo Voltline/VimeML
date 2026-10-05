@@ -1,0 +1,35 @@
+# Same file on both machines; only --part and --output differ.
+[inputs]
+fineweb_paths = [
+  "datasets/fineweb-2-edu-japanese/train-00010-of-00283.parquet",
+  "datasets/fineweb-2-edu-japanese/train-00030-of-00283.parquet",
+  "datasets/fineweb-2-edu-japanese/train-00050-of-00283.parquet",
+  "datasets/fineweb-2-edu-japanese/train-00070-of-00283.parquet",
+  "datasets/fineweb-2-edu-japanese/train-00090-of-00283.parquet",
+  "datasets/fineweb-2-edu-japanese/train-00110-of-00283.parquet",
+  "datasets/fineweb-2-edu-japanese/train-00130-of-00283.parquet",
+  "datasets/fineweb-2-edu-japanese/train-00150-of-00283.parquet",
+  "datasets/fineweb-2-edu-japanese/train-00170-of-00283.parquet",
+]
+tatoeba_path = "datasets/Tatoeba/jpn_sentences.tsv"
+calibration_ids = "annotations/calibration-documents-v1.json"
+
+[build]
+quality_mode = "rules_with_approved_annotations"
+output_dir = "outputs/corpus-parts"
+seed = 42
+batch_size = 1024
+max_join_chars = 2048
+fineweb_documents_per_shard = 0
+tatoeba_documents = 0
+commit_every = 5000
+progress_every = 5000
+
+[review]
+annotations = "annotations/approved-v1.jsonl"
+require_all_annotations = true
+
+[split]
+train = 0.98
+validation = 0.01
+test = 0.01
