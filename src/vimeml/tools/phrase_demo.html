@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vime · 日语短语联想</title>
+<style>
+:root{color-scheme:light;--ink:#18232b;--muted:#61717c;--line:#dce3e7;--accent:#087a64;--soft:#e9f6f1}*{box-sizing:border-box}body{margin:0;background:#f4f6f5;color:var(--ink);font:15px/1.6 system-ui,-apple-system,"Yu Gothic","Microsoft YaHei",sans-serif}.page{max-width:990px;margin:0 auto;padding:38px 24px 60px}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:32px}.brand{font-size:24px;font-weight:750;letter-spacing:-.5px}.brand span{font-weight:400;color:var(--muted);font-size:14px;margin-left:14px}.live{border:1px solid #c3ddd1;border-radius:20px;padding:4px 12px;color:var(--accent);font-size:12px;background:#fff}.live:before{content:'●';margin-right:7px}h1{font-size:32px;line-height:1.25;letter-spacing:-1px;margin:0 0 12px}p{margin:0 0 22px;color:var(--muted)}.card{background:white;border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 8px 30px #18232b05}label{display:block;font-size:13px;color:var(--muted);margin-bottom:8px}textarea{width:100%;resize:vertical;min-height:120px;border:1px solid var(--line);border-radius:12px;padding:18px;font-size:23px;line-height:1.6;color:var(--ink);font-family:inherit;background:#fbfcfb}textarea:focus,select:focus,input:focus{outline:2px solid #9ad9c2;outline-offset:2px}.controls{display:flex;align-items:end;gap:18px;flex-wrap:wrap;margin:18px 0 10px}.controls label{margin:0}.controls select,.controls input{display:block;margin-top:6px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:9px;font:inherit;color:var(--ink)}input[type=number]{width:86px}button{font:inherit;cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:9px;padding:9px 14px}button:hover{border-color:#9fbcb0;background:#f5fbf7}button:disabled{opacity:.5;cursor:wait}.primary{margin-left:auto;background:var(--accent);border-color:var(--accent);color:#fff;padding:11px 23px;font-weight:650}.primary:hover{background:#056650;color:#fff}.hint{font-size:12px;margin-bottom:0}.section-title{margin:27px 0 12px;display:flex;align-items:center;justify-content:space-between}.section-title h2{font-size:18px;margin:0}.status{font-size:13px;color:var(--muted)}.placeholder{color:var(--muted);padding:32px;text-align:center;border:1px dashed #ccd5d0;border-radius:14px;background:#f8faf9}.suggestion{display:flex;gap:16px;align-items:center;padding:18px 20px;background:white;border:1px solid var(--line);border-radius:12px;margin:9px 0}.index{font-size:13px;color:var(--accent);background:var(--soft);width:27px;height:27px;border-radius:8px;text-align:center;line-height:27px;flex-shrink:0}.content{flex:1;min-width:0}.phrase{font-size:21px;overflow-wrap:anywhere;white-space:pre-wrap}.badge{display:inline-block;border-radius:6px;background:#fff5df;color:#866024;padding:2px 7px;margin:5px 6px 0 0;font-size:11px}.suggestion button{font-size:12px;padding:7px 10px;flex-shrink:0}.examples{display:flex;gap:8px;flex-wrap:wrap}.examples button{font-size:13px;border-radius:20px;padding:6px 12px}.examples-title{font-size:13px;color:var(--muted);margin:28px 0 10px}.error{background:#fff0ed;border:1px solid #f1d0c7;color:#9c3621;border-radius:9px;padding:12px 16px;margin-top:14px}.note{margin-top:28px;font-size:12px;color:var(--muted)}.toast{color:var(--accent);font-size:12px;margin-left:8px}@media(max-width:600px){.page{padding:22px 16px}.brand span{display:none}h1{font-size:27px}.card{padding:18px}.controls{gap:10px}.primary{width:100%;margin-left:0}.suggestion{padding:14px;gap:10px}.phrase{font-size:18px}.suggestion button{padding:6px}.live{font-size:11px}}
+</style>
+<main class="page">
+<header><div class="brand">Vime<span>日语短语联想 · 本地演示</span></div><div class="live" id="model-status">正在连接模型</div></header>
+<h1>写下前半句，看看接下来能说什么。</h1>
+<p>输入当前句子的日语前缀。建议由本地模型生成，点击“接上”可继续体验。</p>
+<form class="card" id="form">
+<label for="prompt">已经输入的文字</label>
+<textarea id="prompt" lang="ja" spellcheck="false" rows="3">今日は雨が降っているので、</textarea>
+<div class="controls">
+<label for="mode">生成方式<select id="mode"><option value="beam">排序建议</option><option value="sample">随机探索</option></select></label>
+<label for="count">候选数<select id="count"><option>3</option><option>4</option><option selected>5</option></select></label>
+<label for="tokens">生成长度上限<input id="tokens" type="number" min="4" max="16" value="8"></label>
+<button class="primary" type="submit" id="generate" disabled>生成建议</button>
+</div>
+<p class="hint">Ctrl / ⌘ + Enter 生成。长度单位为 token，一个 token 不一定是完整词；达到上限的建议会标为“可能未完”。</p>
+<div class="error" id="error" role="alert" hidden></div>
+</form>
+<div class="section-title"><h2>可接续的建议</h2><span class="status" id="status" aria-live="polite">等待生成</span></div>
+<div id="results"><div class="placeholder">输入前缀或选择下面的场景，然后生成建议。</div></div>
+<div class="examples-title">换一个场景<span id="toast" class="toast" aria-live="polite"></span></div>
+<div class="examples" id="examples"></div>
+<div class="note">仅在本机运行，不调用 API、不继续训练。耗时为模型已加载后的开发机推理时间，不代表 iPhone 键盘速度。建议的语法、完整性和语义仍需查看；没有唯一标准续写。</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);let seed=42;let ready=false;
+function error(message){$('error').textContent=message;$('error').hidden=!message}
+function badge(row,message){const b=document.createElement('span');b.className='badge';b.textContent=message;row.append(b)}
+async function generate(event){event?.preventDefault();if(!ready||$('generate').disabled)return;error('');$('generate').disabled=true;$('generate').textContent='正在生成…';$('status').textContent='模型正在生成';const prompt=$('prompt').value;
+try{const response=await fetch('/api/suggest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,mode:$('mode').value,count:Number($('count').value),max_tokens:Number($('tokens').value),seed:seed++})});const data=await response.json();if(!response.ok)throw new Error(data.error||'生成失败');$('results').replaceChildren();$('status').textContent=`${data.elapsed_ms.toFixed(0)} ms · ${data.returned_count} 个建议`;
+if(!data.suggestions.length){const empty=document.createElement('div');empty.className='placeholder';empty.textContent='这次没有得到可显示的建议。试试另一个前缀或“随机探索”。';$('results').append(empty)}
+data.suggestions.forEach((s,i)=>{const row=document.createElement('div');row.className='suggestion';const number=document.createElement('div');number.className='index';number.textContent=String(i+1);const content=document.createElement('div');content.className='content';const phrase=document.createElement('div');phrase.className='phrase';phrase.lang='ja';phrase.textContent=s.text;content.append(phrase);if(s.may_be_incomplete)badge(content,'可能未完');if(s.flags.includes('repeated_trigram_proxy'))badge(content,'可能重复');const insert=document.createElement('button');insert.type='button';insert.textContent='接上';insert.onclick=()=>{$('prompt').value=prompt+s.text;$('prompt').focus();const ended=/[。！？!?]/.test(s.text);$('status').textContent=ended?'句子已完成':'已接上，点击生成继续';$('results').replaceChildren();const tip=document.createElement('div');tip.className='placeholder';tip.textContent=ended?'这一句已完成。开始新一句时，请把输入框改成新前缀。':'已接上建议，可编辑前缀后再生成。';$('results').append(tip)};const copy=document.createElement('button');copy.type='button';copy.textContent='复制';copy.onclick=async()=>{try{await navigator.clipboard.writeText(s.text);$('toast').textContent='已复制'}catch(e){$('toast').textContent='复制失败，请手动选择文本'}};row.append(number,content,insert,copy);$('results').append(row)});
+}catch(e){error(e.message);$('status').textContent='未生成'}finally{$('generate').disabled=false;$('generate').textContent='生成建议'}}
+$('form').addEventListener('submit',generate);$('prompt').addEventListener('keydown',e=>{if(!e.isComposing&&(e.ctrlKey||e.metaKey)&&e.key==='Enter')generate(e)});
+fetch('/api/info').then(r=>{if(!r.ok)throw new Error('模型未就绪');return r.json()}).then(info=>{ready=true;$('generate').disabled=false;$('model-status').textContent='本地模型已就绪';for(const example of info.examples){const b=document.createElement('button');b.type='button';b.textContent=example.prompt;b.lang='ja';b.title=example.scene;b.onclick=()=>{$('prompt').value=example.prompt;error('');$('prompt').focus();$('toast').textContent='已选择 '+example.scene};$('examples').append(b)}}).catch(e=>{error(e.message);$('model-status').textContent='连接失败'});
+</script>
+</html>

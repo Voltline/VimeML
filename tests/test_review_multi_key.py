@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from vimeml.data.build import file_sha
 from vimeml.review.prepare import PROMPT, write_json
-from vimeml.review.run import QuotaLimiter, run
+from vimeml.review.run import QuotaLimiter, run, payload_for, parse_model_reply, request_signature
 from vimeml.review.multi_key import AccountPool, main, output_lock
 
 
@@ -28,7 +28,7 @@ class MultiKeyReviewTests(unittest.TestCase):
         self.directory = Path(temporary.name)
         self.materials, self.output = self.directory / "materials", self.directory / "review"
         self.materials.mkdir()
-        self.cases = [{"id": f"C{i}", "kind": "retained_sentence", "text": "自然な文章です。",
+        self.cases = [{"id": f"C{i}", "kind": "retained_sentence", "text": f"自然な文章です。例{i}",
                        "source_file": "fixture.parquet", "row_index": i, "assigned_split": "train",
                        "sampling_strata": ["keep:fixture"], "original_lines": []} for i in range(12)]
         write_json(self.materials / "cases.json", self.cases)
@@ -65,7 +65,8 @@ class MultiKeyReviewTests(unittest.TestCase):
                 active[key] += 1
                 peak[key] = max(peak[key], active[key])
                 peak["combined"] = max(peak["combined"], sum(active.values()))
-                seen.extend(case["id"] for case in rows)
+                by_text = {case["text"]: case["id"] for case in self.cases}
+                seen.extend(by_text[case["text"]] for case in rows)
             time.sleep(0.04)
             with lock:
                 active[key] -= 1
@@ -90,14 +91,20 @@ class MultiKeyReviewTests(unittest.TestCase):
             rows = json.loads(payload["messages"][1]["content"].split("\n", 1)[1])
             return self.response(payload) if rows[0]["id"] in {"C0", "C1", "C2"} else (400, {}, "invalid fixture")
 
-        with contextlib.redirect_stdout(io.StringIO()):
+        # Produce old full-ID requests to verify existing per-case caches work
+        # unchanged after switching to the compact-ID protocol.
+        def legacy_payload(*args):
+            return payload_for(*args, compact_ids=False)
+
+        with contextlib.redirect_stdout(io.StringIO()), patch("vimeml.review.run.payload_for", side_effect=legacy_payload):
             original = run(self.materials, self.output, "fixture-single", workers=1, batch_size=1,
                            retries=0, transport=partial, limiter=QuotaLimiter(100, 1000000, window=0.001))
         self.assertEqual(original["completed_cases"], 3)
         seen = []
 
         def fake(endpoint, payload, key, timeout):
-            seen.extend(row["id"] for row in json.loads(payload["messages"][1]["content"].split("\n", 1)[1]))
+            by_text = {case["text"]: case["id"] for case in self.cases}
+            seen.extend(by_text[row["text"]] for row in json.loads(payload["messages"][1]["content"].split("\n", 1)[1]))
             return self.response(payload)
 
         stats = self.review(self.pool(), fake, batch_size=2)
@@ -191,6 +198,37 @@ class MultiKeyReviewTests(unittest.TestCase):
                 self.review(self.pool(), lambda *args: self.fail("Locked output sent requests"))
         stats = self.review(self.pool(), lambda endpoint, payload, key, timeout: self.response(payload))
         self.assertEqual(stats["pending_cases"], 0)
+
+    def test_short_ids_map_reordered_replies_and_reject_wrong_ids_or_actions(self):
+        cases = [{**self.cases[0], "id": "C" + "a" * 24, "kind": "boundary_candidate"},
+                 {**self.cases[1], "id": "C" + "b" * 24, "kind": "review_block"}]
+        payload = payload_for(cases, PROMPT, "fixture", 2048)
+        sent = json.loads(payload["messages"][1]["content"].split("\n", 1)[1])
+        self.assertEqual([row["id"] for row in sent], ["R1", "R2"])
+        self.assertNotIn("drop", sent[0]["allowed_actions"])
+        self.assertIn("drop", sent[1]["allowed_actions"])
+        rows = [{"id": "R2", "assessment": "ok", "issue_type": "none", "suggested_action": "keep", "reason_zh": "正文"},
+                {"id": "R1", "assessment": "ok", "issue_type": "none", "suggested_action": "separate", "reason_zh": "保持边界"}]
+        body = {"choices": [{"message": {"content": json.dumps(rows)}}]}
+        parsed, canonical = parse_model_reply(body, cases, payload)
+        self.assertEqual(parsed[cases[0]["id"]]["suggested_action"], "separate")
+        self.assertEqual(parsed[cases[1]["id"]]["suggested_action"], "keep")
+        self.assertEqual({row["id"] for row in json.loads(canonical["choices"][0]["message"]["content"])},
+                         {case["id"] for case in cases})
+        rows[1]["suggested_action"] = "drop"
+        body["choices"][0]["message"]["content"] = json.dumps(rows)
+        with self.assertRaisesRegex(ValueError, "incompatible"):
+            parse_model_reply(body, cases, payload)
+        rows[1]["suggested_action"], rows[1]["id"] = "separate", "R9"
+        body["choices"][0]["message"]["content"] = json.dumps(rows)
+        with self.assertRaisesRegex(ValueError, "Unexpected"):
+            parse_model_reply(body, cases, payload)
+
+    def test_identical_evidence_with_distinct_local_ids_cannot_share_batch_cache(self):
+        first, second = [self.cases[0]], [{**self.cases[0], "id": "different-local-id"}]
+        payload1, payload2 = (payload_for(cases, PROMPT, "fixture", 2048) for cases in (first, second))
+        self.assertEqual(payload1, payload2)
+        self.assertNotEqual(request_signature("fixture", payload1, first), request_signature("fixture", payload2, second))
 
 
 if __name__ == "__main__":

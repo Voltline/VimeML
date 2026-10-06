@@ -1,0 +1,37 @@
+# First manual run: pipeline correctness and measured throughput, not a final LM.
+token_dir = "artifacts/token-data/corpus-v1-16k"
+index_dir = "artifacts/training-data/corpus-v1-c128"
+output_dir = "artifacts/models/tiny-ja-smoke-v1"
+log_dir = "runs/training/tiny-ja-smoke-v1"
+
+[model]
+vocab_size = 16384
+context_length = 128
+d_model = 256
+n_heads = 4
+n_layers = 4
+d_ff = 1024
+dropout = 0.0
+
+[training]
+device = "cuda"
+precision = "bf16"
+seed = 42
+cpu_threads = 4
+batch_size = 128
+num_workers = 4
+bucket_multiplier = 64
+gradient_accumulation = 1
+max_steps = 300
+learning_rate = 0.0003
+min_learning_rate = 0.00003
+warmup_steps = 30
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+log_every = 10
+eval_every = 100
+eval_batches = 16
+checkpoint_every = 100
+benchmark_warmup_steps = 20

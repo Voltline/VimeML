@@ -99,11 +99,40 @@ def model_case(case):
     return {key: case[key] for key in keys if key in case}
 
 
-def payload_for(cases, prompt, model, output_tokens):
+def payload_for(cases, prompt, model, output_tokens, compact_ids=True):
+    evidence = []
+    for index, case in enumerate(cases, 1):
+        item = model_case(case)
+        if compact_ids:
+            item["id"] = f"R{index}"
+        item["allowed_actions"] = sorted(ACTIONS[case["kind"]])
+        evidence.append(item)
     return {"model": model, "temperature": 0, "max_tokens": output_tokens,
             "messages": [{"role": "system", "content": prompt},
-                         {"role": "user", "content": "逐个审核以下数据，每个 ID 恰好返回一次。\n"
-                          + json.dumps([model_case(case) for case in cases], ensure_ascii=False)}]}
+                         {"role": "user", "content": "逐个审核以下数据，每个 ID 恰好返回一次，原样复制短 ID。"
+                          "每条 suggested_action 必须选自该条 allowed_actions。"
+                          "边界审核只判断 join/separate/review/no_change；即使正文是噪声，也不能返回 drop/keep。\n"
+                          + json.dumps(evidence, ensure_ascii=False)}]}
+
+
+def request_signature(endpoint, payload, cases):
+    # Local case IDs must remain part of the identity: two distinct targets can
+    # have identical evidence and hence identical short-ID request payloads.
+    return digest({"endpoint": endpoint, "payload": payload, "case_ids": [case["id"] for case in cases]})
+
+
+def parse_model_reply(body, cases, payload):
+    """Strictly validate wire IDs, then restore canonical local IDs by identity."""
+    sent = json.loads(payload["messages"][1]["content"].split("\n", 1)[1])
+    if len(sent) != len(cases):
+        raise ValueError("Request case mapping is incomplete.")
+    expected = [{**case, "id": item["id"]} for case, item in zip(cases, sent)]
+    mapping = {item["id"]: case["id"] for case, item in zip(cases, sent)}
+    parsed = parse_decisions(body, expected)
+    restored = {mapping[key]: {**row, "id": mapping[key]} for key, row in parsed.items()}
+    canonical_body = {**body, "choices": [{**body["choices"][0], "message": {
+        **body["choices"][0]["message"], "content": json.dumps(list(restored.values()), ensure_ascii=False)}}]}
+    return restored, canonical_body
 
 
 def token_reservation(payload):
@@ -325,7 +354,7 @@ def _run(input_dir, output, api_key="", workers=3, batch_size=10, rpm=8, tpm=800
 
     def review_batch(batch):
         payload = payload_for(batch, prompt, model, max_output_tokens)
-        signature = digest({"endpoint": endpoint, "payload": payload})
+        signature = request_signature(endpoint, payload, batch)
         cache = output / "cache" / f"{signature}.json"
         if cache.exists():
             saved = json.loads(cache.read_text(encoding="utf-8"))
@@ -339,7 +368,8 @@ def _run(input_dir, output, api_key="", workers=3, batch_size=10, rpm=8, tpm=800
             attempt += 1
             request_key = request_pool.key(ticket) if request_pool is not None else api_key
             local_counts["sent"] += 1
-            record = {"request": payload, "request_signature": signature, "attempt": attempt}
+            record = {"request": payload, "request_signature": signature, "attempt": attempt,
+                      "case_ids": [case["id"] for case in batch]}
             if request_pool is not None:
                 record["account"] = request_pool.label(ticket)
             filename = output / "responses" / f"{time.time_ns()}-{signature[:12]}-{attempt}.json"
@@ -375,8 +405,8 @@ def _run(input_dir, output, api_key="", workers=3, batch_size=10, rpm=8, tpm=800
                 if request_pool is not None:
                     usage_record["account"] = request_pool.label(ticket)
                 local_usage.append(usage_record)
-                parsed = parse_decisions(body, batch)
-                write_json(cache, redact({"body": body, "response_file": filename.name}, secrets))
+                parsed, canonical_body = parse_model_reply(body, batch, payload)
+                write_json(cache, redact({"body": canonical_body, "response_file": filename.name}, secrets))
                 local_counts["successful"] += 1
                 if request_pool is not None:
                     request_pool.success(ticket)
@@ -417,7 +447,8 @@ def _run(input_dir, output, api_key="", workers=3, batch_size=10, rpm=8, tpm=800
                 write_json(output / "decisions" / f"{case_keys[case_id]}.json",
                            {"case_signature": case_keys[case_id], "decision": redact(decision, secrets)})
             stats = save_report()
-            print(f"Completed {stats['completed_cases']}/{stats['total_cases']}; pending {stats['pending_cases']}", flush=True)
+            error_note = f"; last failure: {batch_failures[-1]['error']}" if batch_failures else ""
+            print(f"Completed {stats['completed_cases']}/{stats['total_cases']}; pending {stats['pending_cases']}{error_note}", flush=True)
     except BaseException:
         stop.set()
         for future in futures:
@@ -427,6 +458,8 @@ def _run(input_dir, output, api_key="", workers=3, batch_size=10, rpm=8, tpm=800
         stop.set()
         executor.shutdown(wait=True, cancel_futures=True)
     print(f"Report: {output / 'issues.md'}", flush=True)
+    if stats["pending_cases"]:
+        print(f"Review incomplete: {stats['pending_cases']} cases pending; see failures.json and resume the same output directory.", flush=True)
     return stats
 
 

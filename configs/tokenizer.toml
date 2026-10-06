@@ -1,5 +1,5 @@
-# Template for the next tokenizer experiment; review and sampling come first.
-# This config does not start training by itself.
+# Formal baseline: learn the vocabulary from a random sample of all train rows.
+# LM training still uses the full corpus. Only a manual command starts training.
 [paths]
 corpus_dir = "outputs/corpus-fast-v1"
 output_dir = "artifacts/tokenizers/ja-unigram-16k-v1"
@@ -11,6 +11,15 @@ character_coverage = 0.9995
 byte_fallback = true
 normalization_rule_name = "identity"
 remove_extra_whitespaces = false
-num_threads = 1
+num_threads = 12
+input_sentence_size = 2000000
 seed = 42
 max_sentence_length = 8192
+
+[measurement]
+# Independent processes; each native encoder uses one thread.
+workers = 8
+batch_size = 4096
+
+[monitoring]
+tensorboard = true

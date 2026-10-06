@@ -1,0 +1,22 @@
+[
+  {"id":"rain","scene":"天气","prompt":"今日は雨が降っているので、"},
+  {"id":"meeting","scene":"工作","prompt":"明日の会議までに、"},
+  {"id":"station","scene":"出行","prompt":"駅に着いたら、"},
+  {"id":"food","scene":"日常","prompt":"お腹が空いたので、"},
+  {"id":"thanks","scene":"商务","prompt":"本日はお忙しい中、"},
+  {"id":"confirmation","scene":"商务","prompt":"ご確認のほど、"},
+  {"id":"attachment","scene":"工作","prompt":"添付した資料を"},
+  {"id":"password","scene":"技术","prompt":"パスワードを入力して"},
+  {"id":"update","scene":"技术","prompt":"アプリを更新したら、"},
+  {"id":"travel","scene":"出行","prompt":"旅行に出かける前に、"},
+  {"id":"cold","scene":"日常","prompt":"風邪をひいたので、"},
+  {"id":"reading","scene":"日常","prompt":"寝る前に本を"},
+  {"id":"clothes","scene":"穿着","prompt":"外は寒いので、コートを"},
+  {"id":"movie","scene":"媒体","prompt":"昨日見た映画は"},
+  {"id":"practice","scene":"学习","prompt":"日本語が上手になるために、"},
+  {"id":"schedule","scene":"安排","prompt":"来週の月曜日は"},
+  {"id":"reply","scene":"工作","prompt":"お返事を"},
+  {"id":"dinner","scene":"日常","prompt":"夕食を食べた後、"},
+  {"id":"coffee","scene":"日常","prompt":"朝起きたら、コーヒーを"},
+  {"id":"friend","scene":"交流","prompt":"久しぶりに友達と"}
+]

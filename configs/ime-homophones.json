@@ -1,0 +1,18 @@
+{
+  "version": "handchecked_homophones_v1",
+  "note": "Controlled same-reading candidate pools. Contexts and gold suitability still require blind verification. Alternative listening/intent spellings are excluded to reduce ambiguity.",
+  "groups": [
+    {"id":"hashi","reading":"はし","candidates":["箸","橋","端"]},
+    {"id":"au","reading":"あう","candidates":["会う","合う","遭う"]},
+    {"id":"kikai","reading":"きかい","candidates":["機会","機械"]},
+    {"id":"kami","reading":"かみ","candidates":["紙","髪","神"]},
+    {"id":"kouen","reading":"こうえん","candidates":["公園","講演","公演"]},
+    {"id":"kanshou","reading":"かんしょう","candidates":["鑑賞","干渉"]},
+    {"id":"seikaku","reading":"せいかく","candidates":["性格","正確"]},
+    {"id":"hoshou","reading":"ほしょう","candidates":["保証","保障","補償"]},
+    {"id":"ishi","reading":"いし","candidates":["石","医師"]},
+    {"id":"atsui","reading":"あつい","candidates":["暑い","熱い","厚い"]},
+    {"id":"naosu","reading":"なおす","candidates":["直す","治す"]},
+    {"id":"kiku","reading":"きく","candidates":["聞く","効く","利く"]}
+  ]
+}

@@ -1,0 +1,8 @@
+# Data validation only. No model is trained by this entry point.
+token_dir = "artifacts/token-data/corpus-v1-16k"
+index_dir = "artifacts/training-data/corpus-v1-c128"
+context_length = 128
+batch_size = 128
+num_workers = 4
+seed = 42
+check_batches = 8

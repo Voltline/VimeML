@@ -1,0 +1,14 @@
+[
+  {"kind": "daily", "prompt": "今日はとても"},
+  {"kind": "daily", "prompt": "明日の朝は"},
+  {"kind": "daily", "prompt": "駅まで歩いて"},
+  {"kind": "daily", "prompt": "この本を読んで"},
+  {"kind": "learning", "prompt": "日本語を勉強する"},
+  {"kind": "business", "prompt": "お忙しいところ"},
+  {"kind": "business", "prompt": "本日はお忙しい中"},
+  {"kind": "technology", "prompt": "このアプリは"},
+  {"kind": "daily", "prompt": "最近、仕事が忙しくて"},
+  {"kind": "travel", "prompt": "東京駅から電車で"},
+  {"kind": "digits", "prompt": "2026年10月"},
+  {"kind": "latin", "prompt": "iPhoneで日本語を"}
+]
