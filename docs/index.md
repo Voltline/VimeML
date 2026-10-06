@@ -11,7 +11,6 @@
 | [评测](evaluation.md) | 纯LM评分、开发集、AJIMEE与联想 |
 | [Core ML](coreml.md) | Windows→Mac→iOS的手动步骤、结果与限制 |
 | [本地产物](artifacts.md) | 迁移范围、归档、指纹与哈希 |
-| [Hugging Face手动发布](publishing.md) | 已选GPL-2.0、Voltline仓库、本地打包与手动上传 |
 
 ## 实测与交接
 

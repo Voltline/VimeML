@@ -23,7 +23,6 @@ v1 权重已冻结。Windows 的数据、训练和 FP32 基线，以及 Mac 的 
 | [评测](docs/evaluation.md) | 评分规则、开发集、AJIMEE、融合策略与联想限制 |
 | [Core ML](docs/coreml.md) | 手动转换、压缩、验证、iOS打包及实测结论 |
 | [本地产物](docs/artifacts.md) | 文件保存、迁移、原始快照与校验 |
-| [Hugging Face手动发布](docs/publishing.md) | GPL-2.0发布包、模型卡、校验与Voltline仓库上传流程 |
 
 ## 本地使用
 
@@ -37,7 +36,7 @@ uv pip install --python .venv/Scripts/python.exe -r requirements.txt
 .\.venv\Scripts\python.exe -X utf8 -m unittest discover -s tests
 ```
 
-联想网页为 `http://127.0.0.1:8765/`。所有真实训练、转换、压缩、设备操作和模型上传均由使用者手动启动，工具合并不自动执行它们。
+联想网页为 `http://127.0.0.1:8765/`。所有真实训练、转换、压缩和设备操作均由使用者手动启动，工具合并不自动执行它们。
 
 ## 目录
 
