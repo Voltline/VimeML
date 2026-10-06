@@ -1,0 +1,16 @@
+# Template for the next tokenizer experiment; review and sampling come first.
+# This config does not start training by itself.
+[paths]
+corpus_dir = "outputs/corpus-fast-v1"
+output_dir = "artifacts/tokenizers/ja-unigram-16k-v1"
+
+[training]
+model_type = "unigram"
+vocab_size = 16384
+character_coverage = 0.9995
+byte_fallback = true
+normalization_rule_name = "identity"
+remove_extra_whitespaces = false
+num_threads = 1
+seed = 42
+max_sentence_length = 8192

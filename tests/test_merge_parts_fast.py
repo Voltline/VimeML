@@ -18,7 +18,7 @@ from vimeml.data.build import run as build, sha
 from vimeml.data.corpus_parts import text_sha
 from vimeml.data.merge_parts_fast import run as merge_fast
 from vimeml.data.preprocess_part import run as preprocess
-from vimeml.data.prepare_corpus_review import prepare
+from vimeml.review.prepare import prepare
 
 
 class FastMergeTests(unittest.TestCase):

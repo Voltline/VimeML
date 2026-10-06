@@ -1,0 +1,25 @@
+[inputs]
+fineweb_glob = "datasets/fineweb-2-edu-japanese/*.parquet"
+tatoeba_path = "datasets/Tatoeba/jpn_sentences.tsv"
+calibration_review = "outputs/history/review/review.json"
+calibration_cases = ["outputs/history/corpus-smoke-audit/cases.json", "outputs/history/corpus-recovery-audit/cases.json"]
+
+[build]
+quality_mode = "rules_with_approved_annotations"
+output_dir = "outputs/corpus-integration-v1"
+seed = 42
+batch_size = 1024
+max_join_chars = 2048
+fineweb_documents_per_shard = 2000
+tatoeba_documents = 2000
+commit_every = 2000
+progress_every = 2000
+
+[review]
+annotations = "annotations/approved-v1.jsonl"
+require_all_annotations = true
+
+[split]
+train = 0.98
+validation = 0.01
+test = 0.01

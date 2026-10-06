@@ -6,7 +6,7 @@ from pathlib import Path
 
 import test_corpus_parts as fixtures
 from vimeml.data.build import run as build
-from vimeml.data.build_parallel import run as parallel
+from vimeml.corpus.build import run as parallel
 
 
 class ParallelTests(unittest.TestCase):
@@ -26,6 +26,10 @@ class ParallelTests(unittest.TestCase):
         self.assertEqual(json.loads((output / "stats.json").read_text(encoding="utf-8")),
                          json.loads((single / "stats.json").read_text(encoding="utf-8")))
         work = output.with_name(output.name + "-work")
+        manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+        self.assertTrue(manifest["merge_backend"].startswith("parallel SQLite"))
+        self.assertEqual(Path(manifest["work_directory"]).name, "merge")
+        self.assertTrue((work / "merge" / "export-000").is_dir())
         summary = json.loads((work / "run-summary.json").read_text(encoding="utf-8"))
         self.assertEqual(len(set(summary["worker_pids"].values())), 2)
         self.assertEqual(summary["document_origins"], 10)

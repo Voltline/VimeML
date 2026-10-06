@@ -17,8 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from vimeml.data.build import file_sha, run as build, sha
-from vimeml.data.prepare_corpus_review import prepare, lines_in_range, ranges, write_json, PROMPT
-from vimeml.data.review_corpus_parallel import (run as review, QuotaLimiter, parse_decisions,
+from vimeml.review.prepare import prepare, lines_in_range, ranges, write_json, PROMPT
+from vimeml.review.run import (run as review, QuotaLimiter, parse_decisions,
                                               retry_after, make_batches, payload_for, token_reservation)
 
 

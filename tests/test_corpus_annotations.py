@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from vimeml.data.annotations import load_annotations, document_annotations
-from vimeml.data.approve_audit import approve
+from vimeml.review.approve import approve
 from vimeml.data.build import run, sha
 from vimeml.data.segment import restore_linebreaks
 
