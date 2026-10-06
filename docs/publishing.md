@@ -1,46 +1,87 @@
-# Hugging Face 发布草案
+# Hugging Face 手动发布
 
-v1 可以作为自定义PyTorch模型与Core ML资源发布。Hub允许任意模型库；无需为了上传先改写成Transformers，也不能标注已支持 `AutoModel.from_pretrained`。[官方上传说明](https://huggingface.co/docs/hub/models-uploading)
+目标仓库为 [Voltline/vimeml-tiny-ja-v1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1)。作者已明确选择：**权重也采用GPL-2.0**。发布包的模型卡写入 `license: gpl-2.0`，根LICENSE与源码LICENSE保留完整条款。仓库网页当前未能通过浏览工具读取，因此不声称已验证远程可见性或内容；手动登录后由Hub工具检查现有仓库。
 
-本页仅准备发布方案；未创建远程仓库、登录或上传。建议先建私有model仓库，核对发布文件、模型卡和许可后再公开。仓库名可用 `<账号或组织>/vimeml-tiny-ja-v1`，具体命名与公开时间由作者决定。
+本地准备工具与上传工具分开。它们不训练模型、不运行Core ML转换／压缩、不操作设备，也不新建Git分支。原始checkpoint、tokenizer、manifest及评分实现保持不变。
 
-## 拟发布内容
+## 发布目录
+
+默认本地目录：`artifacts/releases/vimeml-tiny-ja-v1-hf-v1/`，不进入项目Git。内容为：
 
 ```text
-README.md                     独立模型卡，区别于项目README
-inference/                    完整tiny-ja-v1-inference-v1（权重、配置、tokenizer、manifest）
-coreml/ios18-int8-block32/      当前.mlpackage和原manifest
-evaluation/summary.json       小型开发集/AJIMEE结果与来源哈希，不打包所有trace
-SHA256SUMS.txt                 所有发布文件的哈希
-LICENSE                       明确选择的模型权重许可
+README.md                       英文模型卡，含用途、数据、结构、结果与限制
+LICENSE                         模型权重GPL-2.0
+inference/                      完整原始FP32推理包（无optimizer）
+coreml/ios18-int8-block32/        原始INT8 .mlpackage和manifest
+source/{src,scripts,configs,...} 对应提交的模型、评分、转换与训练源码及统一requirements
+infer.py                        使用原BundleLM和原评分函数的手动推理示例
+evaluation/summary.json          重算核对的摘要与原始报告哈希
+RELEASE.json                    固定源码提交、包身份与文件清单
+SHA256SUMS.txt                   全部发布文件的哈希（清单自身除外）
+verify_release.py               只使用Python标准库的校验器
 ```
 
-推理包的manifest和所有被它校验的文件应原样保留；下载后使用固定Git提交的VimeML代码加载。完整 `best.pt` 含训练状态，不作为默认下载；训练语料、token二进制、API回复、设备trace、密钥、Mac全量handoff和另一个Vime客户端均不上传。`.mlmodelc` 可作为额外平台资源，但应注明编译环境，优先提供可重新编译的 `.mlpackage`。
+源码快照只从已提交的 `src/ scripts/ configs/ templates/huggingface/ requirements.txt LICENSE` 取得。语料、annotations、训练checkpoint、optimizer、API回复、trace、虚拟环境、Mac完整handoff与另一个Vime客户端不上传。Core ML优先提供 `.mlpackage`，由Mac使用者手动编译；不默认发布 `.mlmodelc`。
 
-第一版可发布现有 `weights.pt`，同时注明安全加载方式 `weights_only=True`。如以后提供safetensors或Transformers适配，应在独立导出／适配层实现，重新验证共享权重与logits，不改冻结核心来迁就发布格式。
+模型卡模板在 `templates/huggingface/README.md`。它明确：自定义PyTorch模型不支持Transformers AutoModel；INT8权重、FP32计算、CPU_ONLY、iOS18；严格logits门槛失败但冻结候选池Top-1命中数保持；开发集对照基线与宿主／键盘的设备范围分别注明。
 
-## 模型卡
+## 1. 准备并校验本地包
 
-至少写清参数量、结构、context128、SentencePiece词表与特殊ID、共享head、无KV cache、版本哈希、用途与加载步骤。[官方模型卡说明](https://huggingface.co/docs/hub/model-cards)
+已经准备过v1目录时，直接运行verify；prepare拒绝覆盖任何已有目录。复现打包前先把审阅的源码正常提交到当前分支，使源码身份可固定；重新打包请改用新的输出版本。
 
-用途是日语候选重排和句内联想；假名检索和搜索由应用侧完成。它不是聊天／指令模型。列出训练来源、清洗与拆分、完整validation、开发集与AJIMEE指标，说明已做错误分析、公开文本重叠未全面审计、开发集为AI标签与复核、候选池覆盖上限，以及生成的重复、截断和事实可靠性限制。
+```powershell
+# 首次准备；若此目录已有完整发布包，不必再执行。
+.\.venv\Scripts\python.exe -X utf8 scripts/publishing/prepare_hf.py prepare --output artifacts/releases/vimeml-tiny-ja-v1-hf-v1
 
-INT8必须单独注明权重INT8、计算FP32、CPU_ONLY、iOS18、8,077,801逻辑字节；严格logits门槛失败但离线Top-1命中数保持。将宿主App性能、真实扩展内存采样和未完成的长期验证分开，不能把宿主峰值或2.5分钟记录写成键盘的完整性能认证。
+.\.venv\Scripts\python.exe -X utf8 scripts/publishing/prepare_hf.py verify --release artifacts/releases/vimeml-tiny-ja-v1-hf-v1
 
-## 许可与署名
+# 只读FP32示例，调用发布包内的原始代码，不需要best.pt。
+.\.venv\Scripts\python.exe -X utf8 artifacts/releases/vimeml-tiny-ja-v1-hf-v1/infer.py --prompt "今日は雨が降っているので、" --max-new-tokens 8
+```
 
-项目代码当前是GPL-2.0文本；发布权重使用什么许可需作者明确决定，不能由代码LICENSE自动推定。SentencePiece运行时及第三方许可随相关源码保留。[Hub许可元数据说明](https://huggingface.co/docs/hub/repositories-licenses)
+prepare检查原推理包全部文件与核心指纹、Core ML包身份，以及保存的开发集／AJIMEE评分哈希和metrics；重新核对完整排序差异，不运行新的Core ML推理。原始manifest按字节复制。复制完成后核对发布清单。若中途失败，保留现场，选新的输出版本处理。
 
-训练数据来源和发布时需要保留的署名依据应核对实际下载版本：FineWeb2-Edu Japanese数据卡标注ODC-BY；Tatoeba文字默认CC-BY2.0FR，并说明按句子作者署名要求。数据许可不自动等于模型权重许可，本页不替作者选择。[FineWeb2-Edu Japanese数据卡](https://huggingface.co/datasets/hotchpotch/fineweb-2-edu-japanese/blob/main/README.md)、[Tatoeba使用条款](https://tatoeba.org/en/terms_of_use)
+`SHA256SUMS.txt`能检测字节损坏或清单外修改，不是数字签名。原manifest中绝对路径是来源记录，不改写为下载者的路径。源代码在 `source/` 下保留原目录关系，BundleLM核对这些源码的LF指纹。
 
-如果只发布自己的汇总指标，无需打包AJIMEE原文；如随包再分发公开评测文本，保留其CC-BY-SA3.0来源说明。引用固定版本和数据来源，避免把整个网站语料作为模型附件上传。
+## 2. 你手动安装发布依赖与登录
 
-## 手动发布顺序
+依赖仍统一在 `requirements.txt`，新增的 `huggingface_hub==2.1.1` 只在执行Hub步骤时使用。这里没有自动安装或登录。
 
-1. 确定账号／组织、仓库名、私有或公开、模型权重许可；定稿独立模型卡。
-2. 从冻结包复制到新的release目录，生成清单并检查文件范围与哈希，保持本地产物不动。
-3. 在Hub创建model仓库，通过网页上传，或在单独工具环境使用 `huggingface_hub` 的 `upload_folder`；不向当前训练环境随意添加发布依赖。[官方文件夹上传指南](https://huggingface.co/docs/huggingface_hub/guides/upload)
-4. 从干净目录下载固定revision，使用对应VimeML提交验证bundle和模型包，手动复跑小型推理fixture；公开前完成这次下载验证。
-5. 给release打版本并在模型卡记录VimeML提交、bundle与Core ML manifest哈希。
+```powershell
+uv pip install --python .venv/Scripts/python.exe -r requirements.txt
+.\.venv\Scripts\hf.exe auth login
+.\.venv\Scripts\hf.exe auth whoami
+```
 
-现阶段不需要上传所有未压缩和失败实验。公开模型卡保留关键对照结论即可，完整实验记录继续在本地归档。
+按登录工具提示使用浏览器，或在本地交互界面粘贴具备该仓库写权限的token；无需把token发到聊天中。[官方CLI登录说明](https://huggingface.co/docs/huggingface_hub/guides/cli)
+
+## 3. 你手动上传
+
+先阅读本地模型卡与清单，再执行：
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 scripts/publishing/hub.py upload --release artifacts/releases/vimeml-tiny-ja-v1-hf-v1
+```
+
+工具先完整校验目录，再检查目标必须与 `RELEASE.json` 的repo_id相同，向现有model仓库的main提交**清单内**文件。不会调用create_repo、创建分支或删除远程文件。相同路径的README、LICENSE和资源会更新；它不把整个Windows项目目录递归上传。用当前远程commit作为parent，若上传期间远程发生变更则失败，避免悄悄覆盖并发更新。[官方提交API](https://huggingface.co/docs/huggingface_hub/guides/upload#create_commit)
+
+完成后记录打印的 **hub_commit**（40位），这是Hugging Face提交，与VimeML源码提交不同。网页也可上传该目录内容，但上述工具能保证只上传已核对的文件。
+
+## 4. 你手动下载验证
+
+把下面的 `<hub_commit>` 换成上传工具打印的40位提交：
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 scripts/publishing/hub.py download --revision <hub_commit> --output outputs/releases/vimeml-tiny-ja-v1-hf-download-v1
+.\.venv\Scripts\python.exe -X utf8 outputs/releases/vimeml-tiny-ja-v1-hf-download-v1/infer.py --prompt "今日は雨が降っているので、" --max-new-tokens 8
+```
+
+download仅接受固定提交与新目录，并在下载后自动检查完整文件清单和SHA。Hub生成的 `.cache/`、可选根 `.gitattributes` 与本地Python字节码不当作模型payload。发布推理包的原始hash验证仍由BundleLM进行。如果想重跑Mac或iPhone验证，按 [Core ML指南](coreml.md) 单独手动启动，不把下载验证当作新设备验收。
+
+## 来源与许可
+
+权重的GPL-2.0是作者本次明确选择，项目源码继续采用原GPL-2.0；依赖和训练数据保留各自条款。[Hub支持的许可证标识](https://huggingface.co/docs/hub/repositories-licenses)
+
+FineWeb2-Edu Japanese数据卡标注ODC-BY，Tatoeba文字默认CC-BY2.0FR并说明作者署名要求。模型卡标明来源，本次不再分发训练文本。AJIMEE只发布汇总指标和来源哈希，未附评测文本。数据许可不改写成权重GPL，来源记录继续保留。[FineWeb2-Edu Japanese数据卡](https://huggingface.co/datasets/hotchpotch/fineweb-2-edu-japanese/blob/main/README.md)、[Tatoeba条款](https://tatoeba.org/en/terms_of_use)
+
+当前是自定义格式发布，不提供safetensors／Transformers适配；如以后增加，应在独立导出层验证共享权重和logits。完整失败实验与设备trace继续保存在本地，模型卡保留关键对照结论即可。

@@ -16,3 +16,5 @@ tensorboard==2.20.0
 # TensorBoard 2.20 imports pkg_resources, removed in newer setuptools.
 setuptools==80.9.0
 wandb==0.30.0
+# Manual model release authentication/upload/download; never runs during training.
+huggingface_hub==2.1.1
