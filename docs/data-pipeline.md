@@ -36,7 +36,7 @@ worker 各自拥有 SQLite，清洗完成后自动用哈希桶并行合并。`--
 ```bash
 # Mac，已有 Python >=3.11
 python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-data.txt
+.venv/bin/python -m pip install -r requirements.txt
 .venv/bin/python -u scripts/corpus/preprocess.py --config configs/corpus-sharded.toml --part 1/2 --output outputs/corpus-part-1
 ```
 

@@ -18,7 +18,7 @@ class RunMonitor:
             try:
                 from tensorboard.summary.writer.event_file_writer import EventFileWriter
             except ImportError:
-                raise RuntimeError("请先安装 requirements-tokenizer.txt 中的 TensorBoard 依赖。") from None
+                raise RuntimeError("请先安装 requirements.txt 中的 TensorBoard 依赖。") from None
             self.writer = EventFileWriter(str(log_dir),flush_secs=5)
         self.log_dir = log_dir
 

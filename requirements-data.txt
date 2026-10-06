@@ -1,2 +1,0 @@
-# Local corpus builders. Python 3.13 recommended; Python >=3.11 required.
-pyarrow==25.0.1

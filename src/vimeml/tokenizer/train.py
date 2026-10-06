@@ -269,7 +269,7 @@ def run(config_path, output_override=None, vocab_override=None, dry_run=False):
     try:
         import sentencepiece as spm
     except ModuleNotFoundError:
-        raise SystemExit("请先运行：uv pip install --python .venv/Scripts/python.exe -r requirements-tokenizer.txt") from None
+        raise SystemExit("请先运行：uv pip install --python .venv/Scripts/python.exe -r requirements.txt") from None
     if spm.__version__ != "0.2.1":
         raise ValueError("Use sentencepiece==0.2.1 for this recorded baseline.")
     config_path = config_path.resolve()

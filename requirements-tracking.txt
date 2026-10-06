@@ -1,2 +1,0 @@
-# Optional cloud monitoring. Install from PyPI, separately from the CUDA index.
-wandb==0.30.0

@@ -68,7 +68,13 @@ artifacts/                                                模型、tokenizer、t
 runs/                                                     TensorBoard 事件（本地）
 ```
 
-Python ≥3.11，当前使用 3.13。依赖分为 `requirements-data.txt`、`requirements-tokenizer.txt`、`requirements-training.txt` 和可选 `requirements-tracking.txt`。
+Python ≥3.11，当前使用 3.13。依赖统一在 `requirements.txt`：
+
+```powershell
+uv pip install --python .venv/Scripts/python.exe -r requirements.txt
+```
+
+现有 CUDA 环境直接使用上面的命令。新机器先按 [环境安装说明](docs/training.md#环境) 选择 PyTorch 的 CUDA / Mac 版本，再安装同一份依赖；不要把整份 requirements 的下载源设成 PyTorch 专用源。
 
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 -m unittest discover -s tests

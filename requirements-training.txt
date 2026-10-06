@@ -1,4 +1,0 @@
-# Install using: uv pip install --python .venv/Scripts/python.exe
-#   -r requirements-training.txt --index-url https://download.pytorch.org/whl/cu128
-# NumPy and TensorBoard are installed with requirements-tokenizer.txt.
-torch==2.10.0

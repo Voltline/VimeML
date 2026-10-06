@@ -4,16 +4,18 @@
 
 ## 环境
 
-Python >=3.11，当前 Windows 使用 3.13。在仓库根目录：
+Python >=3.11，当前 Windows 使用 3.13，现有环境由 uv 管理。在仓库根目录：
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements-data.txt -r requirements-tokenizer.txt
 # Windows / Linux CUDA 的第一轮固定环境
-.\.venv\Scripts\python.exe -m pip install -r requirements-training.txt --index-url https://download.pytorch.org/whl/cu128
+uv pip install --python .venv/Scripts/python.exe torch==2.10.0 --index-url https://download.pytorch.org/whl/cu128
+uv pip install --python .venv/Scripts/python.exe -r requirements.txt
 ```
 
-数据依赖 pyarrow 25.0.1；SentencePiece 0.2.1；TensorBoard 2.20.0；PyTorch 2.10.0+cu128。TensorBoard 所需 setuptools 固定在 requirements 中。Mac 上的 CPU 推理可用 `.venv/bin/python -m pip install -r requirements-data.txt -r requirements-tokenizer.txt -r requirements-training.txt`，不使用 CUDA index。现有训练器支持 CPU / CUDA，尚未实现 MPS 训练；Core ML 使用另一个 Mac 环境。
+数据依赖 pyarrow 25.0.1；SentencePiece 0.2.1；TensorBoard 2.20.0；PyTorch 2.10.0+cu128。所有直接依赖（含 NumPy 和 W&B）统一在 `requirements.txt`，TensorBoard 所需 setuptools 也在其中。现有 Windows CUDA 环境只需执行第二条安装命令；已安装的 `2.10.0+cu128` 满足 `torch==2.10.0`，不需要重装。
+
+Mac 上的 CPU 推理直接运行 `.venv/bin/python -m pip install -r requirements.txt`，不使用 CUDA index。新 Windows/Linux CUDA 环境先从 PyTorch 官方 cu128 源安装 torch，再从默认 PyPI 安装统一依赖；该专用源不用于下载 W&B 等通用包。现有训练器支持 CPU / CUDA，尚未实现 MPS 训练；Core ML 使用另一个 Mac 环境。
 
 ## SentencePiece 与并行编码
 
@@ -73,10 +75,9 @@ python -m venv .venv
 
 Tokenizer 显示 Unigram EM objective、候选 pieces、阶段和统计进度；它不是 Transformer loss。训练显示 train/validation loss、PPL、学习率、有效 tokens/s、padding、数据等待、显存和完整 validation。Tokenizer EM 不展示无法确定的完成百分比。
 
-可选远程面板：
+W&B 已包含在统一依赖中，是否启用远程面板由运行入口决定：
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements-tracking.txt
 .\.venv\Scripts\wandb.exe login
 .\.venv\Scripts\python.exe -X utf8 -u scripts/training/train_wandb.py --config configs/train-v1.toml --project vimeml
 ```

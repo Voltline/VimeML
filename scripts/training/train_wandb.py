@@ -40,7 +40,7 @@ def main(argv=None):
     try:
         import wandb
     except ImportError:
-        parser.error("Install requirements-tracking.txt and run .venv/Scripts/wandb.exe login first.")
+        parser.error("Install requirements.txt and run .venv/Scripts/wandb.exe login first.")
     tracking_dir = ROOT / "artifacts" / "tracking"
     tracking_dir.mkdir(parents=True, exist_ok=True)
     # Initialize before importing/creating SummaryWriter, so the SDK patches it.
