@@ -42,3 +42,8 @@ Thumbs.db
 .vscode/
 .idea/
 tempCodeRunnerFile.py
+
+# Local transfer archives and Swift build caches
+/handoff/
+.build/
+.swiftpm/

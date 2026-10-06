@@ -1,0 +1,115 @@
+{
+  "bundle_and_formal_source_hashes": "passed",
+  "bundle_manifest_sha256": "4284cdc5491513cc817633081677b363b14f59c0b4ffb78cdf7fcfb221f71b3c",
+  "coreml_package_checksums": {
+    "tiny-ja-v1-ane-fp16-v1": {
+      "kind": "fp16_ane",
+      "bytes": 14887874,
+      "manifest_sha256": "bb3a2101f0546b64d038c32ce02a1dc18a6ef0188aecf28932f5062e8dc85901"
+    },
+    "tiny-ja-v1-ane-int8-v1": {
+      "kind": "linear8_fp16_ane",
+      "bytes": 7569903,
+      "manifest_sha256": "3839336616af402ffd31e04a1c9ddde1e715df09d6054776b6135d9d6c31e0e3"
+    },
+    "tiny-ja-v1-conservative-int8-b32-v1": {
+      "kind": "linear8_fp32_compute",
+      "bytes": 8077801,
+      "manifest_sha256": "a9d516233fa57aaadd09477e2e909760972ff49b5577919f8a441c489f5c2245"
+    },
+    "tiny-ja-v1-conservative-palette4-g16-v4": {
+      "kind": "palette4_fp32_compute",
+      "bytes": 3937366,
+      "manifest_sha256": "c68875710a3f096bda4ec2c1c13eb46290a63bd69a33ddf3668da9525e40d62c"
+    },
+    "tiny-ja-v1-conservative-v3": {
+      "kind": "fp16_weights_fp32_compute",
+      "bytes": 16572335,
+      "manifest_sha256": "f5591ad1512b931a3a20765eb2218771f68e49699a3d23601e0cc0566d9c6d9d"
+    },
+    "tiny-ja-v1-fp16-v2": {
+      "kind": "fp16",
+      "bytes": 14887855,
+      "manifest_sha256": "b259e6fa5ec0023e66ad3f02d047e44d12a8122ecf94ee2c6359c308d56f61ed"
+    }
+  },
+  "saved_ranking_reports_recomputed": {
+    "dev": {
+      "cases": 137,
+      "top1_correct": 122,
+      "top5_correct": 134,
+      "candidate_pool_covered": 136,
+      "fallback_cases": 0,
+      "reported_comparison_baseline": "conservative Core ML",
+      "reported_comparison": {
+        "order_changed_cases": 118,
+        "top1_changed_cases": 0,
+        "max_score_sum_abs": 1.994759202003479
+      },
+      "windows_fp32_comparison": {
+        "order_changed_cases": 119,
+        "top1_changed_cases": 0,
+        "max_score_sum_abs": 1.9853296279907227,
+        "mean_score_sum_abs": 0.20199488408841776
+      }
+    },
+    "ajimee": {
+      "cases": 200,
+      "top1_correct": 124,
+      "top5_correct": 151,
+      "candidate_pool_covered": 162,
+      "fallback_cases": 0,
+      "reported_comparison_baseline": "Windows FP32",
+      "reported_comparison": {
+        "order_changed_cases": 163,
+        "top1_changed_cases": 2,
+        "max_score_sum_abs": 2.6928324103355408
+      },
+      "windows_fp32_comparison": {
+        "order_changed_cases": 163,
+        "top1_changed_cases": 2,
+        "max_score_sum_abs": 2.6928324103355408,
+        "mean_score_sum_abs": 0.33380034679328247
+      }
+    }
+  },
+  "raw_memory_reports_recomputed": {
+    "simulator": "passed",
+    "iphone_xml": "passed",
+    "keyboard_samples": 127,
+    "sampled_footprint_peak_mib": 21.251846313476562,
+    "private_resident_peak_mib": 51.921875
+  },
+  "python_syntax_files": 105,
+  "documentation_local_links": "passed",
+  "runtime_scope": "No Core ML/iOS runtime on Windows; saved metrics and raw traces were recomputed, models were checksum-verified.",
+  "unit_tests": {
+    "ran": 124,
+    "passed": 123,
+    "skipped": 1,
+    "skip_reason": "Core ML integration requires Mac",
+    "result": "OK",
+    "sandbox_note": "Full suite passed outside sandbox after localhost connection restriction."
+  },
+  "preservation": {
+    "format": "vimeml_final_preservation_audit_v1",
+    "passed": true,
+    "verified_file_records": 5255,
+    "accounted_incoming_files": 5344,
+    "excluded_cache_or_os_metadata": 89,
+    "handoff_zip_entry_checks": {
+      "VimeML-source.zip": 286,
+      "VimeML-results.zip": 4923,
+      "VimeML-training-inputs.zip": 38,
+      "Vime-client.zip": 293
+    },
+    "failures": []
+  },
+  "import_folder_deleted": true,
+  "archived_client_resource_checks": {
+    "tokenizer": "passed",
+    "compiled_files": 5,
+    "source_manifest": "passed",
+    "installed_device_identity": "not independently verified"
+  }
+}

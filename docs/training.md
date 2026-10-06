@@ -1,94 +1,103 @@
-# Tokenizer 与 Tiny GPT 训练
+# 训练
 
-正式训练已完成，当前权重冻结。以下是复现指南；每一步都由使用者手动启动，不需要现在重新训练。已有产物和精确结果见 [基线结果](results.md)。
+tiny-ja-v1 已训练完成。本文记录复现方法，以及未来独立版本的复现入口。v1 权重冻结；本文中的训练命令是参考，不属于当前部署任务。
 
 ## 环境
 
-Python >=3.11，当前 Windows 使用 3.13，现有环境由 uv 管理。在仓库根目录：
+Python ≥ 3.11（Windows 当前 3.13），用 uv 管理。
 
 ```powershell
 python -m venv .venv
-# Windows / Linux CUDA 的第一轮固定环境
+# CUDA 机器：先从 PyTorch 官方源装 torch，再从默认 PyPI 装其余依赖
 uv pip install --python .venv/Scripts/python.exe torch==2.10.0 --index-url https://download.pytorch.org/whl/cu128
 uv pip install --python .venv/Scripts/python.exe -r requirements.txt
 ```
 
-数据依赖 pyarrow 25.0.1；SentencePiece 0.2.1；TensorBoard 2.20.0；PyTorch 2.10.0+cu128。所有直接依赖（含 NumPy 和 W&B）统一在 `requirements.txt`，TensorBoard 所需 setuptools 也在其中。现有 Windows CUDA 环境只需执行第二条安装命令；已安装的 `2.10.0+cu128` 满足 `torch==2.10.0`，不需要重装。
+不要把整份 requirements 的下载源设成 PyTorch 专用源。Mac 上只做 CPU 推理时直接 `pip install -r requirements.txt`；Core ML 用另一个环境，见 [Core ML 部署](coreml.md#环境)。训练器支持 CPU / CUDA，不支持 MPS。
 
-Mac 上的 CPU 推理直接运行 `.venv/bin/python -m pip install -r requirements.txt`，不使用 CUDA index。新 Windows/Linux CUDA 环境先从 PyTorch 官方 cu128 源安装 torch，再从默认 PyPI 安装统一依赖；该专用源不用于下载 W&B 等通用包。现有训练器支持 CPU / CUDA，尚未实现 MPS 训练；Core ML 使用另一个 Mac 环境。
+主要版本：pyarrow 25.0.1、sentencepiece 0.2.1、tensorboard 2.20.0、torch 2.10.0+cu128。
 
-## SentencePiece 与并行编码
+## Tokenizer
 
-`configs/tokenizer.toml`：unigram，vocab 16384，identity normalization，保留空白，byte fallback，PAD/UNK/BOS/EOS=0/1/2/3。从完整 train 随机抽 200 万句学习词表，12 个原生线程；三个 split 的全量统计用 8 个独立进程。
+配置 `configs/tokenizer.toml`：unigram，词表 16,384，identity normalization，保留空白，byte fallback，特殊 ID PAD/UNK/BOS/EOS = 0/1/2/3。从 train 中随机抽 200 万句学习词表。
 
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 scripts/tokenizer/train.py --dry-run
-# 新实验必须使用新目录，避免覆盖现有词表
 .\.venv\Scripts\python.exe -X utf8 -u scripts/tokenizer/train.py --output artifacts/tokenizers/ja-unigram-16k-v2
+```
+
+v1 结果：三个 split 全量 UNK 和 roundtrip 错误都为 0，byte fallback 约 0.30%。多线程训练在不同平台上不能保证词表逐位一致，要复用请直接复制 `tokenizer.model` 并核对哈希。
+
+## 编码
+
+```powershell
 .\.venv\Scripts\python.exe -X utf8 scripts/tokenizer/encode.py --dry-run
 .\.venv\Scripts\python.exe -X utf8 -u scripts/tokenizer/encode.py --workers 8
 ```
 
-最后一条默认使用正式 v1 tokenizer、写 `artifacts/token-data/corpus-v1-16k/`。现有输出已完成；换 tokenizer 时用 `--help` 指定相应路径与新输出。编码进程各使用 1 个原生线程，按完整行分块、恢复原顺序合并，并逐句核对 TXT/JSONL、SHA 与 roundtrip。`--resume` 复用校验通过的分块；完成的 v1 不会被再次编码。
+默认使用 v1 tokenizer，输出到 `artifacts/token-data/corpus-v1-16k/`。按完整行分块并行编码，恢复原顺序后合并，逐句核对 TXT/JSONL、SHA 与 roundtrip；`--resume` 复用已校验的分块。
 
-每条序列为 BOS + 完整句子 + EOS，不截断、不连接不同句子。tokens.bin 是小端 uint16，offsets.bin / rows.bin 是小端 uint64，sources.bin 是 uint8；rows 指向原 JSONL 字节位置。真实二进制合计约 1.74GB（1.62GiB），无需为训练复制 provenance。
-
-多线程原生训练跨平台未保证词表逐位一致。精确复用必须复制已有 `tokenizer.model` 并校验 hash；固定 seed 并不替代冻结产物。
+格式：每条序列是 BOS + 完整句子 + EOS，不截断，不拼接不同句子。`tokens.bin` 为 uint16，`offsets.bin` / `rows.bin` 为 uint64，`sources.bin` 为 uint8，均为小端；`rows` 指向 JSONL 中的字节位置。三个 split 合计约 1.74 GB。
 
 ## 数据加载
 
 ```powershell
-.\.venv\Scripts\python.exe -X utf8 -u scripts/training/check_data.py
-# 仅 NumPy / 索引检查；不执行 CUDA 检查
-.\.venv\Scripts\python.exe -X utf8 scripts/training/check_data.py --prepare-only
+.\.venv\Scripts\python.exe -X utf8 -u scripts/training/check_data.py               # 含 CUDA 检查
+.\.venv\Scripts\python.exe -X utf8 scripts/training/check_data.py --prepare-only   # 只建索引
 ```
 
-配置在 `configs/loader.toml`：context128、batch128、4 workers。索引只保存长句分窗信息，不复制 token。`x=s[:-1]`、`y=s[1:]`，labels 已右移；PAD label=-100 不参与 loss，EOS 参与。长句分窗覆盖每个预测目标一次，不虚构窗口 BOS。
+配置 `configs/loader.toml`：context 128，batch 128，4 workers。
 
-训练按固定 seed 的块顺序与块内 shuffle，并在有限缓冲内按长度组批后 shuffle 批次，减少 padding；包含最后不足 batch 的一批。validation 顺序读取，test 仅结构检查。worker 独立打开只读 memmap，兼容 Windows spawn。报告为 `artifacts/training-data/corpus-v1-c128/loader-check.json`。
+- 输入 `x = s[:-1]`，目标 `y = s[1:]`；PAD 的 label 为 -100，EOS 参与 loss。
+- 每个窗口只装一个句子，超过 129 token 的长句切成多个窗口，每个预测目标恰好覆盖一次，不在后续窗口里虚构 BOS。
+- 训练按固定 seed 的块顺序与块内 shuffle，在有限缓冲内按长度组批以减少 padding，再打乱批次顺序。
+- 索引写在 `artifacts/training-data/corpus-v1-c128/`，只保存窗口位置，不复制 token。
 
-## 手动训练和续跑
+## 训练
 
-模型为标准 decoder-only Tiny GPT，pre-LN、GELU、causal SDPA、学习位置 embedding、共享 embedding/LM head。第一轮配置在 `configs/train-v1.toml`，738 万参数、context128、BF16、AdamW、batch128、4 workers、梯度裁剪、warmup2000、cosine 3e-4 → 3e-5。
+模型：pre-LN decoder-only GPT，GELU，causal SDPA，学习式位置 embedding，共享 embedding / LM head。
 
-300 步 smoke 配置保留在 `configs/train-smoke.toml`，用于新环境检查；旧 smoke 权重已清理。查看计划不会训练：
+`configs/train-v1.toml`：BF16，AdamW（β 0.9 / 0.95，weight decay 0.1），batch 128，梯度裁剪 1.0，warmup 2000 步，cosine 学习率 3e-4 → 3e-5，1 epoch = 196,853 步。
 
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 scripts/training/train.py --config configs/train-v1.toml --dry-run
+.\.venv\Scripts\python.exe -X utf8 -u scripts/training/train.py --config configs/train-new.toml
 ```
 
-历史正式启动命令：
+- 新训练请复制 TOML，并修改 `output_dir` / `log_dir`；现有正式目录不能覆盖。
+- 中断：按一次 Ctrl+C，等当前 update 保存后退出；再用同一命令加 `--resume` 续跑（要求配置、数据和核心代码都相同）。
+- 每 5000 步在固定的 16,384 个 validation 窗口上评估并选 best，结束时对 best / last 做全量 validation。test 不参与选模型。
+- `configs/train-smoke.toml` 是 300 步的冒烟配置，用于检查新环境。
 
-```powershell
-.\.venv\Scripts\python.exe -X utf8 -u scripts/training/train.py --config configs/train-v1.toml
+tiny-ja-v1 实际结果：25,197,117 个窗口，573,295,237 个预测目标，3469.8 秒，约 169,587 有效 token/s；全量 validation loss 4.5416（PPL 93.84），best 就是最后一步。记录在 `artifacts/models/tiny-ja-v1/{summary.json,manifest.json,metrics.jsonl,full-validation.json}`。
+
+```text
+best.pt         93b6139aa05031df02038efcaf26788bc9916712919f3d2a4c4f398615cef75b
+tokenizer.model d9f1ba1e456ce72dd9c06a62b12e804cf14090c30179e6078cd51d03063b2982
 ```
 
-现有正式目录已完成，不要更改配置强行覆盖。新训练复制 TOML，修改 output/log 目录后手动启动。`--resume` 只在相同配置、数据与核心代码下继续保存的 checkpoint；已完成一轮不会因此多训练一轮。中断时按一次 Ctrl+C，等待当前 update 后保存退出，再以同一命令加 `--resume`。
-
-每 5000 步在固定 16384 个 validation 窗口计算 token 加权 loss，选择 best；训练末尾分别对 last/best 全量 validation 评估，不改变先前选择规则。训练共 196853 updates，25197117 窗口，573295237 目标；test 不参与选模型。CPU 合成测试覆盖续跑数据位置、梯度累积与随机状态，不保证不同 CUDA 环境逐位一致。
-
-## TensorBoard / W&B
+## 监控
 
 ```powershell
 .\.venv\Scripts\tensorboard.exe --logdir runs --port 6006
 ```
 
-Tokenizer 显示 Unigram EM objective、候选 pieces、阶段和统计进度；它不是 Transformer loss。训练显示 train/validation loss、PPL、学习率、有效 tokens/s、padding、数据等待、显存和完整 validation。Tokenizer EM 不展示无法确定的完成百分比。
+训练指标包括 train / validation loss、PPL、学习率、有效 token/s、padding 比例、数据等待时间、显存。tokenizer 训练显示的是 Unigram EM 目标，不是 Transformer loss。
 
-W&B 已包含在统一依赖中，是否启用远程面板由运行入口决定：
+W&B（通过 TensorBoard 同步，不上传模型、语料或代码）：
 
 ```powershell
 .\.venv\Scripts\wandb.exe login
 .\.venv\Scripts\python.exe -X utf8 -u scripts/training/train_wandb.py --config configs/train-v1.toml --project vimeml
 ```
 
-W&B 通过 TensorBoard 同步指标、配置与 SDK 元数据，默认不上传模型、corpus 或 Git 代码。key 在本地登录，不写仓库。`--offline` 无法远程实时看；`--dry-run` 不联网、不训练。续跑加 `--resume`，建立新 run 并归入相同 group，避免回退 step 覆盖历史；不是恢复原云端 run ID。本地事件在 `runs/`，W&B 状态在 `artifacts/tracking/`。
+`--offline` 只写本地，`--dry-run` 不联网也不训练。续跑时加 `--resume`，会新建一个 run 并放进同一 group。W&B 状态保存在 `artifacts/tracking/`。
 
-## 只读推理
+## 推理
 
 ```powershell
-.\.venv\Scripts\python.exe -X utf8 scripts/training/infer.py
-.\.venv\Scripts\python.exe -X utf8 -u scripts/training/evaluate_ime.py
+.\.venv\Scripts\python.exe -X utf8 scripts/training/infer.py            # greedy / sample 续写
+.\.venv\Scripts\python.exe -X utf8 -u scripts/training/evaluate_ime.py   # 手写同音词诊断
 ```
 
-默认 CPU4线程FP32，可加 `--device cuda`。greedy 每步取最大概率 token；sample 按 temperature/top-k/top-p 抽样。联合分词评分和真实候选见 [组合排序](hybrid-ranking.md)，网页见 [联想演示](phrase-demo.md)。不自动开始训练或 API 请求。
+默认 CPU 4 线程 FP32，可加 `--device cuda`。候选评分和联想见[评测](evaluation.md)。

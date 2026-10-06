@@ -6,4 +6,10 @@
 *.jsonl text eol=lf
 *.txt text eol=lf
 *.html text eol=lf
+*.swift text eol=lf
+*.cc text eol=lf
+*.h text eol=lf
+# Keep vendored source and license bytes consistent across checkouts.
+examples/ios/VimeSentencePiece/** text eol=lf
 .gitignore text eol=lf
+.gitattributes text eol=lf

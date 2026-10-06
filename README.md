@@ -1,83 +1,59 @@
 # VimeML
 
-为 iOS 日语输入法 Vime 实验本地 Tiny Japanese LM。AzooKey 负责假名转换检索，LM 负责句内候选重排和短语联想：
+Vime 日语输入法的本地 Tiny Japanese LM：AzooKey 提供假名转换检索，LM 按句内上下文重排候选，并提供短语／下一词联想。部署使用纯 LM 评分，原 λ=2 融合策略保留为历史对照。
 
-```text
-Romaji → Kana → AzooKey candidates → Tiny Japanese LM rerank → final candidates
-```
+v1 权重已冻结。Windows 的数据、训练和 FP32 基线，以及 Mac 的 Core ML 转换、量化、客户端接入与设备记录已完成归档合并。转换适配独立放在 `scripts/deployment/`；数据、模型、评分及推理核心保留原始指纹。
 
-当前权重已冻结，完整语料、16K SentencePiece、第一轮 Tiny GPT 训练、真实候选评测和本地联想演示均已完成。下一阶段是 Mac 上的 Core ML 转换、权重压缩和 iPhone 键盘扩展验证；尚未生成 Core ML 模型。
-
-## 当前基线
-
-| 项目 | 结果 |
+| 项目 | 当前记录 |
 | --- | --- |
-| 语料 | 25,713,003 条唯一句子；train 25,185,368 条 |
-| Tokenizer | unigram 16,384 词表，byte fallback；全量无 UNK / roundtrip 错误 |
-| Transformer | 7,386,624 参数；4 层、4 头、d_model 256、FFN 1024、context 128 |
-| 训练 | 1 epoch，573,295,237 个预测目标，57 分 50 秒 |
-| 完整 validation | loss 4.5416，PPL 93.84；test 未用于训练或调参 |
-| AJIMEE Top-1 | 原排序 87/200，纯 LM 124/200，固定 λ=2 组合 118/200 |
-| 联想演示 | 20 个前缀中 10 个有明确自然建议；仍有重复、语义和截断问题 |
+| 模型 | decoder-only GPT，7,386,624参数；vocab16384、context128、256维、4层、4头、FFN1024，共享 embedding/LM head，无KV cache |
+| 训练 | 25,713,003条唯一句子；1 epoch；完整validation loss4.5416、PPL93.84；test未用于调参 |
+| FP32 / INT8纯LM | 开发集Top-1均122/137；AJIMEE均124/200，候选池覆盖162/200 |
+| 当前客户端资源 | INT8 block32权重、FP32计算、CPU_ONLY、最低iOS18；`.mlpackage` 8,077,801字节 |
+| 验证范围 | INT8严格logits门槛失败，排序命中数保持；完整顺序有变化。真实键盘有约2.5分钟手动记录，不能代替长期稳定性验收 |
 
-结果与限制见 [基线结果](docs/results.md)。上述评测不是 Vime 线上准确率或 iPhone 性能。
+模型和报告是本地产物，不在Git。新机器按 [产物与迁移](docs/artifacts.md) 复制；核心文档入口见 [文档索引](docs/index.md)。
 
-## 使用当前模型
+## 文档
 
-在仓库根目录执行：
+| 入口 | 内容 |
+| --- | --- |
+| [数据](docs/data.md) | 来源、清洗、分句、去重与审核 |
+| [训练与推理](docs/training.md) | 环境、SentencePiece、冻结模型与复现参考 |
+| [评测](docs/evaluation.md) | 评分规则、开发集、AJIMEE、融合策略与联想限制 |
+| [Core ML](docs/coreml.md) | 手动转换、压缩、验证、iOS打包及实测结论 |
+| [本地产物](docs/artifacts.md) | 文件保存、迁移、原始快照与校验 |
+| [Hugging Face发布草案](docs/publishing.md) | 拟发布文件、模型卡、许可与手动上传流程 |
+
+## 本地使用
+
+Python≥3.11。Windows已有CUDA环境安装 `requirements.txt`；新环境按 [训练环境](docs/training.md#环境) 先选择PyTorch版本。Mac的Core ML依赖也由同一文件管理。
 
 ```powershell
-# 联想网页：打开 http://127.0.0.1:8765/
-.\.venv\Scripts\python.exe -X utf8 -u scripts/tools/phrase_demo.py
-
-# 命令行 greedy / sample 续写
+uv pip install --python .venv/Scripts/python.exe -r requirements.txt
 .\.venv\Scripts\python.exe -X utf8 scripts/training/infer.py
-
-# 检查正式语料的元数据、文件大小和核心指纹
+.\.venv\Scripts\python.exe -X utf8 -u scripts/tools/phrase_demo.py
 .\.venv\Scripts\python.exe -X utf8 scripts/tools/check_corpus.py
+.\.venv\Scripts\python.exe -X utf8 -m unittest discover -s tests
 ```
 
-模型和数据不在 Git 中。新机器安装依赖后，按 [本地产物与迁移](docs/artifacts.md) 复制所需文件。每个入口支持 `--help`；训练和 API 请求由使用者手动启动。
-
-## 文档导航
-
-| 文档 | 内容 |
-| --- | --- |
-| [工作流程](docs/workflow.md) | 阶段状态与操作入口 |
-| [数据处理](docs/data-pipeline.md) | 并行清洗、跨机分区、合并、审核与来源追踪 |
-| [Tokenizer 与训练](docs/training.md) | 环境、编码、数据加载、训练复现和 TensorBoard / W&B |
-| [AJIMEE](docs/ajimee-benchmark.md) | 固定公开评测集、Mac 构建和真实候选导出 |
-| [开发数据](docs/development-generation.md) | DeepSeek 生成、缓存导出、审核；可选合成诊断 |
-| [组合排序](docs/hybrid-ranking.md) | 开发集评分、选 λ、固定策略评测 |
-| [联想演示](docs/phrase-demo.md) | 本地网页、固定场景和自然度复核 |
-| [部署计划](docs/deployment.md) | FP16 Core ML → 4bit → iPhone 验证 |
-| [本地产物](docs/artifacts.md) | 保存范围、磁盘用途与迁移清单 |
+联想网页为 `http://127.0.0.1:8765/`。所有真实训练、转换、压缩、设备操作和模型上传均由使用者手动启动，工具合并不自动执行它们。
 
 ## 目录
 
 ```text
-scripts/{corpus,review,tokenizer,training,benchmarks,tools}/  手动运行入口
-src/vimeml/                                               实现
-configs/                                                  版本化配置和诊断前缀
-annotations/                                              清洗批准记录
-tests/                                                   回归测试
-docs/                                                     操作指南和基线说明
-datasets/                                                 原始数据（本地）
-outputs/                                                  语料、审核、评测与维护记录（本地）
-artifacts/                                                模型、tokenizer、token、候选与策略（本地）
-runs/                                                     TensorBoard 事件（本地）
+src/vimeml/       原实现与冻结推理包支持（保持指纹）
+scripts/          按 corpus/review/tokenizer/training/benchmarks/tools/deployment 分类的入口
+examples/ios/     Core ML探针、SentencePiece运行时与首次Swift集成参考
+configs/          版本配置和固定联想前缀
+tests/            回归测试
+annotations/      清洗批准依据
+docs/             当前指南；reference/详细基线；reports/实测；history/历史计划
+datasets/         本地原始数据
+artifacts/        本地模型、tokenizer、候选和部署包
+outputs/          本地语料、评测、trace、历史与维护记录
+runs/             本地训练事件
+handoff/          本地Mac快照与另一个Vime仓库的交接ZIP
 ```
 
-Python ≥3.11，当前使用 3.13。依赖统一在 `requirements.txt`：
-
-```powershell
-uv pip install --python .venv/Scripts/python.exe -r requirements.txt
-```
-
-现有 CUDA 环境直接使用上面的命令。新机器先按 [环境安装说明](docs/training.md#环境) 选择 PyTorch 的 CUDA / Mac 版本，再安装同一份依赖；不要把整份 requirements 的下载源设成 PyTorch 专用源。
-
-```powershell
-.\.venv\Scripts\python.exe -X utf8 -m unittest discover -s tests
-```
-
-Git 保存代码、配置、测试、文档和少量批准记录；不保存语料、模型、API 回复、运行日志、虚拟环境或密钥。SJTU key 仅通过本地环境变量提供。正式语料与 checkpoint 绑定核心代码指纹，相关模块保留原路径和内容；清理目录不改变模型或评分规则。
+Git保存代码、配置、测试、文档与批准记录。模型、语料、trace、交接ZIP、虚拟环境和密钥不提交。
