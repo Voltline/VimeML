@@ -1,6 +1,6 @@
 # V2.0 最终评测
 
-2026-10-07。V2.0 完成 4 epochs、393,704 updates，用时 4 小时 38 分钟；[W&B lvfu0bix](https://wandb.ai/voltline233/vimeml/runs/lvfu0bix) finished。实验起点采用 **best.pt / step 375000**，V1 保留冻结基线。
+2026-10-07。V2.0 完成 4 epochs、393,704 updates，用时 4 小时 38 分钟；W&B本地记录 finished。实验起点采用 **best.pt / step 375000**，V1 保留冻结基线。
 
 | 模型 | 完整 validation BPC ↓ | AJIMEE Top-1 | 原 development Top-1 |
 | --- | ---: | ---: | ---: |

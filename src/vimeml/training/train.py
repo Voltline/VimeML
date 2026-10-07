@@ -23,12 +23,15 @@ ROOT = Path(__file__).resolve().parents[3]
 
 
 def learning_rate(step, settings):
-    """step is one-based optimizer update; linear warmup followed by cosine."""
+    """One-based update; optional stable phase before the cosine decay."""
     warmup, maximum = settings["warmup_steps"], settings["max_steps"]
     high, low = settings["learning_rate"], settings["min_learning_rate"]
     if warmup and step <= warmup:
         return high * step / warmup
-    fraction = min(1.0, max(0.0, (step - warmup) / max(1, maximum - warmup)))
+    decay_start = (settings.get("stable_steps", 0)
+                   if settings.get("learning_rate_schedule", "cosine") == "stable_decay"
+                   else warmup)
+    fraction = min(1.0, max(0.0, (step - decay_start) / max(1, maximum - decay_start)))
     return low + (high - low) * (1 + math.cos(math.pi * fraction)) / 2
 
 
@@ -131,6 +134,19 @@ def validate_config(config):
     if config.get('runtime', {}).get('compile_backbone', False) and config.get('architecture') != 'tiny_gpt_v2':
         raise ValueError('Backbone compilation is only supported for V2.')
     automatic_steps = settings.get("max_steps") == 0 and settings.get("epochs", 0) > 0
+    schedule = settings.get("learning_rate_schedule", "cosine")
+    stable_steps = settings.get("stable_steps", 0)
+    if schedule not in {"cosine", "stable_decay"} or type(stable_steps) is not int:
+        raise ValueError("Invalid learning rate schedule.")
+    if (stable_steps < 0 or (schedule == "stable_decay" and
+            (stable_steps < settings["warmup_steps"] or
+             (not automatic_steps and stable_steps >= settings["max_steps"])))):
+        raise ValueError("Stable phase must leave a nonempty decay interval after warmup.")
+    baseline_bpc = config.get("initialization", {}).get("baseline_validation_bpc")
+    if baseline_bpc is not None and (not math.isfinite(baseline_bpc) or baseline_bpc <= 0):
+        raise ValueError("Initialization baseline BPC must be finite and positive.")
+    if config.get("initialization", {}).get("restore_optimizer", False) and not config["initialization"].get("checkpoint"):
+        raise ValueError("Optimizer continuation requires an initialization checkpoint.")
     positive = ("cpu_threads", "batch_size", "bucket_multiplier", "gradient_accumulation",
                 "log_every", "eval_every", "eval_batches", "checkpoint_every")
     if any(settings[name] < 1 for name in positive) or settings["num_workers"] < 0 or (not automatic_steps and settings["max_steps"] < 1):
@@ -220,7 +236,8 @@ def run(config, resume=False, dry_run=False):
             "full_validation_each_epoch": settings.get('validate_full_each_epoch', False),
             "corpus_quality_mode": token_manifest.get("corpus_quality_mode"),
             "full_validation_at_end": settings.get("validate_full_at_end", False),
-            "purpose": "Continued pretraining from frozen weights with a fresh optimizer." if config.get('initialization') else
+            "purpose": "Continued pretraining with compatible AdamW state." if config.get('initialization', {}).get('restore_optimizer') else
+                       "Continued pretraining from frozen weights with a fresh optimizer." if config.get('initialization') else
                        "Full-corpus experiment." if settings.get("epochs") else
                        "Short pipeline/throughput run; not a deployment-ready model."}
     if dry_run:
@@ -236,18 +253,20 @@ def run(config, resume=False, dry_run=False):
         raise ValueError("TensorBoard directory is nonempty; use a new log directory.")
     prepare_indexes(token_dir, index_dir, model_config.context_length,
                     verification=config.get("verification", {}).get("mode", "sha256"))
+    model.to(device)
+    optimizer = optimizer_for(model, settings, device)
     initialization = None
     if config.get('initialization', {}).get('checkpoint') and not resume:
         from vimeml.training.runtime_v2 import initialize_weights
-        initialization = initialize_weights(model, ROOT / config['initialization']['checkpoint'], signatures)
-        print(f"Initializing a new experiment from step {initialization['source_step']}; fresh optimizer.", flush=True)
-    model.to(device)
-    optimizer = optimizer_for(model, settings, device)
+        initialization = initialize_weights(model, ROOT / config['initialization']['checkpoint'], signatures,
+            optimizer=optimizer if config['initialization'].get('restore_optimizer', False) else None,
+            precision=precision)
+        print(f"Initializing from step {initialization['source_step']}; {initialization['optimizer']}.", flush=True)
     scaler = torch.amp.GradScaler("cuda", enabled=precision == "fp16")
     step = epoch = batch_cursor = total_tokens = total_windows = 0
     total_dropped_tokens = total_cropped_windows = 0
     best_val = math.inf
-    best_epoch_bpc = math.inf
+    best_epoch_bpc = config.get('initialization', {}).get('baseline_validation_bpc', math.inf)
     degrading_epochs = 0
     evaluated_epochs = []
     early_stopped = False
@@ -349,7 +368,8 @@ def run(config, resume=False, dry_run=False):
             "evaluated_epochs": evaluated_epochs, "early_stopped": early_stopped,
             "benchmark_tokens": benchmark_tokens, "benchmark_steps": benchmark_steps,
             "benchmark_seconds": benchmark_seconds,
-            "scheduler": {"name": "cosine", "step": step, "max_steps": settings["max_steps"],
+            "scheduler": {"name": settings.get("learning_rate_schedule", "cosine"), "step": step, "max_steps": settings["max_steps"],
+                "stable_steps": settings.get("stable_steps", 0),
                 "warmup_steps": settings["warmup_steps"], "learning_rate": settings["learning_rate"],
                 "min_learning_rate": settings["min_learning_rate"]}})
 
@@ -416,6 +436,8 @@ def run(config, resume=False, dry_run=False):
             best_val = latest_validation["loss"]
             save_checkpoint(last_path)  # Initial state can resume even before step 1.
             save_checkpoint(output / "best.pt")
+            if math.isfinite(best_epoch_bpc):
+                save_checkpoint(output / "best-epoch.pt")
         if restored_rng is not None:
             restore_rng(restored_rng)
         if device.type == "cuda":

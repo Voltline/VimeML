@@ -14,7 +14,7 @@ best/last 均为 step=0、epoch=0、batch_cursor=0、total_tokens=0，optimizer 
 
 快照与验证位于 `outputs/autodl-v21-recovery-20261007/{rescue-manifest,verification}.json`，模型位于 `artifacts/models/tiny-ja-v2.1-e16k-d320-l6-continue/`。文件清单与大小通过，checkpoint 可加载；旧实例文件及 V1/V2.0 保持原样。SSH/W&B 凭据不在归档中，日志凭据相关行已去除。
 
-旧 W&B run 为 [`lqlaaktm`](https://wandb.ai/voltline233/vimeml/runs/lqlaaktm)，其本地二进制仅 7 bytes，不能视为包含可补同步的训练历史。
+旧 W&B run 为 W&B本地记录，其本地二进制仅 7 bytes，不能视为包含可补同步的训练历史。
 
 ## 迁移材料
 
@@ -27,4 +27,4 @@ best/last 均为 step=0、epoch=0、batch_cursor=0、total_tokens=0，optimizer 
 | 新真实候选 / 复核开发集 | `artifacts/benchmarks/ime-expanded-v21-candidates-v1/`、`ime-dev-label-reviewed-v3/` |
 | 中断记录 | `handoff/vimeml-v21-rescue-20261007.tar.gz` |
 
-实例镜像复用 Python/CUDA 环境；`/root/autodl-tmp` 数据盘仍需迁移或用本地包恢复。编译缓存可重新生成。新实验从冻结 V2.0 best 初始化，使用独立输出、日志及 W&B online run，保持两轮配置和 screen 运行方式。旧 step 0 与 run 归档；当前监控暂停。
+实例镜像复用 Python/CUDA 环境；`/root/autodl-tmp` 数据盘需单独迁移或恢复。原实例18:54恢复4090 D后已直接启动 restart1，无需迁移；从冻结V2.0 best初始化，batch512、两轮、screen与新W&B online run。旧step0与run归档；restart1和后续extend5均已结束，当前结果见 [V2.1配置](v21-plan.md)。

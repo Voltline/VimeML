@@ -7,9 +7,10 @@
 | 实验 | 范围 | 状态 |
 | --- | --- | --- |
 | V2.0 | 新 tokenizer、320×6 架构、prefix crop、4 epochs | 已完成训练与离线评测 |
-| V2.1 | 低学习率继续 2 epochs、编译优化、扩大 IME benchmark | 配置已完成；旧 run 保存于 step 0；3,000 条候选已收回 |
+| V2.1 | 低学习率继续2 epochs、编译优化、扩大IME benchmark | restart1完成：BPC3.08118、AJIMEE137/200；2000条草稿1476正确 |
+| V2.1 extend5 | 携带AdamW状态，追加3.27轮后停止 | 保留best step40000：BPC3.08027、AJIMEE144/200、2000条草稿1487；[结果](reports/v2-20261007/v21-extend.md) |
 
-配置分别为 [tokenizer-v2.toml](../configs/tokenizer-v2.toml)、[train-v2.toml](../configs/train-v2.toml)、[train-v21.toml](../configs/train-v21.toml)。当前状态见 [V2 训练](training-v2.md)，实测见 [文档索引](index.md)。
+配置分别为 [tokenizer-v2.toml](../configs/tokenizer-v2.toml)、[train-v2.toml](../configs/train-v2.toml)、[train-v21-restart.toml](../configs/train-v21-restart.toml)。原batch256配置 [train-v21.toml](../configs/train-v21.toml)保留。当前状态见 [V2 训练](training-v2.md)，实测见 [文档索引](index.md)。
 
 ## Tokenizer 与数据
 
@@ -26,7 +27,7 @@
 
 TinyGPTV2：12,537,920 参数，d_model=320、6 layers、5 heads、head_dim=64、d_ff=832、dropout=0。Pre-Norm RMSNorm（FP32 方差，eps=1e-5），causal SDPA、SwiGLU、无 Linear bias、learned position embedding、共享 LM head。
 
-训练使用 BF16、AdamW β=.9/.95、weight decay=.1（矩阵参数）、clip=1、batch 256、长度 bucket。V2.0：4 epochs，LR 1e-3 → 1e-4，warmup 1000；V2.1：从 V2.0 best 权重起新 AdamW，2 epochs，LR 3e-4 → 3e-5，warmup 500，epoch offset=4。
+训练使用 BF16、AdamW β=.9/.95、weight decay=.1（矩阵参数）、clip=1、长度 bucket。V2.0：batch256，4 epochs，LR 1e-3 → 1e-4，warmup 1000；V2.1 restart1：batch512，从 V2.0 best 权重起新 AdamW，2 epochs / 98,426 updates，LR 3e-4 → 3e-5，warmup 500，epoch offset=4。batch选择依据见 [真实数据性能对照](reports/v2-20261007/v21-performance.md)。
 
 每 5,000 updates 保存 checkpoint 和固定子集验证；每轮完整 BPC/IME，连续两轮 BPC 比历史最佳高超过 .01 时提前停止。Checkpoint 保存模型、优化器、调度器、RNG、epoch/cursor、实际训练与裁剪计数、配置和来源身份。
 

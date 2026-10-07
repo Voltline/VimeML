@@ -48,4 +48,4 @@ V1→V2：92 改善、82 退化，净增 10（.50 个百分点），exact McNema
 - 后验诊断：`outputs/ime-eval/expanded-v21-dev-draft-label-sensitivity-v2/`。
 - 待审包：`outputs/ime-eval/expanded-v21-label-review/development-score-hidden-v2.json`。
 
-入口为 `scripts/benchmarks/evaluate_ajimee.py --benchmark artifacts/benchmarks/ime-expanded-v21-candidates-v1/development`；模型、tokenizer 和新 output 由参数指定。V2.0 best 保留实验起点，V1 保留基线；V2.1 中断记录见 [迁出报告](v21-recovery.md)。
+入口为 `scripts/benchmarks/evaluate_ajimee.py --benchmark artifacts/benchmarks/ime-expanded-v21-candidates-v1/development`；模型、tokenizer和新output由参数指定。V2.0 best保留冻结记录，V1保留基线；V2.1后续两轮与扩大集对照见 [最终评测](v21-evaluation.md)，中断记录见 [迁出报告](v21-recovery.md)。

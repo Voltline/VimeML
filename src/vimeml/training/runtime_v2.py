@@ -54,7 +54,10 @@ def compile_backbone(model):
     compiled = torch.compile(hidden_stack, fullgraph=True, dynamic=True)
 
     def forward(module, input_ids, labels=None):
-        if input_ids.ndim != 2 or not 1 <= input_ids.shape[1] <= module.config.context_length:
+        if (
+            input_ids.ndim != 2
+            or not 1 <= input_ids.shape[1] <= module.config.context_length
+        ):
             raise ValueError("Expected [batch, time] within the model context.")
         hidden = compiled(input_ids)
         if labels is None:
@@ -77,8 +80,8 @@ def compile_backbone(model):
     }
 
 
-def initialize_weights(model, checkpoint, signatures):
-    """Start a separate experiment from frozen weights with a fresh optimizer."""
+def initialize_weights(model, checkpoint, signatures, optimizer=None, precision=None):
+    """Start a separate run; optionally carry compatible AdamW moments forward."""
     path = Path(checkpoint)
     saved = torch.load(path, map_location="cpu", weights_only=True)
     if (
@@ -86,9 +89,39 @@ def initialize_weights(model, checkpoint, signatures):
         or saved["model_config"] != model.configuration()
     ):
         raise ValueError("Initialization requires the same V2 model configuration.")
-    if any(saved["signatures"][name] != signatures[name] for name in ("tokens", "windows")):
-        raise ValueError("Initialization requires the same tokenizer/token store and window index.")
+    if any(
+        saved["signatures"][name] != signatures[name] for name in ("tokens", "windows")
+    ):
+        raise ValueError(
+            "Initialization requires the same tokenizer/token store and window index."
+        )
+    if optimizer is not None:
+        if saved.get("precision") != precision or not saved.get("optimizer", {}).get(
+            "state"
+        ):
+            raise ValueError(
+                "Optimizer continuation requires matching precision and nonempty state."
+            )
+        source_groups = saved["optimizer"]["param_groups"]
+        if len(source_groups) != len(optimizer.param_groups):
+            raise ValueError("Optimizer parameter groups differ.")
+        for source, target in zip(source_groups, optimizer.param_groups):
+            if (
+                len(source["params"]) != len(target["params"])
+                or source["betas"] != target["betas"]
+                or source["weight_decay"] != target["weight_decay"]
+                or source["eps"] != target["eps"]
+                or source.get("amsgrad", False) != target.get("amsgrad", False)
+            ):
+                raise ValueError(
+                    "Optimizer continuation requires compatible AdamW groups."
+                )
     model.load_state_dict(saved["model"])
+    if optimizer is not None:
+        learning_rates = [group["lr"] for group in optimizer.param_groups]
+        optimizer.load_state_dict(saved["optimizer"])
+        for group, rate in zip(optimizer.param_groups, learning_rates):
+            group["lr"] = rate
     details = {
         "checkpoint": str(path.resolve()),
         "source_step": saved["step"],
@@ -97,7 +130,14 @@ def initialize_weights(model, checkpoint, signatures):
         "source_batch_cursor": saved["batch_cursor"],
         "source_signatures": saved["signatures"],
         "file_bytes": path.stat().st_size,
-        "optimizer": "fresh AdamW; source optimizer, scheduler and cursors are not restored",
+        "optimizer": (
+            "restored AdamW moments and parameter step counters; new local scheduler and data cursors"
+            if optimizer is not None
+            else "fresh AdamW; source optimizer, scheduler and cursors are not restored"
+        ),
+        "optimizer_state_count": len(saved["optimizer"]["state"])
+        if optimizer is not None
+        else 0,
         "verification": "Model configuration and small dataset manifest signatures; no repeated checkpoint SHA256",
     }
     del saved

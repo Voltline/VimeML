@@ -1,21 +1,21 @@
 # V2.1 续训配置与性能基准
 
-2026-10-07。原 run 于 15:39 启动，停机后保存的 checkpoint 为 step 0，已迁出。模型权重等于冻结 V2.0 best；没有可恢复的新增训练进度。详情见 [中断与迁出](v21-recovery.md)。
+2026-10-07。原run于15:39启动，停机后保存step0并归档。restart1在原4090 D以batch512于18:54–19:56完成两轮；W&B本地记录 finished。最终BPC3.08118，详见 [评测与模型选择](v21-evaluation.md)，旧记录见 [中断与迁出](v21-recovery.md)。
 
 ## 实验配置
 
 | 项目 | 配置 |
 | --- | --- |
 | 起点 | V2.0 best，step 375000，仅权重；新 AdamW |
-| 预算 | 2 epochs / 196,852 updates，25,196,843 windows/epoch |
+| 预算 | 2 epochs / 98,426 updates，25,196,843 windows/epoch |
 | 学习率 | warmup 500，3e-4 → 3e-5 cosine |
-| 数据 / 模型 | 原 16K tokenizer、320×6、context128、batch256、BF16 |
+| 数据 / 模型 | 原16K tokenizer、320×6、context128、batch512、BF16 |
 | 裁剪 / 随机性 | prefix crop .30、最少 8 对；epoch offset=4（轮次 4/5） |
 | 编译 | full hidden-state stack；变长 token head / CE eager |
 | 评测 | 每 5,000 updates 子集验证，每轮完整 BPC 与原两套 IME |
 | 运行 | AutoDL、screen、W&B online，独立输出目录 |
 
-配置：[train-v21.toml](../../../configs/train-v21.toml)。best 位于第四轮结束前，因此这是“从 best 额外扫描两轮”，不是从 last 接到第六轮。原优化器、调度器与数据游标不继承。初始化已验证模型配置、数据身份、权重相同与 fresh optimizer。
+运行配置：[train-v21-restart.toml](../../../configs/train-v21-restart.toml)；原 batch256 配置 [train-v21.toml](../../../configs/train-v21.toml)保留。best 位于第四轮结束前，因此这是“从 best 额外扫描两轮”，不是从 last 接到第六轮。原优化器、调度器与数据游标不继承。
 
 ## GPU 调度调查
 
@@ -33,3 +33,5 @@
 固定 batch 不含 loader、首次编译、变长重编译、评测和保存，不能据此推算整轮快 52%；重复更新同一 batch 的 loss 不用于质量评测。
 
 原始记录：`outputs/model-checks/v2-backbone-profile-3/`、`outputs/model-checks/v21-preparation/`。扩大 benchmark 的候选与初评见 [3,000 条数据](ime-3000-handoff.md)和[开发集结果](expanded-ime-evaluation.md)。
+
+真实数据对照：compiled batch256 152k、batch512 279k tokens/s；正式完整运行273k，选定512的收益已确认。数据、统计范围及限制见 [性能对照](v21-performance.md)。

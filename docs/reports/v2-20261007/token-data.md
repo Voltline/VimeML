@@ -28,4 +28,4 @@ artifacts/training-data/corpus-v2-c128/
 
 训练直接读取二进制，不依赖原 20 GB corpus JSONL；`rows.bin` 仅用于回溯来源。batch=256 时每轮 98,426 updates，4 轮 393,704；prefix crop 后实际训练 token 单独计数。
 
-记录：`outputs/token-data-v2-20261007.log`、`outputs/window-index-v2-20261007.log`、`outputs/model-checks/v2-phase-c.json`。
+记录：`outputs/history/v2-20261007-session/token-data-v2-20261007.log`、`outputs/history/v2-20261007-session/window-index-v2-20261007.log`、`outputs/model-checks/v2-phase-c.json`。

@@ -1,109 +1,40 @@
 # 评测
 
-所有评测都只读冻结模型，不训练。FP32 结果来自 Windows CPU；Core ML INT8 的复测见 [Core ML 部署](coreml.md#质量)。
+当前离线候选模型为V2.1 extend5 best / step40000；部署结果仍以V1为基线。模型结果见[追加报告](reports/v2-20261007/v21-extend.md)，Core ML验收见[Mac准备](mac-v21-preparation.md)。
 
 ## 评分定义
 
-候选重排使用 **contextual logP sum**：
+AzooKey提供冻结的真实候选池，LM仅重排，不注入答案。context+candidate联合SentencePiece编码，候选token序列公共前缀后的完整词表logP求和；不加EOS、不截断，稳定并列保持原序。超出128-token窗口时整条回退引擎，召回失败和回退保留在分母。mean只作次要诊断；这是token后缀似然代理，不是精确字符串条件概率。
 
-1. 把 `context + candidate` 作为一个字符串整体分词。不能分开 encode 再拼接，因为 SentencePiece 在接缝处可能重新切分。
-2. 在 BOS + context 与所有候选序列的公共 token 前缀之后，逐 token 累加完整词表 log-softmax 的值。
-3. 不在候选末尾加 EOS。分数相同时保持原顺序。
-4. 所需 forward 的输入超过 128 token、分词无法 roundtrip，或候选池为空时，整条退回原顺序（仍计入分母）。
+Top-1/5按任一冻结可接受答案精确匹配，不做宽度正规化。报告候选召回、MinCER、MRR、纠正/改坏及回退；同池差异按case ID、读音、左文、答案和候选顺序配对。完整validation BPC使用所有预测目标（含EOS）与原Unicode字符数，test split未用于本轮。
 
-这是 token 后缀似然的近似，并不等于精确的字符串条件概率。`mean`（按 token 数平均）只作为次要诊断。实现：`src/vimeml/training/evaluate_ime.py` 的 `score_candidates`。
+## 数据与结果
 
-## AJIMEE（公开集）
+| 集合 | 范围与限制 |
+| --- | --- |
+| AJIMEE JWTD_v2/v1 | 200条，公开集、83条多答案；已用于错误分析，不是blind。网页训练重叠未知 |
+| 原development | 137条，AI生成/复核，用于原策略开发；不是母语gold |
+| 扩大development | 2000条、冻结真实候选；参考标签仍为草稿 |
+| 扩大blind | 1000条，冻结且尚未LM计分，不用于选模型或量化参数 |
 
-[azooKey/AJIMEE-Bench](https://github.com/azooKey/AJIMEE-Bench) `JWTD_v2/v1`，数据 commit `401666cd`：200 条（100 条有左文 / 100 条无左文），83 条有多个可接受答案。数据 CC-BY-SA 3.0，保存在 `artifacts/benchmarks/ajimee-jwtd-v2-v1/`，没有主动加入训练语料；尚未全面审计网页语料与该公开集的文本重叠。
-
-**候选导出（Mac）**：AzooKeyKanaKanjiConverter `d59a28e4`，主词典 `4d418525`，emoji 词典 `67b82260`，N-best 20，关闭预测、学习、typo 和 Zenzai，不加 `--stable`（该版本会把 score 取整）。
-
-```bash
-git clone https://github.com/azooKey/AzooKeyKanaKanjiConverter.git AzooKeyKanaKanjiConverter-ajimee
-cd AzooKeyKanaKanjiConverter-ajimee
-git checkout --detach d59a28e4c7ca049aef04f29a91eae9677a7753f2
-git submodule update --init --recursive --jobs 8
-swift build -c release --product CliTool -Xcxx -xobjective-c++
-mkdir -p ajimee-results && cp ~/Downloads/ajimee-input.json ajimee-results/
-.build/release/CliTool evaluate ajimee-results/ajimee-input.json \
-  --config_n_best 20 --config_typo_mode off --output ajimee-results/azookey-candidates.json
-```
-
-`ajimee-input.json` 由 `scripts/benchmarks/prepare_ajimee.py` 从官方 `evaluation_items.json` 生成（`input` → query，`context_text` → left_context，右文为空）。导出后把 `ajimee-results/` 整个目录复制回 benchmark 目录。
-
-**评分（Windows）**：
-
-```powershell
-.\.venv\Scripts\python.exe -X utf8 -u scripts/benchmarks/evaluate_ajimee.py --output outputs/ime-eval/ajimee-recheck
-```
-
-指标：Top-1 / Top-5（与任一可接受答案精确匹配，不做宽度归一化）、Recall@20（候选池覆盖率，即重排能达到的上限）、MinCER（沿用官方定义），以及纠正 / 改坏 / 回退数。
-
-| 策略 | Top-1 | Top-5 | MinCER | 纠正 / 改坏 |
+| 模型 | 完整BPC ↓ | AJIMEE /200 | 原dev /137 | 扩大草稿 /2000 |
 | --- | ---: | ---: | ---: | ---: |
-| AzooKey 原序 | 87 (43.5%) | 143 | 0.0822 | — |
-| LM contextual sum | **124 (62.0%)** | 151 | 0.0566 | 48 / 11 |
-| LM 无左文 sum | 116 (58.0%) | 149 | 0.0716 | 44 / 15 |
-| LM contextual mean | 76 (38.0%) | 144 | 0.1197 | 31 / 42 |
-| 原分数 + 2 × LM sum | 118 (59.0%) | 153 | — | 38 / 7 |
+| V1 | 3.4736559 | 124 | 122 | 1453 |
+| V2.0 best | 3.2598221 | 125 | 124 | 1463 |
+| V2.1 restart1 | 3.0811788 | 137 | 121 | 1476 |
+| V2.1 extend5 best | 3.0802686 | 144 | 122 | 1487 |
 
-候选池覆盖 162/200，没有空池或长度回退。分组看：有左文 40 → 59，无左文 47 → 65。结果在 `outputs/ime-eval/tiny-ja-v1-ajimee/`（`changed-cases.json` 列出所有首选变化，`regressions-review.md` 复核了 11 条改坏）。
+extend5相对restart1的扩大集净增11，exact two-sided McNemar p=.22155；相对V1净增34，p=.00648。均为开发集探索性、未校正多重比较；草稿标签、公开集重叠和模型选择限制仍在，不代表已证明生产收益。原标签和词典别名口径没有根据模型结果修改。
 
-AJIMEE 已经用于错误分析，不再算盲测。官方左文可能跨句，而 iOS 侧只取当前句，两者的上下文定义不同。
+## 入口与缓存
 
-## 开发集（合成，137 条）
+`scripts/benchmarks/evaluate_ajimee.py`接受`--benchmark/--checkpoint/--tokenizer/--device/--output`，输出metrics、逐候选scores和变化样例；已有结果优先复用，每次新模型使用独立输出。
 
-用于选组合系数，与 AJIMEE 分开。
+- 最新FP32：`outputs/ime-eval/tiny-ja-v2.1-extend5-best-{ajimee,development}/`。
+- 扩大集：`outputs/ime-eval/expanded-v21-dev-draft-extend5-best/`。
+- 配对：`outputs/ime-eval/tiny-ja-v2.1-extend5-comparison/comparison.json`。
+- Core ML量化与设备报告：`outputs/deployment/`，不能把严格logits对齐、Top-1命中或设备时延混为同一验收。
 
-1. **生成**：`scripts/benchmarks/generate_development.py` 调用 DeepSeek，按 10 个主题生成「左文 + 片假名读音 + 可接受表记」；另起一个盲核验请求，只给左文和读音。key 通过 `SJTU_API_KEY` 提供，`--dry-run` 不联网。成功请求会被缓存，可续跑。
-2. **导出**：v2 共 20 批，成功 18 批（180 条），用 `export_cached_development.py` 离线导出，不补跑失败批次。
-3. **复核**：Codex 逐条复核，保留 137 条（63 条有左文 / 74 条无左文），隔离 43 条；没有用 LM 得分筛选。这是 AI 复核，不是母语者裁定。
-4. **候选**：`hybrid.py prepare-dev` 生成输入，由 Mac 上同版本 AzooKey 导出 N-best 20。136/137 条的答案在候选池内。
+纯LM sum为当前接入路线；历史AzooKey+λ×LM组合在原开发集选λ=2，量化后未重新验证，不能沿用为当前最优。联想以固定前缀进行自然度与重复诊断，不作为唯一答案准确率。
 
-目录：`artifacts/benchmarks/ime-dev-generation-v2/`（生成）→ `ime-dev-review-v2/`（快照）→ `ime-dev-reviewed-v2/`（复核决定）→ `ime-dev-v2/`（候选）。
-
-`scripts/benchmarks/generate.py` / `evaluate.py` 是更早的合成诊断工具（短语二选一、受控同音词），不属于当前评测链路。
-
-## 组合排序
-
-`scripts/benchmarks/hybrid.py`：`score`（逐候选算分并缓存）→ `tune`（在开发集上选 λ）→ `evaluate`（用固定策略跑 AJIMEE）。
-
-组合分数 = AzooKey score + λ × LM sum。λ 从固定网格 `0, .05, .1, .2, .3, .5, .75, 1, 1.5, 2, 3` 中选，依次按开发集 Top-1 最高、改坏最少、λ 最小来定。λ=2 与 λ=3 都是 123/137，λ=2 改坏更少，所以选 2。λ=0 能逐条复现原顺序（已验证）。
-
-| 数据 | 原序 | 纯 LM | λ=2 |
-| --- | ---: | ---: | ---: |
-| 开发 137 | 111 | 122 | 123 |
-| AJIMEE 200 | 87 | 124 | 118 |
-
-iOS 部署用的是纯 LM 排序。λ=2 只对 FP32 模型和这一版词典有效，换模型或量化后需要在开发集上重新选。
-
-## 短语联想
-
-```powershell
-.\.venv\Scripts\python.exe -X utf8 -u scripts/tools/phrase_demo.py                       # 网页 http://127.0.0.1:8765/
-.\.venv\Scripts\python.exe -X utf8 scripts/tools/phrase_demo.py --suite --output outputs/phrase-demo/new-beam-run
-.\.venv\Scripts\python.exe -X utf8 scripts/tools/phrase_demo.py --suite --suite-mode sample --output outputs/phrase-demo/new-sample-run
-```
-
-- **beam（默认）**：width 8，长度惩罚 alpha 0.7，最多 8 个新 token，最多 5 条。禁止 PAD/UNK/BOS；后缀为空时禁止 EOS；遇到 EOS 或句末标点 `。！？!?` 结束；按可见文本去重。
-- **sample**：greedy + 8 条采样，temperature 0.8，top-k 50，top-p 0.9。
-
-iOS 键盘不用句子续写，而是用更短的「下一个词」预测（Vime `VimeLanguageModel.nextWords`）；beam 在 iOS 中保留为与 Mac 对照的参考实现。
-
-固定 20 个前缀在 `configs/phrase-demo-prompts.json`。FP32 beam 的 Codex 复核：10 个前缀有明确自然的建议，3 个较弱，7 个不理想。正式用语、请求和简单动作效果较好；因果句和自由话题容易复述前文、跑题或截断。原始输出与复核在 `outputs/phrase-demo/tiny-ja-v1/`。
-
-## 其他诊断
-
-手写同音词 32 组（`configs/ime-homophones.json`，`evaluate_ime.py`）：有左文 30/32，无左文 12/32。它不经过 AzooKey 候选池，只用来诊断。
-
-## 已知范围
-
-- 训练语料和评测文本之间的语义重叠没有审计。
-- 合成开发集的标签和复核都来自 AI，可能存在相同的系统性错误。
-- 以上都是离线基准，不代表 Vime 实际使用时的准确率：应用里的候选池（预测、纠错、学习）与基准不同。
-
-
-## INT8 复测
-
-部署采用纯 LM contextual sum，AzooKey 仍提供假名检索与候选池。INT8 的开发集122/137、AJIMEE124/200与 FP32 的 Top-1 命中数相同，但并非所有分数和顺序相同。没有在量化后重新确认 λ=2；如果恢复融合策略，应在开发集重新选 λ，再对固定 AJIMEE 报告结果。见 [Core ML 质量与限制](coreml.md#质量)。
+详细参考：[AJIMEE导出](reference/ajimee-benchmark.md)、[开发集生成](reference/development-generation.md)、[组合排序](reference/hybrid-ranking.md)、[联想](reference/phrase-demo.md)、[V1结果](reference/results.md)、[扩大数据初评](reports/v2-20261007/expanded-ime-evaluation.md)。

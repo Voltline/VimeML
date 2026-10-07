@@ -11,7 +11,7 @@
 | 其他依赖 | SentencePiece .2.1、W&B .30.0、setuptools 80.9.0 |
 | 数据包 | `handoff/vimeml-v2-data.tar.gz`，1,017,407,143 bytes |
 | 训练预算 | BF16、batch 256、4 epochs / 393,704 updates |
-| W&B | [`lvfu0bix`](https://wandb.ai/voltline233/vimeml/runs/lvfu0bix)，finished |
+| W&B | W&B本地记录，finished |
 
 数据包含 token store、窗口索引、tokenizer 与原两套候选。50 个文件在传输后核对大小，使用 SFTP/gzip 完整性检查；源码快照记录 commit 与工作区改动。依赖见 [requirements-autodl.txt](../../../requirements-autodl.txt)。
 

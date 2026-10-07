@@ -26,7 +26,7 @@ uv pip install --python .venv/Scripts/python.exe -r requirements.txt
 .\.venv\Scripts\python.exe -X utf8 -u scripts/tokenizer/train.py --config configs/tokenizer.toml --output artifacts/tokenizers/NEW-VERSION
 ```
 
-v1 结果：三个 split 全量 UNK 和 roundtrip 错误都为 0，byte fallback 约 0.30%。多线程训练在不同平台上不能保证词表逐位一致，要复用请直接复制 `tokenizer.model` 并核对哈希。
+v1 结果：三个 split 全量 UNK 和 roundtrip 错误都为 0，byte fallback 约 0.30%。多线程训练在不同平台上不能保证词表逐位一致，复用时直接复制冻结的 `tokenizer.model`，保留既有身份记录。
 
 ## 编码
 

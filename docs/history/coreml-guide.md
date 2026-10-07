@@ -2,7 +2,7 @@
 
 # Core ML 手动操作指南
 
-工具已实现；正式权重冻结，尚未执行真实导出、Core ML 转换、压缩或 iPhone 测试。下面每个阶段都由你手动启动，不自动串联、不训练、不调用 API。每个 `--output` 必须不存在；失败留下的目录也保留，重试用新版本名。
+工具已实现；正式权重冻结，尚未执行真实导出、Core ML 转换、压缩或 iPhone 测试。各阶段使用独立手动命令，不自动串联、不训练、不调用 API。每个 `--output` 必须不存在；失败留下的目录也保留，重试用新版本名。
 
 入口为 `scripts/deployment/coreml.py`，独立适配代码在 `src/vimeml/deployment/`，设备辅助在 `examples/ios/CoreMLProbe.swift`。冻结的模型、推理、评分和联想核心文件不变。
 
@@ -72,7 +72,7 @@ uv venv --python 3.11 venv/coreml
 source venv/coreml/bin/activate
 uv pip install --python venv/coreml/bin/python -r requirements.txt
 mkdir -p outputs
-uv pip freeze --python venv/coreml/bin/python > outputs/coreml-environment-v1.txt
+uv pip freeze --python venv/coreml/bin/python > outputs/deployment/environment/coreml-environment-v1.txt
 ```
 
 `venv/` 被忽略；环境记录用新版本名；整份 requirements 不要使用 PyTorch 专用下载源。先验证 Mac FP32，隔离跨机 torch/分词差异：
@@ -108,7 +108,7 @@ python scripts/deployment/coreml.py phrases --bundle artifacts/deployment/tiny-j
 
 ## 3. Mac：压缩与质量/体积/性能对照
 
-FP16 对齐、完整质量复核通过后，你手动启动压缩。命令要求绑定到该 FP16 包的通过报告；开发/AJIMEE/联想质量是否满足预先写下的预算仍由你复核。默认 grouped-channel k-means palettization，16通道一组：
+FP16 对齐、完整质量复核通过后，手动启动压缩。命令要求绑定到该 FP16 包的通过报告；开发/AJIMEE/联想质量是否满足预先写下的预算另行复核。默认 grouped-channel k-means palettization，16通道一组：
 
 ```bash
 python scripts/deployment/coreml.py compress --source artifacts/deployment/tiny-ja-v1-fp16-v1 --fp16-alignment outputs/deployment/fp16-alignment-v1/alignment.json --method palette --bits 4 --group-size 16 --output artifacts/deployment/tiny-ja-v1-palette4-g16-v1
@@ -151,7 +151,7 @@ python scripts/deployment/coreml.py timing --bundle artifacts/deployment/tiny-ja
 
 ## 4. iPhone：宿主app后进入真实键盘扩展
 
-仓库没有Vime iOS工程。`CoreMLProbe.swift`仅提供加载、tensor预测、fixture分数与物理footprint采样，不是完整键盘/tokenizer/beam实现。Windows没有Apple SDK，Swift尚待你在Xcode编译验证。
+仓库没有Vime iOS工程。`CoreMLProbe.swift`仅提供加载、tensor预测、fixture分数与物理footprint采样，不是完整键盘/tokenizer/beam实现。Windows没有Apple SDK，Swift需在Xcode编译验证。
 
 1. 选一个`model.mlpackage`加入测试宿主app和键盘扩展target，核对Target Membership；Xcode编译为`.mlmodelc`。别把所有实验包带进发行版。保留对应manifest/tokenizer/device-fixtures。
 2. 将Swift辅助加入两个target，在串行后台队列运行，UI只接收建议。先`.cpuOnly`对照fixture，再试`.all`、`.cpuAndNeuralEngine`、`.cpuAndGPU`；每个配置都验证，记录不支持的错误。

@@ -23,4 +23,4 @@
 
 配置 `[tracking] enabled=true, mode="online", project="vimeml"` 时，普通训练入口转入 `train_wandb.py`。TensorBoard 指标同步至 W&B，实际 run ID/URL 写入 `artifacts/tracking/<模型名>-live.json`；checkpoint、语料和代码不上传。恢复会新建同 group 的 run。
 
-正式 V2.0 run 已完成：[`lvfu0bix`](https://wandb.ai/voltline233/vimeml/runs/lvfu0bix)。最终结果见 [评测](evaluation.md)。
+正式 V2.0 run 已完成：W&B本地记录。最终结果见 [评测](evaluation.md)。
