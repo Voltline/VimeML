@@ -1,0 +1,30 @@
+# V2.1 中断检查与迁出
+
+2026-10-07 18:12（北京时间），无卡恢复的旧实例无活动训练进程，`vimeml-v21` 仅剩 dead screen socket。本轮新增产物已全部迁回本地。
+
+## 检查结果
+
+best/last 均为 step=0、epoch=0、batch_cursor=0、total_tokens=0，optimizer state 为空。日志止于初始 validation loss **4.3895957** 与计划 196,852 updates；没有后续 update、progress、metrics 或 summary。
+
+本地加载 last 成功，46 个模型 tensor 与冻结 V2.0 best step375000 完全相同，没有可恢复的已保存训练进度。关机前可能存在未保存的更新，现有文件无法确认或恢复。step 0 不作为新的已训练模型。
+
+## 本地备份
+
+`handoff/vimeml-v21-rescue-20261007.tar.gz`：**93,596,818 bytes**，18 个源文件及清单。内容包括两个 checkpoint、配置/环境/计划、训练日志、TensorBoard、W&B、本轮启动脚本与来源记录。
+
+快照与验证位于 `outputs/autodl-v21-recovery-20261007/{rescue-manifest,verification}.json`，模型位于 `artifacts/models/tiny-ja-v2.1-e16k-d320-l6-continue/`。文件清单与大小通过，checkpoint 可加载；旧实例文件及 V1/V2.0 保持原样。SSH/W&B 凭据不在归档中，日志凭据相关行已去除。
+
+旧 W&B run 为 [`lqlaaktm`](https://wandb.ai/voltline233/vimeml/runs/lqlaaktm)，其本地二进制仅 7 bytes，不能视为包含可补同步的训练历史。
+
+## 迁移材料
+
+| 材料 | 本地位置 |
+| --- | --- |
+| Token store / index / tokenizer / 原候选 | `handoff/vimeml-v2-data.tar.gz`，1,017,407,143 bytes |
+| V2.0 起始权重与结果 | `artifacts/models/tiny-ja-v2.0-e16k-d320-l6/`、`handoff/vimeml-v2-results.tar.gz` |
+| 原 V2.1 来源快照 | `handoff/vimeml-v21-code.tar.gz`、`handoff/source-provenance-v21.json` |
+| 当前代码 | Git 仓库，包含新增 expanded IME reader |
+| 新真实候选 / 复核开发集 | `artifacts/benchmarks/ime-expanded-v21-candidates-v1/`、`ime-dev-label-reviewed-v3/` |
+| 中断记录 | `handoff/vimeml-v21-rescue-20261007.tar.gz` |
+
+实例镜像复用 Python/CUDA 环境；`/root/autodl-tmp` 数据盘仍需迁移或用本地包恢复。编译缓存可重新生成。新实验从冻结 V2.0 best 初始化，使用独立输出、日志及 W&B online run，保持两轮配置和 screen 运行方式。旧 step 0 与 run 归档；当前监控暂停。

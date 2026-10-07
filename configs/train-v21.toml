@@ -1,0 +1,75 @@
+# Two additional data passes from the frozen V2.0 best weights.
+# Interrupted step-zero artifacts are archived; new runs use a fresh output path.
+architecture = "tiny_gpt_v2"
+token_dir = "artifacts/token-data/corpus-v2-16k"
+index_dir = "artifacts/training-data/corpus-v2-c128"
+output_dir = "artifacts/models/tiny-ja-v2.1-e16k-d320-l6-continue"
+log_dir = "runs/training/tiny-ja-v2.1-e16k-d320-l6-continue"
+source_provenance = "handoff/source-provenance-v21.json"
+
+[initialization]
+checkpoint = "artifacts/models/tiny-ja-v2.0-e16k-d320-l6/best.pt"
+
+[runtime]
+compile_backbone = true
+
+[model]
+vocab_size = 16384
+context_length = 128
+d_model = 320
+n_heads = 5
+n_layers = 6
+d_ff = 832
+dropout = 0.0
+norm = "rmsnorm"
+norm_eps = 0.00001
+activation = "swiglu"
+bias = false
+tie_embeddings = true
+position_embedding = "learned"
+
+[training]
+device = "cuda"
+precision = "bf16"
+seed = 42
+cpu_threads = 4
+batch_size = 256
+num_workers = 4
+bucket_multiplier = 64
+gradient_accumulation = 1
+epochs = 2
+data_epoch_offset = 4
+max_steps = 0
+learning_rate = 0.0003
+min_learning_rate = 0.00003
+warmup_steps = 500
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+prefix_crop_probability = 0.30
+prefix_crop_min_remaining_tokens = 8
+log_every = 100
+eval_every = 5000
+eval_batches = 64
+checkpoint_every = 5000
+benchmark_warmup_steps = 100
+validate_full_at_end = true
+validate_full_each_epoch = true
+early_stopping_patience = 2
+early_stopping_min_delta = 0.01
+
+[evaluation]
+tokenizer_dir = "artifacts/tokenizers/ja-unigram-16k-v2"
+
+[evaluation.benchmarks]
+ajimee = "artifacts/benchmarks/ajimee-jwtd-v2-v1"
+development = "artifacts/benchmarks/ime-dev-v2"
+
+[verification]
+mode = "metadata"
+
+[tracking]
+enabled = true
+project = "vimeml"
+mode = "online"

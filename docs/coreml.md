@@ -1,6 +1,6 @@
 # Core ML 部署与实测
 
-当前客户端接入候选为 `artifacts/deployment/tiny-ja-v1-conservative-int8-b32-v1/`：INT8 block32权重、FP32计算、CPU_ONLY、最低iOS18，`.mlpackage` 共8,077,801字节（十进制8.08MB）。训练权重和tokenizer没有改变。以下步骤由使用者手动启动；已有版本不可覆盖，请给复跑结果另起目录。
+当前客户端接入候选为 `artifacts/deployment/tiny-ja-v1-conservative-int8-b32-v1/`：INT8 block32权重、FP32计算、CPU_ONLY、最低iOS18，`.mlpackage` 共8,077,801字节。训练权重和tokenizer冻结；各转换实验使用独立目录。本文记录 V1，V2 尚未验证部署。
 
 ## 模型接口
 
@@ -123,9 +123,9 @@ Mac Python CPU_ONLY报告：reranking411次，p50 18.2ms、p95 21.9ms；beam联�
 
 Mac客户端文档记录的iPhone16 Pro Max优化构建、CPU_ONLY、**测试宿主App进程**：加载首次80ms/再次16ms；T16/T64/T128预测0.67/1.8/3.0ms；约14候选reranking p50 10.4ms/p95 12.7ms；下一词p50 5.8ms；beam8×8 p50 44.5ms。宿主加载增量约24.2MB、宿主峰值74.8MB。这些不是键盘扩展的延迟或内存峰值，Windows未复跑其运行时。
 
-真实键盘扩展有约152.7秒手动输入记录，用户确认LM排序和下一词开启。physical footprint采样峰值21.25MiB，私有驻留采样峰值51.922MiB；两者不可混用。约1秒采样会漏掉短峰值，未取得安装构建／模型哈希，末段仍有缓慢增长。见 [真实扩展报告](reports/mac-20261006/iphone-keyboard-memory.md) 和 [模拟器报告](reports/mac-20261006/simulator-memory.md)。加载增量不能直接证明CPU内部权重布局，也不能推定INT8一定不降低运行内存。
+真实键盘扩展有约152.7秒手动输入记录，操作记录确认LM排序和下一词开启。physical footprint采样峰值21.25MiB，私有驻留采样峰值51.922MiB；两者不可混用。约1秒采样会漏掉短峰值，未取得安装构建／模型哈希，末段仍有缓慢增长。见 [真实扩展报告](reports/mac-20261006/iphone-keyboard-memory.md) 和 [模拟器报告](reports/mac-20261006/simulator-memory.md)。加载增量不能直接证明CPU内部权重布局，也不能推定INT8一定不降低运行内存。
 
-接下来有价值的是手动进行固定构建、记录模型哈希与开关状态的10～15分钟重复输入测试，分开记录冷启动、reranking、下一词、取消、切换宿主与终止情况。本次合并不自动执行。
+长期验收仍缺固定构建下的10～15分钟重复输入记录，范围包括冷启动、reranking、下一词、取消、切换宿主与终止。
 
 ## GPU与ANE实验
 

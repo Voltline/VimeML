@@ -1,6 +1,6 @@
 # Python >=3.11. Install from PyPI after selecting the appropriate PyTorch build.
-# Windows/Linux CUDA 12.8: install torch==2.10.0 from the cu128 index first;
-# then install this file using the default PyPI index. See docs/training.md.
+# Local CUDA 12.8: install torch==2.10.0 from the cu128 index first;
+# then install this file using PyPI. AutoDL uses requirements-autodl.txt.
 numpy>=2,<3; sys_platform != "darwin"
 # Core ML Tools 9.0's Torch scalar casts are incompatible with NumPy 2.4+.
 numpy==2.3.5; sys_platform == "darwin"

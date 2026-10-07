@@ -34,7 +34,7 @@ def write_json(path, value):
     temporary.replace(path)
 
 
-def prepare_split(token_dir, index_dir, split, context_length, manifest_sha):
+def prepare_split(token_dir, index_dir, split, context_length, manifest_sha, verification="sha256"):
     """Scan offsets in chunks; only long sentences require index entries."""
     with TokenStore(token_dir, split) as store:
         count = len(store)
@@ -42,10 +42,11 @@ def prepare_split(token_dir, index_dir, split, context_length, manifest_sha):
             raise ValueError(f"Empty split: {split}")
         metadata = store.manifest["splits"][split]
         # Verify only files consumed by training, in parallel across splits.
-        for suffix in ("tokens.bin", "offsets.bin", "sources.bin"):
-            name = f"{split}.{suffix}"
-            if file_sha(token_dir / name) != store.manifest["output_sha256"][name]:
-                raise ValueError(f"Token data hash mismatch: {name}")
+        if verification == "sha256":
+            for suffix in ("tokens.bin", "offsets.bin", "sources.bin"):
+                name = f"{split}.{suffix}"
+                if file_sha(token_dir / name) != store.manifest["output_sha256"][name]:
+                    raise ValueError(f"Token data hash mismatch: {name}")
         if (token_dir / f"{split}.sources.bin").stat().st_size != count:
             raise ValueError(f"Invalid source index size: {split}")
         offsets = np.memmap(token_dir / f"{split}.offsets.bin", mode="r", dtype="<u8")
@@ -90,9 +91,11 @@ def prepare_split(token_dir, index_dir, split, context_length, manifest_sha):
                 "index_sha256": file_sha(path), "token_manifest_sha256": manifest_sha}
 
 
-def prepare_indexes(token_dir, index_dir, context_length=128):
+def prepare_indexes(token_dir, index_dir, context_length=128, verification="sha256"):
     if not isinstance(context_length, int) or context_length < 1:
         raise ValueError("context_length must be a positive integer.")
+    if verification not in {"sha256", "metadata"}:
+        raise ValueError("verification must be sha256 or metadata.")
     token_dir, index_dir = Path(token_dir), Path(index_dir)
     manifest_sha = file_sha(token_dir / "manifest.json")
     manifest_path = index_dir / "manifest.json"
@@ -103,19 +106,22 @@ def prepare_indexes(token_dir, index_dir, context_length=128):
                     "complete", "vimeml_sentence_windows_v1", context_length, manifest_sha):
             raise ValueError("Index directory belongs to a different dataset/context; use a new directory.")
         for split in SPLITS:
-            if file_sha(index_dir / f"{split}.windows.npz") != cached["splits"][split]["index_sha256"]:
+            path = index_dir / f"{split}.windows.npz"
+            if (path.stat().st_size != cached["splits"][split]["index_bytes"] or
+                    (verification == "sha256" and file_sha(path) != cached["splits"][split]["index_sha256"])):
                 raise ValueError(f"Window index hash mismatch: {split}")
         return cached
     index_dir.mkdir(parents=True, exist_ok=True)
-    print("Preparing window indexes and verifying token hashes (3 parallel splits)...", flush=True)
+    print(f"Preparing window indexes (3 parallel splits; {verification} verification)...", flush=True)
     with ThreadPoolExecutor(max_workers=3) as pool:
         jobs = {split: pool.submit(prepare_split, token_dir, index_dir, split,
-                                  context_length, manifest_sha) for split in SPLITS}
+                                  context_length, manifest_sha, verification) for split in SPLITS}
         splits = {split: future.result() for split, future in jobs.items()}
     if file_sha(token_dir / "manifest.json") != manifest_sha:
         raise ValueError("Token manifest changed during preparation.")
     result = {"status": "complete", "format": "vimeml_sentence_windows_v1",
               "context_length": context_length, "token_manifest_sha256": manifest_sha,
+              "token_file_verification": verification,
               "policy": "Separate sentences; nonoverlapping target windows; one shared input token at each boundary; no prediction pair discarded.",
               "splits": splits}
     write_json(manifest_path, result)
@@ -235,6 +241,9 @@ def collate_arrays(samples, pad_id=0, pad_multiple=8):
     batch = {"input_ids": inputs, "labels": labels, "attention_mask": mask, "lengths": lengths}
     for name in ("sentence_index", "window_start", "source_id"):
         batch[name] = np.array([s[name] for s in samples], dtype=np.int64)
+    for name in ("original_window_start", "crop_offset", "uncropped_length", "sample_index", "sample_epoch"):
+        if name in samples[0]:
+            batch[name] = np.array([s[name] for s in samples], dtype=np.int64)
     return batch
 
 
@@ -289,6 +298,8 @@ class LengthBucketBatchSampler:
         self.epoch, self.start_batch = int(epoch), int(start_batch)
         if hasattr(self.sampler, "set_epoch"):
             self.sampler.set_epoch(epoch)
+        if hasattr(self.dataset, "set_epoch"):
+            self.dataset.set_epoch(self.epoch)
 
     def __len__(self):
         return max(0, (len(self.sampler) + self.batch_size - 1) // self.batch_size - self.start_batch)
@@ -304,7 +315,7 @@ class LengthBucketBatchSampler:
             rng.shuffle(batches)
             for batch in batches:
                 if cursor >= self.start_batch:
-                    yield batch
+                    yield [(self.epoch, index) for index in batch] if getattr(self.dataset, "epoch_indexed", False) else batch
                 cursor += 1
 
 
@@ -320,6 +331,8 @@ def make_loader(dataset, batch_size=128, num_workers=4, seed=42, shuffle=None, p
         raise ValueError("Use explicit indices or shuffle, not both.")
     if start_batch and not bucket_multiplier:
         raise ValueError("Resume cursor requires bucketed batching.")
+    if getattr(dataset, "epoch_indexed", False) and not bucket_multiplier:
+        raise ValueError("Prefix crop requires epoch-tagged bucket batching.")
     sampler = indices if indices is not None else (BlockShuffleSampler(len(dataset), seed) if shuffle else None)
     dataset._open()
     pad_id = dataset._store.manifest["special_ids"]["pad"]

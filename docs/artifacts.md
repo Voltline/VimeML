@@ -36,6 +36,20 @@
 
 ## 迁移清单
 
+### AutoDL V2 训练
+
+| 路径 | 内容 |
+| --- | --- |
+| `handoff/vimeml-v2-data.tar.gz` | V2 token store、索引、tokenizer、原候选；1.017 GB |
+| `artifacts/models/tiny-ja-v2.0-e16k-d320-l6/best.pt` | 冻结 step375000，V2.1 初始化权重 |
+| `artifacts/benchmarks/ime-expanded-v21-candidates-v1/` | 新 3,000 条真实候选及草稿标签 |
+| `artifacts/benchmarks/ime-dev-label-reviewed-v3/` | 135 条复核标签及原候选 |
+| `handoff/vimeml-v21-rescue-20261007.tar.gz` | 中断于 step0 的 V2.1 checkpoint 与日志；93.6 MB |
+
+实例镜像用于复用系统盘上的环境和代码，`/root/autodl-tmp` 数据盘不随镜像保存。数据通过数据盘迁移或本地归档恢复；训练不需要原 corpus JSONL。旧 V1/V2.0 指纹与原代码快照保持冻结，当前 Git 源码整理不改写它们。详见 [V2.1 迁出记录](reports/v2-20261007/v21-recovery.md)。
+
+### V1 推理与 Core ML
+
 只做 PyTorch 推理：
 
 ```text

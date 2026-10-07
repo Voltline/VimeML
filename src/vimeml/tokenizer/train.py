@@ -28,6 +28,14 @@ PROBES = [
     "𠮷野家でコーヒー☕を飲む🙂", " leading  spaces trailing ",
     "tab\there", "<pad> <unk> <s> </s>", "",
 ]
+IME_PROBES = [
+    ("昨日友達と", "話した"),
+    ("私は", "学校に行きます"),
+    ("明日の", "天気"),
+    ("東京", "大学"),
+    ("iPhone ", "16"),
+    ("", "ありがとうございます"),
+]
 
 
 def file_sha(path):
@@ -71,6 +79,8 @@ def validate(settings):
         raise ValueError("seed must be a uint32 integer.")
     if settings["byte_fallback"] is not True or settings["normalization_rule_name"] != "identity" or settings["remove_extra_whitespaces"] is not False:
         raise ValueError("This baseline requires byte fallback, identity normalization and preserved whitespace.")
+    if type(settings.get("add_dummy_prefix", True)) is not bool:
+        raise ValueError("add_dummy_prefix must be a boolean.")
 
 
 def preflight(train_path, settings, expected, progress=None):
@@ -105,6 +115,17 @@ def example(processor, text):
     ids = processor.encode(text, out_type=int)
     return {"text": text, "pieces": processor.encode(text, out_type=str), "ids": ids,
             "decoded": processor.decode(ids), "roundtrip_ok": processor.decode(ids) == text}
+
+
+def ime_example(processor, context, candidate):
+    joint = example(processor, context + candidate)
+    left = example(processor, context)
+    right = example(processor, candidate)
+    separate_ids = left["ids"] + right["ids"]
+    return {"context": context, "candidate": candidate, "joint": joint,
+            "context_alone": left, "candidate_alone": right,
+            "separate_ids": separate_ids, "boundary_difference": joint["ids"] != separate_ids,
+            "policy": "Diagnostic only; candidate scoring continues to use joint tokenization."}
 
 
 def range_sentences(path, start, end):
@@ -279,6 +300,9 @@ def run(config_path, output_override=None, vocab_override=None, dry_run=False):
     if vocab_override is not None:
         settings["vocab_size"] = vocab_override
     validate(settings)
+    verification_mode = config.get("verification", {}).get("mode", "sha256")
+    if verification_mode not in {"sha256", "metadata"}:
+        raise ValueError("verification.mode must be sha256 or metadata.")
     measurement = {"workers":1,"batch_size":4096,**config.get("measurement",{})}
     for name in ("workers","batch_size"):
         if type(measurement[name]) is not int or measurement[name] < 1:
@@ -294,6 +318,8 @@ def run(config_path, output_override=None, vocab_override=None, dry_run=False):
     if output.exists() and (not output.is_dir() or any(output.iterdir())):
         raise FileExistsError(f"Output must be absent or empty: {output}")
     plan = {"corpus":str(corpus),"output":str(output),"vocab_size":settings["vocab_size"],
+            "add_dummy_prefix": settings.get("add_dummy_prefix", True),
+            "input_verification": verification_mode,
             "available_train_sentences":corpus_stats["splits"]["train"]["sentences"],
             "sampled_training_sentences":min(settings["input_sentence_size"] or corpus_stats["splits"]["train"]["sentences"],corpus_stats["splits"]["train"]["sentences"]),
             "sample_policy":"SentencePiece seeded random sampling across train.txt" if settings["input_sentence_size"] else "all train.txt",
@@ -309,10 +335,28 @@ def run(config_path, output_override=None, vocab_override=None, dry_run=False):
     output.mkdir(parents=True, exist_ok=True)
     with RunMonitor(output,Path(plan["tensorboard"]["log_dir"]),plan["tensorboard"]["enabled"]) as monitor:
         monitor.update("checking_inputs")
-        print("[inputs] Hashing local corpus files...",flush=True)
-        hashes = hash_inputs(input_paths + provenance_paths)
-        train_check = preflight(input_paths[0], settings, corpus_stats["splits"]["train"],
-            lambda done,total:monitor.update("checking_inputs",preflight_completed_sentences=done,preflight_total_sentences=total))
+        all_inputs = input_paths + provenance_paths
+        input_metadata = {str(path): {"bytes": path.stat().st_size, "mtime_ns": path.stat().st_mtime_ns}
+                          for path in all_inputs}
+        if verification_mode == "sha256":
+            print("[inputs] Hashing local corpus files...",flush=True)
+            hashes = hash_inputs(all_inputs)
+            train_check = preflight(input_paths[0], settings, corpus_stats["splits"]["train"],
+                lambda done,total:monitor.update("checking_inputs",preflight_completed_sentences=done,preflight_total_sentences=total))
+        else:
+            # Reuse the frozen corpus export hashes without rescanning its TXT files.
+            report = json.loads((corpus / "integrity-check.json").read_text(encoding="utf-8"))
+            hashes = hash_inputs(provenance_paths)
+            if report.get("status") != "passed" or hashes[str(corpus / "manifest.json")] != report["manifest_sha256"]:
+                raise ValueError("Corpus metadata does not match the recorded integrity report.")
+            for split, path in zip(SPLITS, input_paths, strict=True):
+                recorded = report["exports"][path.name]
+                if input_metadata[str(path)]["bytes"] != recorded["bytes"] or recorded["lines"] != corpus_stats["splits"][split]["sentences"]:
+                    raise ValueError(f"{split} metadata differs from the recorded corpus.")
+                hashes[str(path)] = recorded["sha256"]
+            train_check = {"mode": "metadata", **corpus_stats["splits"]["train"],
+                           "full_preflight_skipped": True}
+            print("[inputs] Using recorded corpus hashes and file sizes; skipping full preflight and repeated SHA256 scans.", flush=True)
         progress = monitor.update
         progress("training",sampled_training_sentences=plan["sampled_training_sentences"])
         model_prefix = output / "tokenizer"
@@ -323,7 +367,7 @@ def run(config_path, output_override=None, vocab_override=None, dry_run=False):
                 "normalization_rule_name", "remove_extra_whitespaces", "num_threads", "max_sentence_length",
             )},
             "input_sentence_size": settings["input_sentence_size"], "shuffle_input_sentence": settings["input_sentence_size"] > 0, "hard_vocab_limit": True,
-            "add_dummy_prefix": True, "escape_whitespaces": True,
+            "add_dummy_prefix": settings.get("add_dummy_prefix", True), "escape_whitespaces": True,
             **{f"{name}_id": value for name, value in SPECIAL_IDS.items()},
         }
         print(f"[train] Sample up to {plan['sampled_training_sentences']:,} of {train_check['sentences']:,} train sentences; threads={settings['num_threads']}", flush=True)
@@ -335,6 +379,16 @@ def run(config_path, output_override=None, vocab_override=None, dry_run=False):
         if any(getattr(processor, f"{name}_id")() != value for name, value in SPECIAL_IDS.items()):
             raise ValueError("Special token IDs differ from the configured IDs.")
         probe_results = [example(processor, text) for text in PROBES]
+        ime_results = [ime_example(processor, context, candidate) for context, candidate in IME_PROBES]
+        from sentencepiece import sentencepiece_model_pb2
+        model_proto = sentencepiece_model_pb2.ModelProto.FromString(model_path.read_bytes())
+        actual_dummy_prefix = model_proto.normalizer_spec.add_dummy_prefix
+        if actual_dummy_prefix != options["add_dummy_prefix"]:
+            raise ValueError("Trained tokenizer dummy prefix differs from configuration.")
+        start_probes = [item for item in probe_results if item["text"] and not item["text"][0].isspace()]
+        artificial_start_markers = sum(bool(item["pieces"] and item["pieces"][0].startswith("▁")) for item in start_probes)
+        if not actual_dummy_prefix and artificial_start_markers:
+            raise ValueError("Unexpected whitespace marker at an ordinary sentence start.")
         byte_ids = {i for i in range(processor.get_piece_size()) if processor.is_byte(i)}
         progress("measuring",workers=measurement["workers"])
         split_stats, samples = measure_parallel(model_path,input_paths,measurement["workers"],measurement["batch_size"],
@@ -343,15 +397,27 @@ def run(config_path, output_override=None, vocab_override=None, dry_run=False):
                  "byte_piece_count": len(byte_ids), "training_preflight": train_check,
                  "sampled_training_sentences":plan["sampled_training_sentences"],"splits": split_stats}
         dump_json(output / "stats.json", stats)
-        dump_json(output / "examples.json", {"probes": probe_results, "corpus_samples": samples})
+        dump_json(output / "examples.json", {"probes": probe_results, "ime_probes": ime_results, "corpus_samples": samples})
         dump_json(output / "config.json", {"config": config, "effective_training": settings, "trainer_options": options})
         if any(not item["roundtrip_ok"] or processor.unk_id() in item["ids"] for item in probe_results):
             raise ValueError("Probe roundtrip or unknown-token check failed; inspect examples.json.")
         if any(item["unknown_tokens"] or item["roundtrip_mismatches"] for item in split_stats.values()):
             raise ValueError("Corpus unknown-token/roundtrip check failed; inspect stats.json.")
+        validation_report = {"status": "passed", "vocab_size": processor.get_piece_size(),
+            "add_dummy_prefix": actual_dummy_prefix, "special_ids": SPECIAL_IDS,
+            "ordinary_sentence_start_probes": len(start_probes),
+            "ordinary_sentence_start_whitespace_markers": artificial_start_markers,
+            "ime_boundary_difference_count": sum(item["boundary_difference"] for item in ime_results),
+            "ime_probes": ime_results, "splits": split_stats}
+        dump_json(output / "validation.json", validation_report)
         progress("verifying_inputs")
-        if hash_inputs(input_paths + provenance_paths) != hashes:
-            raise ValueError("Inputs changed during tokenizer training.")
+        if verification_mode == "sha256":
+            if hash_inputs(all_inputs) != hashes:
+                raise ValueError("Inputs changed during tokenizer training.")
+        elif any(path.stat().st_size != input_metadata[str(path)]["bytes"] or
+                 path.stat().st_mtime_ns != input_metadata[str(path)]["mtime_ns"] for path in all_inputs):
+            raise ValueError("Input file metadata changed during tokenizer training.")
+        model_digest = file_sha(model_path)
         dump_json(output / "manifest.json", {
             "status": "complete", "purpose": "SentencePiece tokenizer fitted on train only",
             "corpus_ready_for_lm_training": corpus_manifest.get("ready_for_lm_training", False),
@@ -361,15 +427,19 @@ def run(config_path, output_override=None, vocab_override=None, dry_run=False):
             "corpus_quality_mode": corpus_manifest.get("quality_mode"),
             "sentencepiece_version": spm.__version__, "python_version": sys.version, "platform": platform.platform(),
             "input_sha256": hashes, "script_sha256": file_sha(Path(__file__).resolve()),
+            "input_verification": {"mode": verification_mode,
+                "corpus_txt_hashes": "computed_before_and_after" if verification_mode == "sha256" else "reused_from_integrity-check.json; not recomputed",
+                "input_metadata": input_metadata, "full_preflight": verification_mode == "sha256"},
             "code_sha256":{name:file_sha(Path(__file__).with_name(name)) for name in ("train.py","native_train.py","monitor.py")},
-            "model_sha256": file_sha(model_path), "vocab_sha256": file_sha(model_prefix.with_suffix(".vocab")),
+            "model_sha256": model_digest, "vocab_sha256": file_sha(model_prefix.with_suffix(".vocab")),
+            "add_dummy_prefix": actual_dummy_prefix,
             "effective_training": settings, "special_ids": SPECIAL_IDS,
             "measurement":measurement,
             "reproducibility": "Pinned library and seed; random sampling uses the recorded full train input. Multithreading/platform changes can change learned IDs; preserve the model artifact and hashes for exact reuse.",
             "sequence_policy": "Statistics exclude special tokens; +2 counts hypothetical BOS/EOS per sentence. No token sequences or LM training data are packed here.",
         })
         monitor.final_statistics(split_stats)
-        progress("complete",model_sha256=file_sha(model_path))
+        progress("complete",model_sha256=model_digest)
         print(json.dumps(stats, ensure_ascii=False, indent=2))
         print(f"Tokenizer: {output}")
         return stats

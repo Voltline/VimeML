@@ -6,7 +6,6 @@ import json
 import math
 import os
 import shutil
-import struct
 import sys
 import time
 from array import array
@@ -62,7 +61,8 @@ def encode_part(job):
     special = {bos,eos,unk,pad}
     count = total = content = characters = longest = 0
     sources = Counter()
-    text_digest = hashlib.sha256()
+    verify_content = job.get('verification','sha256') == 'sha256'
+    text_digest = hashlib.sha256() if verify_content else None
     with Path(job['input']).open('rb') as rows, \
             files['tokens.bin'].open('wb') as tokens, files['offsets.bin'].open('wb') as offsets, \
             files['rows.bin'].open('wb') as positions, files['sources.bin'].open('wb') as source_ids:
@@ -81,7 +81,7 @@ def encode_part(job):
                 text = row['text']
                 if not isinstance(text,str) or not text or '\n' in text or '\r' in text:
                     raise ValueError(f"Invalid text: {job['name']} at byte {position}")
-                if hashlib.sha256(text.encode('utf-8')).hexdigest()!=row['text_hash']:
+                if verify_content and hashlib.sha256(text.encode('utf-8')).hexdigest()!=row['text_hash']:
                     raise ValueError(f"Text hash mismatch: {job['name']} at byte {position}")
                 if row['source'] not in job['source_ids']:
                     raise ValueError(f"Unknown source: {row['source']}")
@@ -90,11 +90,11 @@ def encode_part(job):
             if not batch: break
             texts = [row['text'] for row in batch]
             encoded = processor.encode(texts,out_type=int,num_threads=1)
-            decoded = processor.decode(encoded,num_threads=1)
+            decoded = processor.decode(encoded,num_threads=1) if verify_content else [None]*len(encoded)
             batch_tokens,batch_offsets,byte_sources = [],[],bytearray()
             for row,ids,restored in zip(batch,encoded,decoded,strict=True):
                 text = row['text']
-                if restored!=text or any(token in special for token in ids):
+                if (verify_content and restored!=text) or any(token in special for token in ids):
                     raise ValueError(f"Roundtrip or special token error: {job['name']} row {count}")
                 batch_tokens.extend((bos,*ids,eos))
                 total += len(ids)+2
@@ -105,7 +105,8 @@ def encode_part(job):
                 longest = max(longest,len(ids)+2)
                 sources[row['source']] += 1
                 byte_sources.append(job['source_ids'][row['source']])
-                text_digest.update((text+'\n').encode('utf-8'))
+                if text_digest is not None:
+                    text_digest.update((text+'\n').encode('utf-8'))
             write_numbers(tokens,'H',batch_tokens)
             write_numbers(offsets,'Q',batch_offsets)
             write_numbers(positions,'Q',byte_positions)
@@ -116,8 +117,8 @@ def encode_part(job):
     result = {'name':job['name'],'signature':job['signature'],'split':job['split'],
               'start':job['start'],'end':job['end'],'sentences':count,'stored_tokens':total,
               'content_tokens':content,'characters':characters,'max_sequence_tokens':longest,
-              'primary_sources':dict(sources),'canonical_txt_sha256':text_digest.hexdigest(),
-              'files':{suffix:{'bytes':path.stat().st_size,'sha256':file_sha(path)}
+              'primary_sources':dict(sources),'canonical_txt_sha256':text_digest.hexdigest() if text_digest is not None else None,
+              'files':{suffix:{'bytes':path.stat().st_size,**({'sha256':file_sha(path)} if verify_content else {})}
                        for suffix,path in files.items() if suffix!='done.json'}}
     dump_json(files['done.json'],result)
     return result
@@ -131,12 +132,13 @@ def cached_part(job):
         raise ValueError('Cached part belongs to a different encoding run.')
     for suffix,expected in result['files'].items():
         path = files[suffix]
-        if not path.is_file() or path.stat().st_size!=expected['bytes'] or file_sha(path)!=expected['sha256']:
+        if (not path.is_file() or path.stat().st_size!=expected['bytes'] or
+                (job.get('verification','sha256') == 'sha256' and file_sha(path)!=expected['sha256'])):
             raise ValueError(f'Cached part is damaged: {path}; preserve evidence and use a new output directory.')
     return result
 
 
-def make_jobs(corpus,model,parts,source_ids,batch_size,chunk_bytes,signature):
+def make_jobs(corpus,model,parts,source_ids,batch_size,chunk_bytes,signature,verification='sha256'):
     jobs = []
     for split in SPLITS:
         path = corpus/f'{split}.jsonl'
@@ -146,7 +148,7 @@ def make_jobs(corpus,model,parts,source_ids,batch_size,chunk_bytes,signature):
             jobs.append({'name':f'{split}-{index:05d}','split':split,'input':str(path),
                          'start':size*index//partitions,'end':size*(index+1)//partitions,
                          'model':str(model),'parts':str(parts),'source_ids':source_ids,
-                         'batch_size':batch_size,'signature':signature})
+                         'batch_size':batch_size,'signature':signature,'verification':verification})
     return jobs
 
 
@@ -186,12 +188,13 @@ def collect_parts(jobs,workers,monitor,total_rows):
     return results
 
 
-def merge_split(corpus,output,split,jobs,results,expected,monitor,done_before,total_rows):
+def merge_split(corpus,output,split,jobs,results,expected,monitor,done_before,total_rows,verification='sha256'):
     counts = Counter()
     sources = Counter()
     longest = 0
     target = {suffix:output/f'{split}.{suffix}' for suffix in ('tokens.bin','offsets.bin','rows.bin','sources.bin')}
-    with (corpus/f'{split}.txt').open(encoding='utf-8') as text, \
+    text_context = (corpus/f'{split}.txt').open(encoding='utf-8') if verification == 'sha256' else contextlib.nullcontext(None)
+    with text_context as text, \
             target['tokens.bin'].open('wb') as tokens,target['offsets.bin'].open('wb') as offsets, \
             target['rows.bin'].open('wb') as positions,target['sources.bin'].open('wb') as source_ids:
         write_numbers(offsets,'Q',[0])
@@ -199,13 +202,14 @@ def merge_split(corpus,output,split,jobs,results,expected,monitor,done_before,to
             result = results[job['name']]
             files = part_paths(job)
             # Match every source TXT row, including exact whitespace, in order.
-            digest = hashlib.sha256()
-            for _ in range(result['sentences']):
-                line = text.readline()
-                if not line: raise ValueError(f'{split}: TXT has fewer rows than JSONL.')
-                digest.update((line.removesuffix('\n')+'\n').encode('utf-8'))
-            if digest.hexdigest()!=result['canonical_txt_sha256']:
-                raise ValueError(f"{split}: TXT/JSONL alignment mismatch in {job['name']}")
+            if text is not None:
+                digest = hashlib.sha256()
+                for _ in range(result['sentences']):
+                    line = text.readline()
+                    if not line: raise ValueError(f'{split}: TXT has fewer rows than JSONL.')
+                    digest.update((line.removesuffix('\n')+'\n').encode('utf-8'))
+                if digest.hexdigest()!=result['canonical_txt_sha256']:
+                    raise ValueError(f"{split}: TXT/JSONL alignment mismatch in {job['name']}")
             for suffix,stream in [('tokens.bin',tokens),('rows.bin',positions),('sources.bin',source_ids)]:
                 with files[suffix].open('rb') as source: shutil.copyfileobj(source,stream,1024*1024)
             with files['offsets.bin'].open('rb') as source:
@@ -228,7 +232,7 @@ def merge_split(corpus,output,split,jobs,results,expected,monitor,done_before,to
             done = done_before+counts['sentences']
             print(f'[merge] {done:,}/{total_rows:,} sentences',flush=True)
             monitor.update('merging',completed_sentences=done,total_sentences=total_rows)
-        if text.readline(): raise ValueError(f'{split}: TXT has more rows than JSONL.')
+        if text is not None and text.readline(): raise ValueError(f'{split}: TXT has more rows than JSONL.')
     for field,key in [('sentences','sentences'),('characters','characters'),
                       ('content_tokens','tokens_without_special_tokens'),('stored_tokens','tokens_with_bos_eos_per_sentence')]:
         if counts[field]!=expected[key]: raise ValueError(f'{split}: {field} differs from tokenizer stats.')
@@ -246,10 +250,12 @@ def recorded_hash(manifest,name):
     return matches[0]
 
 
-def run(corpus,tokenizer,output,workers=8,batch_size=1024,chunk_mib=128,resume=False,dry_run=False):
+def run(corpus,tokenizer,output,workers=8,batch_size=1024,chunk_mib=128,resume=False,dry_run=False,verification='sha256'):
     import sentencepiece as spm
     for name,value in [('workers',workers),('batch_size',batch_size),('chunk_mib',chunk_mib)]:
         if type(value) is not int or value<1: raise ValueError(f'{name} must be a positive integer.')
+    if verification not in {'sha256','metadata'}:
+        raise ValueError('verification must be sha256 or metadata.')
     corpus,tokenizer,output = (Path(p).resolve() for p in (corpus,tokenizer,output))
     model = tokenizer/'tokenizer.model'
     cm = json.loads((corpus/'manifest.json').read_text(encoding='utf-8'))
@@ -276,7 +282,7 @@ def run(corpus,tokenizer,output,workers=8,batch_size=1024,chunk_mib=128,resume=F
     plan = {'corpus':str(corpus),'tokenizer':str(tokenizer),'output':str(output),'workers':workers,
             'native_threads_per_worker':1,'batch_size':batch_size,'chunk_mib':chunk_mib,
             'sentences':total_rows,'estimated_binary_bytes':estimated,'estimated_peak_binary_bytes':estimated*2,
-            'source_ids':source_ids,'resume':resume,'dry_run':dry_run,'encoding_started':False,
+            'source_ids':source_ids,'resume':resume,'dry_run':dry_run,'encoding_started':False,'verification':verification,
             'tensorboard_log_root':str(ROOT/'runs/tokenizer'/f'{output.name}-encode')}
     print(json.dumps(plan,ensure_ascii=False,indent=2),flush=True)
     if dry_run: return plan
@@ -295,31 +301,48 @@ def run(corpus,tokenizer,output,workers=8,batch_size=1024,chunk_mib=128,resume=F
             paths = [corpus/f'{split}.{suffix}' for split in SPLITS for suffix in ('txt','jsonl')]
             paths += [corpus/'manifest.json',corpus/'stats.json',model,tokenizer/'manifest.json',tokenizer/'stats.json']
             paths += [Path(__file__).with_name(name) for name in ('encode_parallel.py','encode.py','monitor.py','train.py')]
-            print('[inputs] Hashing corpus and tokenizer files...',flush=True)
-            hashes = hash_inputs(paths)
+            input_metadata = {str(path):{'bytes':path.stat().st_size,'mtime_ns':path.stat().st_mtime_ns} for path in paths}
+            if verification == 'sha256':
+                print('[inputs] Hashing corpus and tokenizer files...',flush=True)
+                hashes = hash_inputs(paths)
+            else:
+                report = json.loads((corpus/'integrity-check.json').read_text(encoding='utf-8'))
+                hashes = hash_inputs(paths[6:])
+                if report.get('status')!='passed' or hashes[str(corpus/'manifest.json')]!=report['manifest_sha256']:
+                    raise ValueError('Corpus metadata differs from its integrity report.')
+                for path in paths[:6]:
+                    recorded = report['exports'][path.name]
+                    if input_metadata[str(path)]['bytes']!=recorded['bytes']:
+                        raise ValueError(f'Corpus file size differs from the recorded export: {path.name}')
+                    hashes[str(path)] = recorded['sha256']
+                print('[inputs] Reusing recorded corpus hashes; skipping per-row hashes, repeated roundtrip and full input SHA256 scans.',flush=True)
             for name in ('train.txt','validation.txt','test.txt','manifest.json','stats.json'):
                 if hashes[str(corpus/name)]!=recorded_hash(tm,name): raise ValueError(f'Corpus changed since tokenizer training: {name}')
             signature = hashlib.sha256(json.dumps({'inputs':hashes,'batch_size':batch_size,'chunk_mib':chunk_mib,
-                'source_ids':source_ids,'code_sha256':file_sha(Path(__file__))},sort_keys=True).encode()).hexdigest()
+                'source_ids':source_ids,'verification':verification,'code_sha256':file_sha(Path(__file__))},sort_keys=True).encode()).hexdigest()
             request = output/'run.json'
             if resume:
                 if not request.is_file() or json.loads(request.read_text(encoding='utf-8'))['signature']!=signature:
                     raise ValueError('Resume inputs or encoding parameters changed; use the original parameters or a new output directory.')
-            else: dump_json(request,{'signature':signature,'plan':plan,'input_sha256':hashes})
+            else: dump_json(request,{'signature':signature,'plan':plan,'input_sha256':hashes,'input_metadata':input_metadata})
             parts = output/'.parts'
             parts.mkdir(exist_ok=True)
-            jobs = make_jobs(corpus,model,parts,source_ids,batch_size,chunk_mib*1024*1024,signature)
+            jobs = make_jobs(corpus,model,parts,source_ids,batch_size,chunk_mib*1024*1024,signature,verification)
             results = collect_parts(jobs,workers,monitor,total_rows)
             exported = {}
             done = 0
             for split in SPLITS:
                 selected = [job for job in jobs if job['split']==split]
-                exported[split] = merge_split(corpus,output,split,selected,results,stats['splits'][split],monitor,done,total_rows)
+                exported[split] = merge_split(corpus,output,split,selected,results,stats['splits'][split],monitor,done,total_rows,verification)
                 if exported[split]['primary_sources']!=cs['splits'][split]['primary_sources']:
                     raise ValueError(f'{split}: primary source counts differ from corpus stats.')
                 done += exported[split]['sentences']
             monitor.update('verifying_inputs')
-            if hash_inputs(paths)!=hashes: raise ValueError('Inputs changed during encoding.')
+            if verification == 'sha256':
+                if hash_inputs(paths)!=hashes: raise ValueError('Inputs changed during encoding.')
+            elif any(path.stat().st_size!=input_metadata[str(path)]['bytes'] or
+                     path.stat().st_mtime_ns!=input_metadata[str(path)]['mtime_ns'] for path in paths):
+                raise ValueError('Input file metadata changed during encoding.')
             dump_json(output/'stats.json',{'splits':exported})
             artifacts = [output/f'{split}.{suffix}' for split in SPLITS for suffix in ('tokens.bin','offsets.bin','rows.bin','sources.bin')]
             artifacts += [output/'stats.json']
@@ -338,6 +361,11 @@ def run(corpus,tokenizer,output,workers=8,batch_size=1024,chunk_mib=128,resume=F
                 'prediction_policy':'x=s[:-1], y=s[1:]; sentence boundaries remain separate.',
                 'provenance_policy':'Index equals zero-based corpus JSONL/TXT row. rows.bin stores uint64 little-endian byte positions in the source JSONL; sources.bin stores uint8 primary source IDs. Full original metadata stays in corpus JSONL.',
                 'corpus_dir':str(corpus),'tokenizer_dir':str(tokenizer),'input_sha256':hashes,'output_sha256':artifact_hashes,
+                'input_verification':{'mode':verification,'corpus_hashes':'reused from integrity-check.json' if verification=='metadata' else 'computed before and after',
+                    'row_text_hashes_checked':verification=='sha256','roundtrip_checked_during_encoding':verification=='sha256',
+                    'txt_jsonl_alignment_checked_during_merge':verification=='sha256',
+                    'roundtrip_source':'tokenizer full-corpus acceptance' if verification=='metadata' else 'all encoded JSONL rows',
+                    'output_hashes':'computed once after merge','input_metadata':input_metadata},
                 'corpus_quality_mode':cm.get('quality_mode'),'corpus_ready_for_lm_training':tm.get('corpus_ready_for_lm_training',False),
                 'purpose':'Full token data for the accepted first corpus baseline; known extraction and near-duplicate limitations remain.',
                 'workers':workers,'native_threads_per_worker':1,'signature':signature,
@@ -358,8 +386,10 @@ def main():
     parser.add_argument('--chunk-mib',type=int,default=128)
     parser.add_argument('--resume',action='store_true')
     parser.add_argument('--dry-run',action='store_true')
+    parser.add_argument('--verification',choices=('sha256','metadata'),default='sha256',
+                        help='metadata reuses frozen corpus fingerprints and skips repeated full checks.')
     args = parser.parse_args()
-    run(args.corpus,args.tokenizer,args.output,args.workers,args.batch_size,args.chunk_mib,args.resume,args.dry_run)
+    run(args.corpus,args.tokenizer,args.output,args.workers,args.batch_size,args.chunk_mib,args.resume,args.dry_run,args.verification)
 
 
 if __name__=='__main__': main()

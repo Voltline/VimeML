@@ -1,0 +1,53 @@
+# Expanded benchmark contract; not a training configuration.
+# Actual candidate import and development scoring status: [prepared_inputs].
+format = "vimeml_ime_benchmark_plan_v1"
+output_dir = "artifacts/benchmarks/ime-expanded-v21"
+seed = 20261007
+minimum_valid_cases = 3000
+development_cases = 2000
+blind_cases = 1000
+exclude_existing_sets = ["ajimee-jwtd-v2-v1", "ime-dev-v2"]
+labels = "Reviewed Japanese IME inputs; all acceptable same-reading surfaces"
+label_review = "Independent reading/context review; ambiguous cases quarantined"
+split_unit = "Source sentence/context family; duplicates never cross splits"
+selection = "Model-independent stratified sampling; no LM-error-based filtering"
+blind_access = "Freeze before model selection; evaluate once after dev selection"
+
+[stratification]
+left_context_characters = [0, 16, 32, 64, 128]
+reading_characters = [1, 8, 16, 32, 64]
+candidate_counts = [1, 5, 10, 20]
+surfaces = ["homophones", "particles", "inflections", "names", "mixed_script", "long_phrases"]
+
+[candidates]
+engine = "AzooKey CLI with default dictionaries"
+n_best = 20
+typo_mode = false
+zenzai = false
+same_pool_for_all_models = true
+provenance = "Freeze converter/dictionary revisions and flags with exports"
+current_export_host = "Mac; exporter used by the frozen existing benchmarks"
+
+[scoring]
+primary = "lm_context_sum"
+tokenization = "Joint context plus candidate; score candidate suffix"
+eos = false
+truncate = false
+fallback = "Whole case to AzooKey; count and report"
+
+[statistics]
+paired_test = "Exact two-sided McNemar"
+alpha = 0.05
+report = ["top1", "top5", "candidate_recall", "corrected", "damaged", "mrr", "cer", "paired_disagreements"]
+
+[prepared_inputs]
+directory = "artifacts/benchmarks/ime-expanded-v21-final"
+handoff = "handoff/ime-v21-3000-20261007.zip"
+status = "real_candidates_imported_development_scored_labels_provisional"
+cases = 3000
+native_label_review_complete = false
+real_candidates_complete = true
+blind_models_scored = false
+candidate_dataset_dir = "artifacts/benchmarks/ime-expanded-v21-candidates-v1"
+development_models_scored = ["tiny-ja-v1", "tiny-ja-v2.0-best-step375000"]
+evaluation_report = "docs/reports/v2-20261007/expanded-ime-evaluation.md"

@@ -1,0 +1,5 @@
+# Optional dependencies for IME reading preparation, separate from training.
+fugashi==1.5.2
+unidic-lite==1.0.8
+sudachipy==0.7.0
+sudachidict-core==20260723.1

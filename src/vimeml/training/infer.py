@@ -8,7 +8,7 @@ import sentencepiece as spm
 import torch
 
 from vimeml.training.data import file_sha, write_json
-from vimeml.training.model import GPTConfig, TinyGPT
+from vimeml.training.model_factory import model_from_checkpoint
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -39,7 +39,7 @@ class JapaneseLM:
             raise ValueError("CUDA unavailable.")
         checkpoint, tokenizer_dir = Path(checkpoint), Path(tokenizer_dir)
         saved = torch.load(checkpoint, map_location="cpu", weights_only=True)
-        if saved.get("format") != "vimeml_tiny_gpt_v1":
+        if saved.get("format") not in {"vimeml_tiny_gpt_v1", "vimeml_tiny_gpt_v2"}:
             raise ValueError("Unsupported checkpoint format.")
         token_manifest_path = ROOT / saved["config"]["token_dir"] / "manifest.json"
         if file_sha(token_manifest_path) != saved["signatures"]["tokens"]:
@@ -54,10 +54,9 @@ class JapaneseLM:
         self.special = {name: getattr(self.processor, f"{name}_id")() for name in ("pad", "unk", "bos", "eos")}
         if self.special != token_manifest["special_ids"]:
             raise ValueError("Special token IDs do not match training.")
-        self.model = TinyGPT(GPTConfig(**saved["model_config"]))
+        self.model = model_from_checkpoint(saved)
         if self.processor.vocab_size() != self.model.config.vocab_size:
             raise ValueError("Vocabulary size mismatch.")
-        self.model.load_state_dict(saved["model"])
         self.model.to(self.device).eval()
         self.metadata = {"checkpoint": str(checkpoint.resolve()), "checkpoint_sha256": file_sha(checkpoint),
                          "tokenizer_sha256": expected[0], "checkpoint_step": saved["step"],

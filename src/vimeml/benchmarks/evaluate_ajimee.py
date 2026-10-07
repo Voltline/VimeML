@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 from vimeml.benchmarks.ajimee import DEVELOPMENT_FORMAT, FORMAT, ROOT, convert_items, json_bytes, sha
+from vimeml.benchmarks.expanded_ime import FORMAT as EXPANDED_FORMAT, load_expanded_export
 
 
 def read_json(path):
@@ -14,6 +15,8 @@ def read_json(path):
 
 def load_export(directory):
     manifest = read_json(directory / "manifest.json")
+    if manifest.get("format") == EXPANDED_FORMAT:
+        return load_expanded_export(directory, manifest)
     if manifest.get("format") not in (FORMAT, DEVELOPMENT_FORMAT) or manifest.get("status") != "complete":
         raise ValueError("Expected a complete prepared AJIMEE manifest.")
     for name, digest in manifest["files_sha256"].items():
@@ -167,9 +170,17 @@ def write_summary(path, report, rows):
              "上下文使用官方给定左文，可能跨句；联合分词的公共前缀后logP是候选评分代理，不是精确字符串条件概率。",
              "主指标为sum，mean仅作预先声明的次要诊断；没有在本评测集调组合系数。并列保持AzooKey原顺序。",
              "任何候选超出128-token评分窗口时，该策略整条回退原排序；空候选计失败，仍保留完整分母。",
-             "正确答案未进入候选池的样本也保留；训练语料与公开评测文本重叠未知，分句DataLoader的test split没有用于本轮评测。", "",
-             "| 样本组 | 策略 | 样本数 | Top-1 | Top-5 | 候选池覆盖 | MinCER | 纠正 / 改坏 | 回退 |",
-             "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"]
+             "正确答案未进入候选池的样本也保留；训练语料与公开评测文本重叠未知，分句DataLoader的test split没有用于本轮评测。", ""]
+    if report.get('benchmark_manifest', {}).get('format') == EXPANDED_FORMAT:
+        split = report['benchmark_manifest']['split']
+        lines = [f'# Expanded IME / {split}', '',
+                 '真实 AzooKey 导出与冻结候选池；当前双词典检查的参考标签仍为草稿，指标是初步诊断，不是正式母语 gold 结果。',
+                 '主分数：context+candidate 联合分词，公共 token 前缀后的 full-vocabulary logP sum；不加 EOS、不截断、并列保留原顺序。',
+                 '保留召回失败与回退的完整分母；mean 仅作预先声明的次要诊断。', '']
+    lines.extend([
+        "| 样本组 | 策略 | 样本数 | Top-1 | Top-5 | 候选池覆盖 | MinCER | 纠正 / 改坏 | 回退 |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ])
     for group, methods in report["metrics"].items():
         for method, item in methods.items():
             if not item["cases"]:
@@ -212,6 +223,10 @@ def main(argv=None):
               "training_overlap": "Unknown; no corpus overlap audit performed.", "test_split_used": False,
               "empty_candidate_cases": sum(not r["candidates"] for r in rows),
               "elapsed_seconds": time.perf_counter() - started}
+    if manifest.get('format') == EXPANDED_FORMAT:
+        report.update({'labels_formal_gold':False,'result_role':'provisional_expanded_'+manifest['split'],
+                       'test_split_used':manifest['source_corpus_split']=='test',
+                       'training_overlap':'Corpus source groups come from held-out validation/test; near-duplicate overlap not fully audited.'})
     changed = []
     for row in rows:
         original = row["orders"]["azookey"]

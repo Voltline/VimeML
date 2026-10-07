@@ -1,0 +1,29 @@
+# V2.0: reuse the frozen V1 corpus; train an independent tokenizer.
+[paths]
+corpus_dir = "outputs/corpus-fast-v1"
+output_dir = "artifacts/tokenizers/ja-unigram-16k-v2"
+
+[training]
+model_type = "unigram"
+vocab_size = 16384
+character_coverage = 0.9995
+byte_fallback = true
+normalization_rule_name = "identity"
+remove_extra_whitespaces = false
+add_dummy_prefix = false
+num_threads = 12
+input_sentence_size = 2000000
+seed = 42
+max_sentence_length = 8192
+
+[measurement]
+workers = 8
+batch_size = 4096
+
+[verification]
+# Reuse recorded corpus SHA256 values; check sizes and modification times.
+# Full corpus tokenization statistics still check counts, UNK and roundtrip.
+mode = "metadata"
+
+[monitoring]
+tensorboard = true

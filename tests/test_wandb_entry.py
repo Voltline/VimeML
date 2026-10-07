@@ -35,7 +35,7 @@ class WandbEntryTests(unittest.TestCase):
             config = root / "config.toml"
             config.write_text('output_dir="artifacts/models/fixture"\nlog_dir="runs/fixture"\n'
                               '[model]\nvocab_size=16\n[training]\nmax_steps=2\n', encoding="utf-8")
-            cloud = Mock(url="https://wandb.ai/test/vimeml/runs/example")
+            cloud = Mock(id="example", url="https://wandb.ai/test/vimeml/runs/example")
             context = Mock()
             context.__enter__ = Mock(return_value=cloud)
             context.__exit__ = Mock(return_value=False)

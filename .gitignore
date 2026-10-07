@@ -45,5 +45,7 @@ tempCodeRunnerFile.py
 
 # Local transfer archives and Swift build caches
 /handoff/
+# Experiment launch snapshots stay with local artifacts, not current source.
+/source-provenance.json
 .build/
 .swiftpm/

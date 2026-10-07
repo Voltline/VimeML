@@ -5,6 +5,8 @@
 *.json text eol=lf
 *.jsonl text eol=lf
 *.txt text eol=lf
+*.sh text eol=lf
+*.tsv text eol=lf
 *.html text eol=lf
 *.swift text eol=lf
 *.cc text eol=lf

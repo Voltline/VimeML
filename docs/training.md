@@ -1,6 +1,6 @@
 # 训练
 
-tiny-ja-v1 已训练完成。本文记录复现方法，以及未来独立版本的复现入口。v1 权重冻结；本文中的训练命令是参考，不属于当前部署任务。
+tiny-ja-v1 已完成并冻结。本文为基线复现入口；当前实验见 [V2 训练](training-v2.md)。
 
 ## 环境
 
@@ -23,7 +23,7 @@ uv pip install --python .venv/Scripts/python.exe -r requirements.txt
 
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 scripts/tokenizer/train.py --dry-run
-.\.venv\Scripts\python.exe -X utf8 -u scripts/tokenizer/train.py --output artifacts/tokenizers/ja-unigram-16k-v2
+.\.venv\Scripts\python.exe -X utf8 -u scripts/tokenizer/train.py --config configs/tokenizer.toml --output artifacts/tokenizers/NEW-VERSION
 ```
 
 v1 结果：三个 split 全量 UNK 和 roundtrip 错误都为 0，byte fallback 约 0.30%。多线程训练在不同平台上不能保证词表逐位一致，要复用请直接复制 `tokenizer.model` 并核对哈希。
@@ -61,13 +61,12 @@ v1 结果：三个 split 全量 UNK 和 roundtrip 错误都为 0，byte fallback
 
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 scripts/training/train.py --config configs/train-v1.toml --dry-run
-.\.venv\Scripts\python.exe -X utf8 -u scripts/training/train.py --config configs/train-new.toml
 ```
 
-- 新训练请复制 TOML，并修改 `output_dir` / `log_dir`；现有正式目录不能覆盖。
+- 新实验复制 TOML 并设置独立 `output_dir` / `log_dir`，正式目录保持冻结。
 - 中断：按一次 Ctrl+C，等当前 update 保存后退出；再用同一命令加 `--resume` 续跑（要求配置、数据和核心代码都相同）。
 - 每 5000 步在固定的 16,384 个 validation 窗口上评估并选 best，结束时对 best / last 做全量 validation。test 不参与选模型。
-- `configs/train-smoke.toml` 是 300 步的冒烟配置，用于检查新环境。
+- `configs/train-smoke.toml` 保留为 300 步诊断配置。
 
 tiny-ja-v1 实际结果：25,197,117 个窗口，573,295,237 个预测目标，3469.8 秒，约 169,587 有效 token/s；全量 validation loss 4.5416（PPL 93.84），best 就是最后一步。记录在 `artifacts/models/tiny-ja-v1/{summary.json,manifest.json,metrics.jsonl,full-validation.json}`。
 
