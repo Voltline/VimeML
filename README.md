@@ -52,4 +52,4 @@ W&B账号和run链接只保存在本地监控记录，不提交仓库。
 
 原Mac准备包为`handoff/vimeml-v21-mac-20261008.zip`；`python3 setup_mac.py`可建立带Git历史的独立工作区。代码通过分支／PR合并，产物单独回传ZIP。
 
-2026-10-08 Mac工作已完成，结果包归档于`handoff/mac-20261008-v21/`。INT8模型14.33MB；严格logits对齐失败、扩大草稿下降0.3个百分点和UI发布长尾仍保留为已知项，不等同正式发布验收。[真实键盘记录](docs/reports/mac-20261008/v21-iphone.md)。
+2026-10-08 Mac工作已完成，结果包归档于`handoff/mac-20261008-v21/`。用户确认V2系列实验成功，INT8模型14.33MB，当前量化损失和UI长尾可接受；严格logits失败等原始测量保留，不等同正式发布验收。[量化分析与接受决定](docs/reports/mac-20261008/v21-quantization-review.md)、[真实键盘记录](docs/reports/mac-20261008/v21-iphone.md)。

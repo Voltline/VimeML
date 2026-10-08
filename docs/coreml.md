@@ -4,6 +4,8 @@ V1已有INT8接入与有限真机记录；V2.1 extend5 best（step40000）已完
 
 V2未压缩对齐通过，INT8严格logits对齐失败；AJIMEE144/200、原dev122/137保持命中数，扩大草稿1487→1481/2000。INT8包14.33MB，真实扩展内核footprint峰值34.72MiB、私有驻留采样峰值73.78MiB；UI发布最大约1.93秒，原因未定位。代码合并和本次候选验证不等于正式发布或长期设备验收。
 
+2026-10-08用户确认V2系列实验成功，接受当前INT8质量损失和UI长尾，两项不阻断本轮结项；原数值阈值及失败记录保持不变。量化机制、同池分差与配对统计见[量化分析](reports/mac-20261008/v21-quantization-review.md)。
+
 ## 接口与环境
 
 目标接口：INT32 `input_ids [1,T]`，1≤T≤128；FLOAT32 `logits [1,T,16384]`，完整词表、无softmax。batch1、绝对位置、causal mask、右PAD、无KV cache；SentencePiece、联合分词评分和搜索在客户端。

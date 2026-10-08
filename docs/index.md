@@ -21,7 +21,7 @@
 | 性能与恢复 | [续训配置](reports/v2-20261007/v21-plan.md)、[实测性能](reports/v2-20261007/v21-performance.md)、[旧step0恢复](reports/v2-20261007/v21-recovery.md) |
 | 数据与标签 | [3000条候选交接](reports/v2-20261007/ime-3000-handoff.md)、[扩大集初评](reports/v2-20261007/expanded-ime-evaluation.md)、[标签与错误审核](reports/v2-20261007/label-error-audit.md) |
 | V1 Mac历史 | [原交接](reports/mac-20261006/handoff.md)、[合并记录](reports/mac-20261006/merge-verification.md)、[模拟器](reports/mac-20261006/simulator-memory.md)、[真实键盘](reports/mac-20261006/iphone-keyboard-memory.md) |
-| V2 Mac完成 | [Core ML与量化](reports/mac-20261008/v21-coreml.md)、[iPhone宿主与真实扩展](reports/mac-20261008/v21-iphone.md) |
+| V2 Mac完成 | [Core ML与量化](reports/mac-20261008/v21-coreml.md)、[量化分析与接受决定](reports/mac-20261008/v21-quantization-review.md)、[iPhone宿主与真实扩展](reports/mac-20261008/v21-iphone.md) |
 
 报告按日期与实验保存；原始JSON、分数和trace保存在`outputs/`，报告不替代原始证据。
 
