@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ja"><meta charset="utf-8"><title>IME label review</title>
+<style>body{font:17px system-ui;max-width:900px;margin:30px auto;padding:0 20px;color:#18212d}section{background:#f4f6f8;padding:20px;border-radius:12px;margin:16px 0}label{display:block;margin:14px 0}input,textarea,select,button{font:inherit;padding:8px;border:1px solid #bcc6d0;border-radius:6px}input[type=text],textarea{width:95%}textarea{min-height:90px}button{cursor:pointer;margin:5px}small{color:#596777}#original{white-space:pre-wrap}header{display:flex;gap:10px;align-items:center;flex-wrap:wrap}</style>
+<h1>IME ラベル確認</h1><p>モデル出力・候補順位は表示しません。左文脈だけで許容できる読みと表記を確認してください。迷う場合は理由を記して除外します。</p>
+<header><button onclick="move(-1)">前へ</button><span id="position"></span><button onclick="move(1)">次へ</button><button onclick="nextPending()">未確認へ</button><button onclick="download()">JSONL 保存</button></header>
+<section><small id="ident"></small><label>左文脈<div id="context"></div></label><label>元の変換区間<div id="target"></div></label>
+<label>読み（カタカナ）<input type="text" id="reading"></label><label>許容表記（1行につき1表記）<textarea id="answers"></textarea></label>
+<label>辞書照合済み表記案（自動承認ではありません）<div id="suggestions"></div><button onclick="addSuggestions()">確認した表記案を回答欄に追加</button></label>
+<label>判定 <select id="decision"><option value="pending">未確認</option><option value="accept">採用</option><option value="exclude">除外</option></select></label>
+<label>確認者 <input type="text" id="reviewer"></label><label><input type="checkbox" id="native"> 日本語母語話者による確認済み（AI確認のみの場合はチェックしない）</label>
+<label>理由・注記<textarea id="notes"></textarea></label><small>右側の原文を使わないと判断できない項目は、複数の許容解を検討するか除外してください。</small>
+<details><summary>出典の原文（追跡用）</summary><div id="original"></div></details></section>
+<p id="status"></p>
+<script type="application/json" id="payload">__PAYLOAD__</script>
+<script>
+const payload=JSON.parse(document.getElementById('payload').textContent), key=`ime-review:${payload.version}:${payload.role}`;
+let cases=payload.cases, i=0;
+try {const saved=JSON.parse(localStorage.getItem(key)); if(saved&&saved.length===cases.length&&saved.every((r,j)=>r.id===cases[j].id&&r.left_context===cases[j].left_context&&r.target===cases[j].target&&r.original_message===cases[j].original_message))cases=saved;} catch(e){}
+const el=id=>document.getElementById(id);
+function save(){const r=cases[i];r.proposed_reading=el('reading').value;r.accepted_answers=el('answers').value.split('\n').filter(v=>v.trim());r.decision=el('decision').value;r.reviewer=el('reviewer').value;r.native_japanese_review=el('native').checked;r.notes=el('notes').value;try{localStorage.setItem(key,JSON.stringify(cases));}catch(e){el('status').textContent='ブラウザ保存不可：JSONLをこまめに保存してください。';}}
+function render(){const r=cases[i];el('ident').textContent=`${payload.role} / ${r.source} / ${r.id}`;el('position').textContent=`${i+1} / ${cases.length}`;el('context').textContent=r.left_context||'（なし）';el('target').textContent=r.target;el('reading').value=r.proposed_reading;el('answers').value=r.accepted_answers.join('\n');el('suggestions').textContent=(r.spelling_suggestions||[]).join(' / ')||'（なし）';el('decision').value=r.decision;el('reviewer').value=r.reviewer;el('native').checked=r.native_japanese_review;el('notes').value=r.notes;el('original').textContent=r.original_message||'';el('status').textContent=`採用 ${cases.filter(r=>r.decision==='accept').length} / 除外 ${cases.filter(r=>r.decision==='exclude').length} / 未確認 ${cases.filter(r=>r.decision==='pending').length}`;}
+function addSuggestions(){el('answers').value=[...new Set([...el('answers').value.split('\n').filter(v=>v.trim()),...(cases[i].spelling_suggestions||[])])].join('\n');save();}
+function move(n){save();i=Math.min(cases.length-1,Math.max(0,i+n));render();}
+function nextPending(){save();const j=cases.findIndex((r,k)=>k>i&&r.decision==='pending');i=j>=0?j:Math.max(0,cases.findIndex(r=>r.decision==='pending'));render();}
+function download(){save();const url=URL.createObjectURL(new Blob([cases.map(r=>JSON.stringify(r)).join('\n')+'\n'],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=`${payload.role}-review.jsonl`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+for(const name of ['reading','answers','decision','reviewer','native','notes'])el(name).addEventListener('change',save);
+render();
+</script></html>
