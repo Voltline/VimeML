@@ -59,7 +59,8 @@ Vime 最新 main 为基点，另建 `codex/v21-coreml-client`。新增 V2 资源
 
 iPhone16 Pro Max / iOS27.2，Release，CPU_ONLY：最初 10 项原生功能测试加 1 项宿主
 性能测试通过。覆盖分词、联合评分、PAD/causal、整池回退、取消、排序 metadata、
-20 条 beam、下一词和 session。最终构建及真实扩展证据见同目录设备报告。
+20 条 beam、下一词和 session。最终构建及真实扩展证据见[设备报告](v21-iphone.md)：
+真实扩展内核 footprint 峰值34.72MiB，私有驻留采样峰值73.78MiB；UI发布存在未定位长尾。
 
 | 宿主指标 | 实测 |
 | --- | ---: |
@@ -81,6 +82,8 @@ iPhone16 Pro Max / iOS27.2，Release，CPU_ONLY：最初 10 项原生功能测�
 依次 export → convert → align → compress → align（保留失败）→ evaluate/samples。
 `compress --alignment` 强制要求这个未压缩 FP32 package 的通过报告。
 每一步必须使用新输出目录。三个 V2 针对性 Python 测试通过；未运行训练、完整 Python 回归或旧模型冒烟。
+导出时绑定权重/tokenizer身份，后续阶段复用manifest并检查大小、格式及已加载契约。
+资源变更或迁移时可显式执行verify_bundle的完整身份检查；客户端安装时验证资源身份。
 
 产物：`artifacts/deployment/tiny-ja-v2.1-extend5-{bundle,fp32,int8-b32,client-resources}-v1/`。
 报告：`outputs/deployment/v21-*/`，包含原始分数、差异、失败对齐及真机 xcresult。

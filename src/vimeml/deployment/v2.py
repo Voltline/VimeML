@@ -108,7 +108,10 @@ def verify_bundle(path, hashes=True):
 class BundleLM(JapaneseLM):
     def __init__(self, path):
         path = Path(path)
-        manifest = verify_bundle(path)
+        # Export binds immutable weights/tokenizer once. Later stages reuse
+        # that record and check the file sizes, schema and loaded contract.
+        # Call verify_bundle(path) explicitly when resources have changed.
+        manifest = verify_bundle(path, hashes=False)
         self.device = torch.device("cpu")
         self.processor = spm.SentencePieceProcessor(model_file=str(path / "tokenizer.model"))
         self.special = {name: getattr(self.processor, f"{name}_id")() for name in ("pad", "unk", "bos", "eos")}
