@@ -1,10 +1,8 @@
-> 2026-10-06 Mac 阶段报告，经 Windows 合并校对；原文和原始证据另存于本地交接归档。这里的历史任务描述不授权启动新的训练或设备操作。
-
 # 客户端变更后的模拟器与历史内存审计（2026-10-06）
 
-后续已获得用户授权并完成新的 iPhone16 Pro Max 手动输入录制，真实键盘扩展物理占用最高采样21.25 MiB。用户确认LM排序、词联想开启且看到建议。详见 [真机键盘内存记录](iphone-keyboard-memory.md)。下文保留此前模拟器及历史trace审计的原始范围；其中「没有新真机录制」只描述此前审计阶段。
+本报告范围为模拟器压力测试与既有trace离线分析。同日另有iPhone16 Pro Max手动输入测量：LM排序和词联想开启，真实扩展footprint采样峰值21.25MiB，见[真机记录](iphone-keyboard-memory.md)。两组测量分别解释。
 
-参考 Vime 当前工作区的 `VimeLanguageModel.swift`、`JapaneseCandidateWorker.swift`、`KeyboardSession.swift`、`KeyboardView.swift`、`KeyboardPreferences.swift`、原生测试和 `Docs/LanguageModel.md`。保留 Claude 的产品变更；本轮只增加可选内存审计测试及报告，没有修改产品实现。
+参考 Vime 当前工作区的 `VimeLanguageModel.swift`、`JapaneseCandidateWorker.swift`、`KeyboardSession.swift`、`KeyboardView.swift`、`KeyboardPreferences.swift`、原生测试和 `Docs/LanguageModel.md`。测量以当时客户端实现为基点，仅增加可选内存审计测试。
 
 结论：在这组有界压力测试中没有观察到随候选评分、词联想或重复加载次数持续攀升的物理内存。模型、词典和框架存在常驻/预热开销。模拟器结果不能认证 iPhone 键盘扩展的内存预算；一次带联想场景曾发生候选等待超时，重跑通过，但原因未定位。
 
@@ -12,7 +10,7 @@
 
 优化的 Release、CPU_ONLY、arm64 iOS27.0 模拟器 `Vime Keyboard QA`，Xcode27.1。每个场景重新启动测试宿主进程，10ms后台采样 `task_vm_info.phys_footprint`，并读取进程生命周期物理峰值 `ledger_phys_footprint_peak`。单位为 MiB（1,048,576字节），不是 Activity Monitor 的全部 resident memory。记录 baseline、阶段终点、采样峰值和内核峰值。峰值包含测试宿主、UIKit、XCTest和框架，不是纯模型增量。
 
-只执行模拟器测试，并读取 Claude 已保存的 Instruments trace；没有发起新的真机连接、安装、运行或录制。
+压力测试在模拟器执行，历史Instruments trace采用离线导出。
 
 ## 当前工作区的对照结果
 
@@ -41,9 +39,9 @@
 
 ## 现有真机记录能说明什么
 
-Claude 保存的 `outputs/deployment/iphone16promax-keyboard-memory-v1/keyboard-activity.trace` 中提取到146个 `VimeKeyboard` 进程采样，覆盖约150秒，物理占用24.00 → 29.95 MiB，采样峰值30.36 MiB。原始 Instruments 时间序列已存在，本轮只是离线导出。
+既有`outputs/deployment/iphone16promax-keyboard-memory-v1/keyboard-activity.trace` 中提取到146个 `VimeKeyboard` 进程采样，覆盖约150秒，物理占用24.00 → 29.95 MiB，采样峰值30.36 MiB。原始 Instruments 时间序列已存在，本轮只是离线导出。
 
-该记录没有嵌入模型加载、设置、输入脚本和代码哈希的完整证据；另一个保存的日志trace中也未找到明确的模型加载消息。因此不能将30.36 MiB认定为「启用LM、重排、联想后的完整键盘峰值」。Claude 的 `Docs/LanguageModel.md` 中宿主App加载增加约24 MiB、峰值74.8 MiB的记录，亦不是同口径的真实键盘扩展结果。
+该记录没有嵌入模型加载、设置、输入脚本和代码哈希的完整证据；另一个保存的日志trace中也未找到明确的模型加载消息。因此不能将30.36 MiB认定为「启用LM、重排、联想后的完整键盘峰值」。客户端`Docs/LanguageModel.md` 中宿主App加载增加约24 MiB、峰值74.8 MiB的记录，亦不是同口径的真实键盘扩展结果。
 
 ## 开关与缓存
 

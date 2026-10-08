@@ -1,8 +1,8 @@
 # V2 训练
 
-2026-10-07：V2.0/V2.1已完成。V2.1 restart1在原AutoDL 4090 D于18:54–19:56运行，screen已退出、W&B本地记录 finished。完整评测与本地归档见 [V2.1最终结果](reports/v2-20261007/v21-evaluation.md)。首次中断的step0单独保留。
+2026-10-07在AutoDL RTX4090 D完成V2.0、V2.1 restart1及extend5训练。最终选用extend5 best step40000：FP32 BPC3.0802686、AJIMEE144/200、扩大草稿1487/2000；2026-10-08完成INT8部署。总体结论见[V2总结](reports/v2-summary.md)。首次中断的step0仅作恢复记录。
 
-20:15–21:54运行独立extend5，按用户要求在step161095（追加3.27轮）安全停止，screen退出；配置`configs/train-v21-extend.toml`保持原记录。保留best step40000：BPC3.0802686、AJIMEE144/200、2000条草稿1487/2000。best/last与评测已下载，未启动新训练；W&B本地记录，详见 [追加结果](reports/v2-20261007/v21-extend.md)。
+restart1于18:54–19:56完成两轮。extend5于20:15–21:54运行3.273轮，在step161095结束；后续完整BPC未优于早期best，SIGINT保存last与优化器状态。配置和模型选择见[追加训练](reports/v2-20261007/v21-extend.md)。
 
 ## 配置
 
@@ -16,7 +16,9 @@
 | 数据轮次 | 0–3 | offset=4，使用轮次 4/5 |
 | 编译 | eager | 整体 hidden-state stack；token head 与 CE 保持 eager |
 
-两版均使用 TinyGPTV2：16K tokenizer、context 128、320×6、5 heads、SwiGLU 832、RMSNorm、无 Linear bias、共享 embedding。BF16、4 workers、30% prefix crop，至少保留 8 个预测对。V2.0/原 V2.1 配置 batch256，restart1 batch512；窗口覆盖预算仍为两轮，optimizer updates 减半。固定验证子集仍为64 batches，restart1 样本数随 batch 增大，初始 subset loss 不直接与旧子集比较；完整 BPC 口径不变。
+两版均使用TinyGPTV2：16K tokenizer、context128、320×6、5heads、SwiGLU832、RMSNorm、无Linear bias、共享embedding。BF16、4workers、30% prefix crop，至少保留8个预测对。V2.0及原V2.1配置batch256，restart1为batch512；restart1保留原续训的两轮窗口预算，optimizer updates减半。固定验证子集为64 batches，样本数随batch增大，初始subset loss不直接与旧子集比较；完整BPC口径不变。
+
+extend5配置为[train-v21-extend.toml](../configs/train-v21-extend.toml)：沿用batch512与编译backbone，加载restart1 best及45份AdamW状态，epoch offset6；最多5轮，前3轮LR3e-5，后2轮余弦降至1e-5，无warmup。实际只进入部分衰减阶段。
 
 每轮包含 25,196,843 个训练窗口。每 5,000 updates 做固定 validation 子集评测并保存 checkpoint；每个 epoch 做完整 validation BPC 与两套现有 IME 评测。连续两轮 BPC 比历史最佳高超过 0.01 时提前停止。best 按固定子集最低 NLL 选择，last 与 epoch checkpoint 分别保留。
 
@@ -33,15 +35,17 @@ restart1 使用独立 output/log 路径，保留原 `continue` 的 step0。`--re
 
 启动器读取 `/root/autodl-tmp/vimeml-wandb.env`，启用 W&B online（项目 `vimeml`）和编译缓存。run URL 写入 `artifacts/tracking/<模型名>-live.json`；日志包括 loss、BPC、IME、有效 tokens/s、数据等待、裁剪率和显存。W&B 仅同步指标。恢复入口会创建同组新 run。
 
-V2 的 `verification.mode="metadata"` 复用冻结数据指纹，检查计数、文件大小和小型 manifest，减少重复大文件 SHA256。原 V1 模型、配置和产物保持冻结。
+V2的`verification.mode="metadata"`复用冻结数据指纹，检查计数、文件大小和小型manifest。V1模型、配置和产物保持冻结。
 
 ## 结果与记录
 
-V2.0 总用时 4 小时 38 分钟，best BPC 3.2598221，比 V1 降低 6.16%。现有 IME 与新 2,000 条 development 均未证明 Top-1 显著优于 V1；3,000 条真实候选已导入，标签仍为草稿，blind 尚未 LM 计分。
+V2.0用时4小时38分钟，best BPC3.2598221，比V1降低6.16%，IME增益有限。restart1的吞吐提升到273k tokens/s，extend5最佳BPC进一步降至3.0802686，AJIMEE144/200；追加训练后期完整BPC未继续改善。扩大2000条development标签仍为草稿，1000条blind未计分。
 
-- [结构与实验约定](plan_v2.md)
+- [结构与实验设计](plan_v2.md)
+- [V2系列总结](reports/v2-summary.md)
+- [追加训练与最终checkpoint](reports/v2-20261007/v21-extend.md)
 - [V2.0 最终评测](reports/v2-20261007/evaluation.md)
 - [V2.1 配置与性能基准](reports/v2-20261007/v21-plan.md)
 - [V2.1 最终评测与模型选择](reports/v2-20261007/v21-evaluation.md)
 - [扩大开发集初评](reports/v2-20261007/expanded-ime-evaluation.md)
-- [中断检查与迁出](reports/v2-20261007/v21-recovery.md)
+- [中断与恢复记录](reports/v2-20261007/v21-recovery.md)

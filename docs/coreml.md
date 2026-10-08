@@ -1,10 +1,10 @@
 # Core ML 部署
 
-V1已有INT8接入与有限真机记录；V2.1 extend5 best（step40000）已完成Core ML、INT8 block32和iPhone候选验证，代码PR已合入，产物已归档。结果见[V2量化](reports/mac-20261008/v21-coreml.md)与[真实扩展](reports/mac-20261008/v21-iphone.md)，原交接约定见[Mac准备](mac-v21-preparation.md)。
+当前部署版本为V2.1 extend5 best（step40000）的INT8 block32模型，已完成Core ML转换、同池评测和iPhone真实扩展验证；V1保留作对照与回退。结果见[V2量化](reports/mac-20261008/v21-coreml.md)与[真实扩展](reports/mac-20261008/v21-iphone.md)，源码与产物迁移见[跨平台管理](reference/artifact-exchange.md)。
 
 V2未压缩对齐通过，INT8严格logits对齐失败；AJIMEE144/200、原dev122/137保持命中数，扩大草稿1487→1481/2000。INT8包14.33MB，真实扩展内核footprint峰值34.72MiB、私有驻留采样峰值73.78MiB；UI发布最大约1.93秒，原因未定位。代码合并和本次候选验证不等于正式发布或长期设备验收。
 
-2026-10-08用户确认V2系列实验成功，接受当前INT8质量损失和UI长尾，两项不阻断本轮结项；原数值阈值及失败记录保持不变。量化机制、同池分差与配对统计见[量化分析](reports/mac-20261008/v21-quantization-review.md)。
+V2系列实验完成，当前INT8质量损失和UI长尾可接受；数值对齐失败仍按原阈值记录。量化机制、同池分差与配对统计见[量化分析](reports/mac-20261008/v21-quantization-review.md)。
 
 ## 接口与环境
 
@@ -28,9 +28,9 @@ source venv/coreml/bin/activate
 | `scripts/deployment/coreml_conservative.py` | V1混合权重存储、FP32计算和INT8 block32 |
 | `scripts/deployment/package_ios.py` | 附带iOS参考的资源包，不是客户端构建或设备认证 |
 
-V2使用独立bundle与导出入口，已完成未压缩转换、对齐、量化、同池评测和真机测量。V2 tokenizer不同于V1，客户端模型与tokenizer需整体更新。输入约定见[Mac准备](mac-v21-preparation.md)，实际产物和调用记录见[V2量化报告](reports/mac-20261008/v21-coreml.md)。
+V2使用独立bundle与导出入口。V2 tokenizer不同于V1，客户端模型与tokenizer成套更新；实际产物和调用记录见[V2量化报告](reports/mac-20261008/v21-coreml.md)。
 
-每个模型和报告使用新版本目录；旧checkpoint、tokenizer、manifest、失败实验与V1部署资源保持冻结。模型身份在首次导出或资源变更时绑定，之后复用记录；不重复全目录哈希或完整回归。新图与量化只做有关的长度、PAD/causal、分数及实际设备验证。
+每个模型和报告使用版本目录，保留原checkpoint、tokenizer、manifest与失败结果。转换验证覆盖长度、PAD/causal和数值复现；量化另评估同池任务质量，客户端另测分词、评分与实际设备行为。
 
 ## 质量
 

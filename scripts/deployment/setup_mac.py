@@ -70,7 +70,7 @@ def main():
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     print(f"Ready: {destination}")
-    print("Preparation: docs/mac-v21-preparation.md")
+    print("Artifact exchange: docs/reference/artifact-exchange.md")
     print(
         "No dependencies installed, conversion, quantization or device operation started."
     )

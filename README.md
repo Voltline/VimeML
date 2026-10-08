@@ -1,55 +1,39 @@
 # VimeML
 
-Vime 日语输入法的小型语言模型。AzooKey 根据假名生成候选，LM 按句内左文重排候选，并提供短语／下一词联想。
+Vime日语输入法的小型语言模型。AzooKey根据假名检索候选，LM利用句内左文重排，并提供短语和下一词联想。
 
-## 当前状态
+## 实验状态
 
-| 版本 | 训练与评测 | 状态 |
-| --- | --- | --- |
-| V1，7.39M 参数 | 1 epoch；validation BPC 3.4736559；AJIMEE 124/200 | 冻结基线，已有 iOS INT8 接入记录 |
-| V2.0，12.54M 参数 | 4 epochs；best step 375000；BPC 3.2598221；AJIMEE 125/200 | 完成并归档，尚未验证 Core ML 部署 |
-| V2.1 restart1 | 额外2 epochs；best step98426；BPC 3.0811788；AJIMEE 137/200 | 完成评测并下载，旧step0已归档 |
-| V2.1 extend5 | best step40000；FP32 BPC3.0802686；INT8 AJIMEE144/200，扩大草稿1481/2000 | Core ML与iPhone候选验证完成，PR已合入；[部署结果](docs/reports/mac-20261008/v21-coreml.md) |
+V2系列实验于2026-10-08完成。当前部署模型为 **V2.1 extend5 best / step40000，INT8 block32**：12.54M参数、16K词表、context128，Core ML包14.33MB，CPU_ONLY、FP32计算、最低iOS18。训练、同池评测和iPhone真实键盘验证见[V2实验总结](docs/reports/v2-summary.md)。V1保留作基线和回退。
 
-新2,000条development草稿标签下，V1/V2.0/restart1/extend5 best Top-1为72.65% / 73.15% / 73.80% / 74.35%；extend5相对restart1配对p=.22155，相对V1为.00648（探索性、未校正多重比较）。标签待正式审核，1,000条blind未LM计分。[追加结果](docs/reports/v2-20261007/v21-extend.md)。
+| 模型 | 完整validation BPC ↓ | AJIMEE /200 | 原dev /137 | 扩大草稿 /2000 |
+| --- | ---: | ---: | ---: | ---: |
+| V1 FP32 | 3.4736559 | 124 | 122 | 1453 |
+| V2.0 FP32 | 3.2598221 | 125 | 124 | 1463 |
+| V2.1 restart1 FP32 | 3.0811788 | 137 | 121 | 1476 |
+| V2.1 extend5 best FP32 | 3.0802686 | 144 | 122 | 1487 |
+| V2.1 extend5 INT8 | — | 144 | 122 | 1481 |
 
-## 使用与文档
+量化后原两集命中数不变，扩大草稿下降0.3个百分点。严格logits对齐失败与UI发布长尾保留为已接受的实验差异，当前输入体验可接受。扩大标签尚未正式审核，1000条blind未计分；完整结论与统计范围见[评测](docs/evaluation.md)和[量化分析](docs/reports/mac-20261008/v21-quantization-review.md)。
 
-Python ≥3.11。本机依赖见 `requirements.txt`，AutoDL 镜像依赖见 `requirements-autodl.txt`，读音准备依赖见 `requirements-evaluation.txt`。
+## 使用
+
+Python≥3.11。依赖见`requirements.txt`、`requirements-autodl.txt`和`requirements-evaluation.txt`。
 
 ```powershell
 .venv\Scripts\python.exe -X utf8 scripts/training/infer.py
 .venv\Scripts\python.exe -X utf8 -u scripts/tools/phrase_demo.py
 ```
 
-推理默认使用 V1；联想网页地址为 `http://127.0.0.1:8765/`。
+Python推理入口默认使用V1，其他checkpoint/tokenizer由命令行指定；联想网页默认地址为`http://127.0.0.1:8765/`。iOS客户端在独立Vime仓库维护，`examples/ios/`为历史接入参考。
 
-| 入口 | 内容 |
+## 文档与目录
+
+| 内容 | 入口 |
 | --- | --- |
-| [文档索引](docs/index.md) | 指南、实验报告与参考资料 |
-| [Mac准备与双仓库协作](docs/mac-v21-preparation.md) | 2026-10-08 Core ML任务、单一ZIP与Git分支／PR流程 |
-| [V2 训练](docs/training-v2.md) | 配置、运行方式和当前状态 |
-| [V2 实验约定](docs/plan_v2.md) | 结构、评分语义、评测与部署目标 |
-| [数据](docs/data.md) / [V1 训练](docs/training.md) | 语料处理与基线复现 |
-| [评测](docs/evaluation.md) / [Core ML](docs/coreml.md) | 排序规则、转换与设备结果 |
-| [产物与迁移](docs/artifacts.md) | 本地数据、模型及迁移范围 |
+| 文档导航与报告 | [索引](docs/index.md)、[V2总结](docs/reports/v2-summary.md) |
+| 模型与训练 | [V2实验设计](docs/plan_v2.md)、[V2训练](docs/training-v2.md)、[V1训练](docs/training.md) |
+| 数据与评测 | [语料](docs/data.md)、[评分与数据集](docs/evaluation.md) |
+| 部署与产物 | [Core ML](docs/coreml.md)、[本地产物](docs/artifacts.md)、[跨平台管理](docs/reference/artifact-exchange.md) |
 
-## 目录
-
-```text
-src/vimeml/       数据、tokenizer、训练、评测与部署核心
-scripts/          对应模块的命令入口和实验工具
-configs/          版本配置
-tests/            回归测试
-docs/             指南、reference、reports、history
-examples/ios/     Core ML 与 Swift 集成参考
-annotations/      语料审核依据
-```
-
-Git 保存代码、配置、测试和文档。语料、模型、评分、日志、交接包和密钥保存在忽略目录 `datasets/`、`artifacts/`、`outputs/`、`runs/`、`handoff/`，随实例镜像迁移或单独复制。
-
-W&B账号和run链接只保存在本地监控记录，不提交仓库。
-
-原Mac准备包为`handoff/vimeml-v21-mac-20261008.zip`；`python3 setup_mac.py`可建立带Git历史的独立工作区。代码通过分支／PR合并，产物单独回传ZIP。
-
-2026-10-08 Mac工作已完成，结果包归档于`handoff/mac-20261008-v21/`。用户确认V2系列实验成功，INT8模型14.33MB，当前量化损失和UI长尾可接受；严格logits失败等原始测量保留，不等同正式发布验收。[量化分析与接受决定](docs/reports/mac-20261008/v21-quantization-review.md)、[真实键盘记录](docs/reports/mac-20261008/v21-iphone.md)。
+`src/vimeml/`保存实现，`scripts/`保存命令入口，`configs/`保存版本配置。Git跟踪源码、配置、测试、文档及许可证；模型、语料、评分、日志和迁移包保存在忽略目录。W&B账号、run链接及凭据不提交。

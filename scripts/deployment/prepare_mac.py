@@ -218,7 +218,7 @@ def main():
         }
         write_json(stage / "handoff-manifest.json", manifest)
         shutil.copy2(ROOT / "scripts/deployment/setup_mac.py", stage / "setup_mac.py")
-        shutil.copy2(ROOT / "docs/mac-v21-preparation.md", stage / "README.md")
+        shutil.copy2(ROOT / "docs/reference/artifact-exchange.md", stage / "README.md")
         output.parent.mkdir(parents=True, exist_ok=True)
         expected = {}
         with zipfile.ZipFile(

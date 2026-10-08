@@ -1,5 +1,3 @@
-> 详细参考与 FP32 基线。当前阶段入口见 [文档索引](../index.md)，量化后的结果见 [Core ML 指南](../coreml.md)。
-
 # AJIMEE：真实转换候选评测
 
 首轮输入转换、Mac 候选导出和本地评分已完成。AJIMEE 测假名→汉字转换，不测开放式短语联想。当前正式文件位于 `artifacts/benchmarks/ajimee-jwtd-v2-v1/`。
@@ -30,7 +28,7 @@ CLI 读取 JSON 数组。右文设 null，未提供用户字典，不正规化�
 
 ## Mac 构建与导出
 
-以下命令针对固定版本；用户已在 Mac 成功导出候选。需要 Swift6.1+、macOS13+ 与开发工具；先检查 `xcrun swift --version`。新机器缺工具时安装 Command Line Tools / Xcode。
+候选由固定Mac转换器版本导出。复现依赖Swift6.1+、macOS13+与Command Line Tools / Xcode；版本可用`xcrun swift --version`检查。
 
 ```bash
 mkdir -p ~/Sources

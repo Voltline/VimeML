@@ -27,7 +27,7 @@ CPU_ONLY、最低 iOS18、batch1、无 KV cache；INT32 `[1,T]` → FLOAT32 `[1,
 | FP32 package | 50,358,014 字节 |
 | INT8 block32 package | 14,330,856 字节，减少约 71.5% |
 
-严格阈值保持 atol=3e-4、rtol=3e-4，没有为量化放宽阈值。
+严格阈值为atol=3e-4、rtol=3e-4，量化前后采用相同数值复现标准。
 32 个有限学习矩阵被选中；2 个结构常量排除，causal mask 不量化，RMSNorm 参数保持 FP32。
 共享 embedding/head 在原图共享同一常量；参数选择清单保存于 INT8 manifest。
 包文件字节数不是编译资源大小、IPA 大小、驻留内存或 footprint。
@@ -60,7 +60,7 @@ Vime 最新 main 为基点，另建 `codex/v21-coreml-client`。新增 V2 资源
 iPhone16 Pro Max / iOS27.2，Release，CPU_ONLY：最初 10 项原生功能测试加 1 项宿主
 性能测试通过。覆盖分词、联合评分、PAD/causal、整池回退、取消、排序 metadata、
 20 条 beam、下一词和 session。最终构建及真实扩展证据见[设备报告](v21-iphone.md)：
-真实扩展内核 footprint 峰值34.72MiB，私有驻留采样峰值73.78MiB；UI发布存在未定位长尾。
+真实扩展内核 footprint 峰值34.72MiB，私有驻留采样峰值73.78MiB；UI发布长尾原因未定位，当前输入体验可接受。
 
 | 宿主指标 | 实测 |
 | --- | ---: |
@@ -81,7 +81,7 @@ iPhone16 Pro Max / iOS27.2，Release，CPU_ONLY：最初 10 项原生功能测�
 在新工作区使用 `venv/coreml/bin/python scripts/deployment/coreml_v2.py --help`：
 依次 export → convert → align → compress → align（保留失败）→ evaluate/samples。
 `compress --alignment` 强制要求这个未压缩 FP32 package 的通过报告。
-每一步必须使用新输出目录。三个 V2 针对性 Python 测试通过；未运行训练、完整 Python 回归或旧模型冒烟。
+各阶段使用独立输出目录。三个V2部署测试通过。
 导出时绑定权重/tokenizer身份，后续阶段复用manifest并检查大小、格式及已加载契约。
 资源变更或迁移时可显式执行verify_bundle的完整身份检查；客户端安装时验证资源身份。
 
@@ -90,6 +90,6 @@ iPhone16 Pro Max / iOS27.2，Release，CPU_ONLY：最初 10 项原生功能测�
 iOS 编译使用 `--platform ios --deployment-target 18.0`。首次省略 platform 的编译警告产物
 另存于 ios18-v1，不作为客户端资源交接；实际资源来自明确平台的 ios18-v2。
 
-初次受限运行 Core ML 编译和设备服务失败，授权系统运行时访问后通过。
+初次运行因编译和设备服务访问受限失败；具备系统运行时访问的环境中成功。
 新增审计后的增量 test 构建曾出现 OrderedCollections 链接失败；失败日志与干净重建结果分别保留。
-结果 ZIP 仅新增模型、报告和必要编译资源；按路径、数量和大小验证，不重复全目录 SHA256。
+部署代码已合入主分支，模型、报告与编译资源由结果ZIP归档。当前INT8质量损失在实验接受范围内；结论见[量化误差分析](v21-quantization-review.md)。

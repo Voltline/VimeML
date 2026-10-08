@@ -1,5 +1,3 @@
-> 详细参考与 FP32 基线。当前阶段入口见 [文档索引](../index.md)，量化后的结果见 [Core ML 指南](../coreml.md)。
-
 # 本地短语联想演示
 
 复用冻结的 Tiny GPT，不继续训练、不调用 API：
@@ -32,7 +30,7 @@
 .\.venv\Scripts\python.exe -X utf8 scripts/tools/phrase_demo.py --suite --suite-mode sample --output outputs/phrase-demo/new-sample-run
 ```
 
-非空目录拒绝覆盖。samples.json 保存模型/tokenizer hash、参数、原始输出和停止原因；已有 beam / sample 分别在 `outputs/phrase-demo/tiny-ja-v1/` 与 `tiny-ja-v1-sample/`。Codex 逐条复核保存在 beam 目录的 review.md / review.json。
+非空目录拒绝覆盖。samples.json 保存模型/tokenizer hash、参数、原始输出和停止原因；已有 beam / sample 分别在 `outputs/phrase-demo/tiny-ja-v1/` 与 `tiny-ja-v1-sample/`。模型辅助复核记录保存在 beam 目录的 review.md / review.json。
 
 默认模式 20 个前缀中：10 个有明确自然建议，3 个语义或事实较弱，7 个明显不理想；不是唯一答案准确率。正式致谢、请求、简单动作和技术场景较好，因果与自由话题容易复述、跑偏或截断。采样改善部分场景，没有稳定解决语义问题。
 

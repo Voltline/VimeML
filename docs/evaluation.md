@@ -1,6 +1,6 @@
 # 评测
 
-当前离线候选模型为V2.1 extend5 best / step40000；部署结果仍以V1为基线。模型结果见[追加报告](reports/v2-20261007/v21-extend.md)，Core ML验收见[Mac准备](mac-v21-preparation.md)。
+当前模型为V2.1 extend5 best / step40000，部署采用INT8 block32；V1为冻结基线。总体结论见[V2总结](reports/v2-summary.md)，训练和量化分别见[追加报告](reports/v2-20261007/v21-extend.md)与[Core ML评测](reports/mac-20261008/v21-coreml.md)。
 
 ## 评分定义
 
@@ -23,8 +23,11 @@ Top-1/5按任一冻结可接受答案精确匹配，不做宽度正规化。报�
 | V2.0 best | 3.2598221 | 125 | 124 | 1463 |
 | V2.1 restart1 | 3.0811788 | 137 | 121 | 1476 |
 | V2.1 extend5 best | 3.0802686 | 144 | 122 | 1487 |
+| V2.1 extend5 INT8 | — | 144 | 122 | 1481 |
 
 extend5相对restart1的扩大集净增11，exact two-sided McNemar p=.22155；相对V1净增34，p=.00648。均为开发集探索性、未校正多重比较；草稿标签、公开集重叠和模型选择限制仍在，不代表已证明生产收益。原标签和词典别名口径没有根据模型结果修改。
+
+上表前四行为FP32，INT8 BPC未测。量化后扩大草稿8条改对、14条改错，净少6条，配对p=.28628；未发现显著退化，未建立统计等效性。严格logits失败与任务质量分别记录，当前量化损失在实验接受范围内。细节见[误差分析](reports/mac-20261008/v21-quantization-review.md)。
 
 ## 入口与缓存
 

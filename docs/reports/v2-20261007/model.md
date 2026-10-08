@@ -17,7 +17,7 @@
 
 ## 已有验证
 
-`check_model_v2.py` 在 PyTorch 2.10.0+cu128 / CUDA / BF16 上用一次 synthetic update 检查：参数量、forward shape、causal masking、masked loss、weight tying、有限梯度、保存/重载与 optimizer state。耗时 18.49 秒，报告为 `outputs/model-checks/tiny-ja-v2-phase-b/report.json`；fixture checkpoint 不是正式模型。V2 Core ML 尚未验证。
+`check_model_v2.py` 在 PyTorch 2.10.0+cu128 / CUDA / BF16 上用一次 synthetic update 检查：参数量、forward shape、causal masking、masked loss、weight tying、有限梯度、保存/重载与 optimizer state。耗时 18.49 秒，报告为 `outputs/model-checks/tiny-ja-v2-phase-b/report.json`；fixture checkpoint 不是正式模型。后续部署结果见[V2总结](../v2-summary.md)。
 
 ## W&B
 

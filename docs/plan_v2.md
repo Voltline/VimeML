@@ -1,6 +1,6 @@
-# V2 实验约定
+# V2 实验设计
 
-目标：在 iOS Keyboard Extension 可承受的规模内，改善日语候选重排与句内短语联想。AzooKey 提供假名检索和候选池，LM 提供上下文语言分数。V2 目标约 10M–15M 参数、context 128；INT8 体积和设备成本以实际导出为准。
+目标是在iOS Keyboard Extension可承受的规模内，改善日语候选重排与句内短语联想。AzooKey提供假名检索和候选池，LM提供上下文语言分数。V2采用12.54M参数、context128，最终INT8包14.33MB；完整结果见[V2总结](reports/v2-summary.md)。
 
 ## 版本与状态
 
@@ -10,7 +10,7 @@
 | V2.1 | 低学习率继续2 epochs、编译优化、扩大IME benchmark | restart1完成：BPC3.08118、AJIMEE137/200；2000条草稿1476正确 |
 | V2.1 extend5 | 携带AdamW状态，追加3.27轮后停止 | 保留best step40000：BPC3.08027、AJIMEE144/200、2000条草稿1487；[结果](reports/v2-20261007/v21-extend.md) |
 
-配置分别为 [tokenizer-v2.toml](../configs/tokenizer-v2.toml)、[train-v2.toml](../configs/train-v2.toml)、[train-v21-restart.toml](../configs/train-v21-restart.toml)。原batch256配置 [train-v21.toml](../configs/train-v21.toml)保留。当前状态见 [V2 训练](training-v2.md)，实测见 [文档索引](index.md)。
+配置分别为[tokenizer-v2.toml](../configs/tokenizer-v2.toml)、[train-v2.toml](../configs/train-v2.toml)、[train-v21-restart.toml](../configs/train-v21-restart.toml)和[train-v21-extend.toml](../configs/train-v21-extend.toml)。原batch256配置[train-v21.toml](../configs/train-v21.toml)保留。复现方式见[V2训练](training-v2.md)。
 
 ## Tokenizer 与数据
 
@@ -29,7 +29,7 @@ TinyGPTV2：12,537,920 参数，d_model=320、6 layers、5 heads、head_dim=64�
 
 训练使用 BF16、AdamW β=.9/.95、weight decay=.1（矩阵参数）、clip=1、长度 bucket。V2.0：batch256，4 epochs，LR 1e-3 → 1e-4，warmup 1000；V2.1 restart1：batch512，从 V2.0 best 权重起新 AdamW，2 epochs / 98,426 updates，LR 3e-4 → 3e-5，warmup 500，epoch offset=4。batch选择依据见 [真实数据性能对照](reports/v2-20261007/v21-performance.md)。
 
-每 5,000 updates 保存 checkpoint 和固定子集验证；每轮完整 BPC/IME，连续两轮 BPC 比历史最佳高超过 .01 时提前停止。Checkpoint 保存模型、优化器、调度器、RNG、epoch/cursor、实际训练与裁剪计数、配置和来源身份。
+每5,000 updates保存checkpoint并做固定子集验证，每轮完整BPC/IME。退化停止规则及其启用范围以各版本配置为准；extend5配置为连续两轮BPC比历史最佳高超过.01时停止。Checkpoint保存模型、优化器、调度器、RNG、epoch/cursor、训练与裁剪计数、配置和来源身份。
 
 代码入口：`model.py` 为 V1；`model_v2.py`、`data_v2.py`、`runtime_v2.py` 为 V2；`model_factory.py` 统一训练与推理的架构选择。正式训练使用 AutoDL、screen、W&B online，版本目录独立。
 
@@ -48,10 +48,10 @@ TinyGPTV2：12,537,920 参数，d_model=320、6 layers、5 heads、head_dim=64�
 
 统一候选池报告 Top-1、Top-5、Recall@20、corrected/damaged、MRR、CER 与 exact McNemar；完整分母保留召回失败，covered subset 单独报告。开发集用于选模型，blind 在最终选择后计分一次。当前 3,000 条候选齐全，正式标签审核和语义类别分层未完成；词典代理诊断不作为正式 gold。
 
-V1/V2.0 checkpoint、原参考标签和评分产物冻结。大文件使用已有指纹及 metadata 验收；验证集中在新增行为和实际运行，避免重复全量 hash 与 smoke。
+V1/V2.0 checkpoint、参考标签和评分产物冻结，模型间使用同池、同标签和相同评分政策比较。
 
-## 部署与后续实验范围
+## 部署选择与后续变量
 
-V2.0 尚未完成 Core ML、量化、真机延迟与内存验收。生产接入依据稳定的 IME 增益及设备结果，BPC 改善本身不足以替换 V1。
+部署选择extend5 step40000的INT8 block32版本，CPU_ONLY、FP32计算、最低iOS18。严格logits对齐失败、扩大草稿下降0.3个百分点与UI长尾在当前接受范围内；V2系列实验完成。量化任务质量和真机成本独立于训练BPC评估，详见[Core ML](coreml.md)。
 
 后续变量包括更小词表、结构/学习率与有效 batch 对照、subword regularization、领域数据、蒸馏和 ranking loss；每次实验保持候选与评分政策可比较。RoPE/KV cache 由上下文和设备需求决定。

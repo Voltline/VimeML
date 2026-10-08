@@ -1,10 +1,8 @@
-> 详细参考与 FP32 基线。当前阶段入口见 [文档索引](../index.md)，量化后的结果见 [Core ML 指南](../coreml.md)。
-
 # AzooKey + Tiny LM 组合排序
 
 现有原型策略已冻结：`AzooKey score + 2 × contextual LM logP sum`。λ=2 由独立审核开发集选择，不在 AJIMEE 上搜索。策略文件为 `artifacts/ranking-policies/tiny-ja-v1-hybrid-dev-v2/policy.json`。
 
-Core ML 部署默认采用纯 LM 排序，不融合 AzooKey 分数；这里保留历史组合基线及复现入口。压缩后重新验证纯 LM 的开发集/AJIMEE/联想。若以后重新启用融合，必须基于新模型单独校准，不能沿用 λ=2。见 [部署指南](../history/coreml-guide.md)。
+Core ML 部署默认采用纯 LM 排序，不融合 AzooKey 分数；这里保留历史组合基线及复现入口。压缩后重新验证纯 LM 的开发集/AJIMEE/联想。若以后重新启用融合，必须基于新模型单独校准，不能沿用 λ=2。见[部署指南](../coreml.md)。
 
 ## 评分约定
 
@@ -17,7 +15,7 @@ context+candidate 联合分词、从公共 token 前缀后累计 logP；保留�
 ## 已完成的数据
 
 - 成功导出 180 条生成草稿；18/20 批次，缺失两批未继续补齐。
-- Codex 逐条复核保留 137 条（63 有左文、74 无左文），43 隔离；9 条去掉读音不同的替代表记，不改写 input/context。
+- 模型辅助逐条复核保留 137 条（63 有左文、74 无左文），43 隔离；9 条去掉读音不同的替代表记，不改写 input/context。
 - 审核未使用 Tiny LM 得分或候选结果筛标签，是 AI 复核，未经过外部母语者裁定。
 - `artifacts/benchmarks/ime-dev-reviewed-v2/` 保存决定，`ime-dev-v2/` 保存 Mac 输入与导出。
 - 137 条全对齐；136 条 20 候选，1 条 18 候选，无空池，答案覆盖 136/137。

@@ -1,39 +1,26 @@
-> 历史文档：这是 Mac 实测前的 Windows 计划；当前状态与操作入口以 [Core ML 指南](../coreml.md) 和 [文档索引](../index.md) 为准。
+# V1部署设计（实测前）
 
-# Core ML 转换与量化计划
-
-当前模型冻结，独立转换工具已实现，尚未执行真实导出、转换或生成 `.mlpackage`。完整命令和阶段停点见 [Core ML 手动操作指南](coreml-guide.md)。在 Mac 建立独立转换环境，记录实际 Python / PyTorch / coremltools 版本，不修改现有 Windows 训练环境。
-
-部署默认使用纯 LM contextual logP sum 排序，AzooKey 保留假名候选检索，原分数不参与排序。历史 λ=2 组合基线保留；当前路线无需 λ。若取消候选检索，需要另做读音约束生成，当前权重没有验证该任务。
-
-## 实施顺序
-
-1. 导出仅推理权重、模型配置、SentencePiece 与身份 hash，剥离 optimizer / RNG / 训练状态；当前 FP32 评分与文本输出为参照。
-2. 转换 FP16 Core ML `.mlpackage`，先不压缩。核对 PyTorch 与 Core ML 的 logits、causal mask、位置 embedding、PAD 与特殊 token。
-3. 对转换后的权重尝试 4bit 压缩，比较数值偏差、纯 LM 排序、联想、实际包体积和运行内存；FP16 / 8bit 作为质量或兼容性选择。无需先继续训练或做 QAT。
-4. 在 iPhone 键盘扩展实测冷启动、单次候选重排、生成 3～5 项联想及内存峰值，再决定缓存与执行配置。
-
-先把可验证的 FP16 模型转对，再压缩；避免同时引入图转换与压缩偏差。参考 [Apple Optimization Workflow](https://apple.github.io/coremltools/docs-guides/source/opt-workflow.html)。
+2026-10-06实测前的设计记录。模型为7,386,624参数的V1，原方案先验证未压缩Core ML，再比较压缩与设备成本；实际采用的INT8路线见[V1实测](../reference/coreml-v1.md)，V2结论见[实验总结](../reports/v2-summary.md)。
 
 ## 模型与应用边界
 
-首版 context≤128，当前 PyTorch 实现没有 KV cache。先验证整段 forward：生成需要末位置 logits，reranking 需要逐位置 logits。之后可优化输出/缓存，但必须保持评分语义。SentencePiece、文本解码、生成搜索、候选联合分词和组合评分在应用侧，Core ML 只执行 Transformer 图。
+AzooKey检索假名候选，LM按contextual logP sum重排；SentencePiece、评分、文本解码和搜索位于应用侧，Core ML只执行Transformer图。取消词典检索需要独立的读音约束生成任务，原GPT训练目标不覆盖该任务。
 
-SentencePiece 接缝可能重新分词；不能把 context 与 candidate 分别 encode 再拼接。评分不额外加入 EOS，不改变候选池、错误回退或稳定并列规则。批量候选与 beam 路径的边界也需核对。
+context≤128，无KV cache。生成使用末位置logits，重排使用逐位置logits；context与candidate联合编码，公共token前缀后累计完整词表logP，不加入候选EOS。整池回退和稳定并列规则与FP32评测一致。
 
-## 压缩与系统版本
+## 原实验路径
 
-可比较 grouped-channel palettization 和 blockwise 线性权重量化。palettization 是查表表示，不等于所有执行内核都使用 INT4 算术。配置与最低 iOS 版本共同选择：[Palettization 概览](https://apple.github.io/coremltools/docs-guides/source/opt-palettization-overview.html)、[Quantization 概览](https://apple.github.io/coremltools/docs-guides/source/opt-quantization-overview.html)。
+1. 导出推理权重、配置、tokenizer及来源manifest，剥离optimizer/RNG。
+2. 转换未压缩FP16包，验证logits、causal、位置、PAD与特殊token。
+3. 比较4bit palettization、线性量化及8bit对照，分别记录数值、排序、联想、包体与内存。
+4. 在iPhone测试加载、重排、联想和真实扩展footprint，选择执行配置。
 
-基础 palettized ML Program 支持从 iOS16/macOS13 起；grouped-channel 配置要求 iOS18/macOS15 起。最低部署版本尚待确定，转换工具应明确记录 target，不能预先承诺所有 iPhone 版本可用。
+纯4bit参数的理论体积约3.69MB，不包含LUT/scale、未压缩常量和可能重复的共享权重。存储位数不等于执行算术精度，包体也不等于运行内存。分组压缩和最低系统版本共同确定。
 
-7,386,624 参数纯 4bit 数据约 3.69MB，包内还有未压缩参数、LUT/scale 和结构；共享 embedding / LM head 可能在导出后重复存储，需要检查。磁盘大小不等于运行内存，不能直接保证最终包或键盘内存是 3.7MB。
+## 评估约定
 
-## 验证与迁移
+原137条开发集、AJIMEE200与20个联想前缀采用固定输入和评分方式。纯LM为部署主线，历史λ=2融合策略单独保留；新模型的融合系数需要独立开发集校准。
 
-- Mac 对齐 logits / 每条候选分数与排序，覆盖 BOS、EOS、短句、长句、padding、byte fallback 和联合分词边界。
-- 压缩后重跑独立 137 条开发集和固定 200 条 AJIMEE，以纯 LM 为主策略。若以后恢复融合，针对新模型在开发集重新校准 λ，固定后再测 AJIMEE。FP32 λ=2 和缓存不能直接当成压缩模型已验证策略。
-- 联想对固定 20 个前缀保留原始结果并复核自然度，不只比较 loss 或文件大小。
-- iPhone 的加载、延迟和内存单独测量；Mac predict 不替代目标设备验证。参考 [Core ML Getting Started](https://apple.github.io/coremltools/docs-guides/source/introductory-quickstart.html)。
+Mac预测计时、测试宿主与真实键盘扩展分别统计。数值复现、任务质量和设备成本属于不同指标，压缩收益以实际实验为准。
 
-新机器所需文件见 [本地产物与迁移](../artifacts.md)。转换阶段无需复制整套原始语料或训练 token 二进制，保留 Windows 正式数据用于复现和追踪。
+方法依据：[优化流程](https://apple.github.io/coremltools/docs-guides/source/opt-workflow.html)、[Palettization](https://apple.github.io/coremltools/docs-guides/source/opt-palettization-overview.html)、[Quantization](https://apple.github.io/coremltools/docs-guides/source/opt-quantization-overview.html)。原命令入口见[V1方法参考](coreml-guide.md)。

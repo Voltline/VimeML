@@ -1,37 +1,37 @@
 # 本地产物与目录
 
-Git保存代码、配置、测试和文档；`datasets/artifacts/outputs/runs/handoff`是忽略目录。正式模型、语料和manifest保持原始字节；清理只删除可重建缓存与临时测试目录。
+Git保存源码、配置、测试、文档和许可证。`datasets/`、`artifacts/`、`outputs/`、`runs/`、`handoff/`为忽略目录；模型和原始实验资料保留原始字节，可重建缓存与临时测试目录独立清理。
 
-## 当前产物
+## 模型、数据与报告
 
 | 路径 | 内容 |
 | --- | --- |
-| `artifacts/models/tiny-ja-v2.1-e16k-d320-l6-extend5/` | best step40000、last step161095及三轮评测；两个本地checkpoint约301MB，epoch权重保留远端 |
-| `artifacts/models/tiny-ja-v2.1-e16k-d320-l6-restart1/` | 冻结best/last step98426、epoch1及原两轮报告 |
-| `artifacts/models/tiny-ja-v2.0-e16k-d320-l6/`、`tiny-ja-v1/` | V2.0与V1冻结基线 |
-| `artifacts/tokenizers/ja-unigram-16k-v2/` | V2词表；不能替换成V1词表 |
-| `artifacts/token-data/corpus-v2-16k/`、`artifacts/training-data/corpus-v2-c128/` | 冻结token store与窗口索引；仅训练需要 |
-| `artifacts/benchmarks/ime-expanded-v21-candidates-v1/` | development2000与blind1000；草稿标签，blind未LM计分 |
-| `outputs/ime-eval/`、`outputs/model-checks/`、`outputs/deployment/` | 逐候选分数、推理／数值参考和端侧结果 |
-| `outputs/history/v2-20261007-session/` | 已结束会话的辅助脚本、运行快照与日志；不是当前命令入口 |
-| `outputs/maintenance/workspace-cleanup-20261007/` | 整理前文档、移动清单与清理记录 |
+| `artifacts/models/tiny-ja-v2.1-e16k-d320-l6-extend5/` | best step40000、last step161095和三轮评测；两个本地checkpoint约301MB，epoch权重在远端归档 |
+| `artifacts/models/tiny-ja-v2.1-e16k-d320-l6-restart1/` | best/last step98426、epoch1和两轮报告 |
+| `artifacts/models/tiny-ja-v2.0-e16k-d320-l6/`、`tiny-ja-v1/` | V2.0与V1基线 |
+| `artifacts/tokenizers/ja-unigram-16k-v2/` | V2词表，token ID与V1不同 |
+| `artifacts/token-data/corpus-v2-16k/`、`artifacts/training-data/corpus-v2-c128/` | Token store与窗口索引 |
+| `artifacts/benchmarks/ime-expanded-v21-candidates-v1/` | Development2000和blind1000；草稿标签，blind未计分 |
+| `artifacts/deployment/tiny-ja-v2.1-extend5-{bundle,fp32,int8-b32,client-resources}-v1/` | 推理bundle、Core ML包和客户端资源 |
+| `outputs/ime-eval/`、`outputs/model-checks/`、`outputs/deployment/` | 分数、数值参考、推理、设备结果与trace |
+| `outputs/history/` | 已退役的脚本、快照、日志和冲突版本 |
+| `outputs/maintenance/` | 导入、目录整理及文档改版记录 |
 
-训练语料原文在`outputs/corpus-fast-v1/`（约50GB），原输入在`datasets/`（约2.44GB）；`rows.bin`依赖JSONL原字节位置。转换无需复制原文、token store、训练索引或优化器。
+语料原文在`outputs/corpus-fast-v1/`（约50GB），原输入在`datasets/`（约2.44GB）。`rows.bin`依赖JSONL原始字节位置；部署只需要推理权重、tokenizer、manifest与参考结果，不依赖训练原文、token store或优化器。
 
-## Mac迁移
+## 迁移与归档
 
-2026-10-08回传已完成：`handoff/mac-20261008-v21/vimeml-v21-mac-results.zip`及原`handoff.json`保留；306份文件恢复到`artifacts/deployment/tiny-ja-v2.1-extend5-{bundle,fp32,int8-b32,client-resources}-v1/`和`outputs/deployment/v21-*/`。导入记录为`outputs/maintenance/mac-return-20261008/import-report.json`，按Git ancestry、路径、数量和大小核对，未重跑Apple运行时或逐文件SHA256。
+| 归档 | 内容 |
+| --- | --- |
+| `handoff/vimeml-v21-mac-20261008.zip` | V2推理输入、Git bundle、冻结评分和V1对照 |
+| `handoff/mac-20261008-v21/vimeml-v21-mac-results.zip` | Mac结果包与原`handoff.json`；306份产物已恢复 |
+| `handoff/mac-20261006-v1/` | V1源码、客户端与结果快照 |
+| `handoff/vimeml-v2-*.tar.gz`、`vimeml-v21-*.tar.gz` | AutoDL代码、输入、恢复、模型和评测快照 |
 
-原准备包为`handoff/vimeml-v21-mac-20261008.zip`：完整Git历史、独立V2权重、tokenizer/原token manifest、development候选与FP32参考、V1 INT8对照。使用方式和Git约定见[Mac准备](mac-v21-preparation.md)。包内`deployment.pt`模型tensor与原best一致，移除优化器；原checkpoint没有重写。
-
-历史包保留：`handoff/mac-20261006-v1/`是昨日Mac源码／Vime客户端快照，`handoff/vimeml-v2-*.tar.gz`及`vimeml-v21-*.tar.gz`是原AutoDL启动、训练输入、恢复和评测记录。无需把这些全量包一起传给Mac；它们不是当前源码合并方式。
-
-Mac仅回传新增V2部署资源与报告ZIP；代码通过两个仓库各自的分支／PR合并。Vime现有客户端以Mac仓库为准，`examples/ios/`和昨日ZIP为历史参考，不能覆盖客户端最新实现。
+源码通过两个仓库各自的Git分支／PR合并，产物通过ZIP恢复。客户端当前实现位于独立Vime仓库；`examples/ios/`及旧ZIP仅为历史参考。流程见[跨平台管理](reference/artifact-exchange.md)，V2导入记录位于`outputs/maintenance/mac-return-20261008/import-report.json`。
 
 ## 来源与环境
 
-原始manifest里的绝对路径、代码指纹和失败结果仍代表当时运行，不改成当前路径或伪装成新验证。后续复用已绑定identity，只在模型／tokenizer资源变化时记录新的身份；迁移按清单、大小和Git commit检查，不逐文件重复SHA256。
+Manifest中的路径、代码指纹和失败项描述原运行环境，目录迁移不改写原始记录。模型／tokenizer变更时建立新身份，后续阶段复用冻结manifest；传输检查清单、大小与容器完整性。
 
-AutoDL使用`/root/autodl-tmp/vimeml`数据盘，该目录不随系统镜像保存。Python环境分别由`requirements.txt`和`requirements-autodl.txt`重建，不迁移venv或凭据。Mac旧环境记录在`outputs/deployment/environment/`。
-
-2026-10-06归档见[Mac合并记录](reports/mac-20261006/merge-verification.md)，当前训练与选择见[追加结果](reports/v2-20261007/v21-extend.md)。
+AutoDL数据目录为`/root/autodl-tmp/vimeml`，不随系统镜像保存。依赖由`requirements.txt`与`requirements-autodl.txt`重建；虚拟环境和凭据不进入迁移包。Mac环境记录在`outputs/deployment/environment/`，W&B账号和run链接只保存在本地忽略目录。

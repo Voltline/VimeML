@@ -1,4 +1,4 @@
-# 3,000 条 IME 输入与 AzooKey 导出
+# 扩大IME候选集构建（2026-10-07）
 
 2026-10-07。2,000 development + 1,000 blind 的输入及真实 Mac 候选已收集、导入；参考标签为双词典检查的草稿，blind 尚未 LM 计分。[开发集初评](expanded-ime-evaluation.md)记录结果。
 

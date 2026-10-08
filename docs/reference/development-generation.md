@@ -1,8 +1,6 @@
-> 详细参考与 FP32 基线。当前阶段入口见 [文档索引](../index.md)，量化后的结果见 [Core ML 指南](../coreml.md)。
-
 # 开发数据生成与审核
 
-当前已完成一套 137 条审核开发集并选择 λ，无需继续生成。本页保留新版本操作方式。API 由使用者在本地手动启动；key 只通过环境变量提供，不写入代码、参数或 Git。
+V1开发集采用137条冻结样本，用于组合系数选择。本文记录生成、核验与版本化方法；API凭据从环境变量读取。
 
 ## DeepSeek 生成真实转换开发样本
 
@@ -54,19 +52,19 @@ system prompt / 生成指令为日语，context 与答案须日语，仅 reason_
 
 ## 少数批次失败时离线导出
 
-当前 v2 的最后两批未补齐，采用已有 18 批成功草稿，不继续调用 API：
+生成v2共20批，最终采用18批成功草稿，余下两批未补齐。离线导出入口：
 
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 scripts/benchmarks/export_cached_development.py --source artifacts/benchmarks/ime-dev-generation-v2 --output artifacts/benchmarks/ime-dev-review-new
 ```
 
-只导出成功缓存，不抢救失败回复；保存 missing-jobs 与 unverified 标记，不改原目录。当前原始 snapshot 为 `ime-dev-review-v2/`。Codex 逐条复核后保留 137/180，43 隔离，9 条删除读音不同的替代表记；记录在 `ime-dev-reviewed-v2/`。这是 AI 复核，未经过外部母语者裁定。
+只导出成功缓存，不抢救失败回复；保存 missing-jobs 与 unverified 标记，不改原目录。当前原始 snapshot 为 `ime-dev-review-v2/`。模型辅助逐条复核后保留 137/180，43 隔离，9 条删除读音不同的替代表记；记录在 `ime-dev-reviewed-v2/`。这是 AI 复核，未经过外部母语者裁定。
 
 新审核同样不改原 input/context，不用同义不同读音掩盖错误；不确定专名和语境可隔离。审核后保存新版本 JSON 和决定，再声明 `--labels-reviewed` 转换输入。真实候选、选 λ 与固定测试见 [组合排序](hybrid-ranking.md)。
 
 ## 可选合成诊断工具
 
-早期的 `scripts/benchmarks/generate.py` / `evaluate.py` 保留为扩展工具，不属于当前主评测链路，也不需要现在运行。默认草稿为 400 条短语二选一与 155 条受控同音词样本；生成 DeepSeek、盲核验 Qwen，后续仍需抽检。它们不提供真实 AzooKey 候选，不测开放联想自然度。
+早期的 `scripts/benchmarks/generate.py` / `evaluate.py` 保留为扩展工具，不属于当前主评测链路。默认草稿为 400 条短语二选一与 155 条受控同音词样本；生成 DeepSeek、盲核验 Qwen，后续仍需抽检。它们不提供真实 AzooKey 候选，不测开放联想自然度。
 
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 scripts/benchmarks/generate.py --dry-run

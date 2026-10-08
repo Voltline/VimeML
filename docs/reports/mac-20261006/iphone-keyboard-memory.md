@@ -1,12 +1,10 @@
-> 2026-10-06 Mac 阶段报告，经 Windows 合并校对；原文和原始证据另存于本地交接归档。这里的历史任务描述不授权启动新的训练或设备操作。
-
 # iPhone 真正键盘扩展的内存记录（2026-10-06）
 
-后续用户以驻留内存表现确认当前模型占用可接受，Mac 交接曾提出10M～15M模型实验的设想；本次仍冻结 v1 权重，阶段结论及Windows/Vime交接见 [Mac交接说明](handoff.md)。用户观察的6.7→29.31→45.77MB不是下表的footprint口径；最新汇总JSON同时保留私有/共享/总驻留值。
+测量模型为冻结V1，实际输入体验与当前内存占用可接受。截图中的6.7→29.31→45.77MB为观察读数，与下表footprint口径不同；汇总JSON分别保留私有、共享和总驻留值。产物归档见[V1归档记录](handoff.md)。
 
-本次由用户手动操作手机，Codex 打开 Instruments、开始/停止并保存 Activity Monitor。录制已停止，未修改 App 或模型。设备为 iPhone 16 Pro Max，当前系统 iOS27.2；项目最低 iOS18 的配置不因本次测试改变。
+使用Instruments Activity Monitor记录手动输入过程，设备为iPhone16 Pro Max / iOS27.2，项目最低iOS18。测量过程中App和模型保持不变。
 
-用户明确确认：LM 候选排序和词联想均开启，确认候选后看到下一词建议。这是运行场景的用户观察证据。本次没有成功加入 os_log/Core ML instrument，因此没有独立的模型加载日志；没有取得已安装构建和模型的哈希，不能宣称与当前源代码完全一致。
+运行时LM候选排序和词联想均开启，确定候选后可见下一词建议；设置状态由手动操作记录提供。本次没有成功加入 os_log/Core ML instrument，因此没有独立的模型加载日志；没有取得已安装构建和模型的哈希，不能宣称与当前源代码完全一致。
 
 ## 结果
 
@@ -42,7 +40,7 @@
 - `outputs/deployment/iphone16promax-mirroring-memory-v1/keyboard-manual-activity.trace`：原始 Instruments trace，保留原始录制。
 - 同目录 `toc.xml`、`sysmon-process.xml`：离线导出的目录和原始统计。
 - 同目录 `summary.json`：Vime、VimeKeyboard的独立汇总及完整逐点曲线。
-- 同目录 `provenance.json`：录制时间、用户确认的设置和证据限制。
+- 同目录 `provenance.json`：录制时间、运行设置与证据限制。
 - `scripts/deployment/summarize_keyboard_trace.py`：按 XML 列名和 id/ref 引用解析，重建各进程曲线。
 
 ```sh

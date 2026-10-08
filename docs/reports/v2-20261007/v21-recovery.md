@@ -1,4 +1,4 @@
-# V2.1 中断检查与迁出
+# V2.1中断与恢复记录
 
 2026-10-07 18:12（北京时间），无卡恢复的旧实例无活动训练进程，`vimeml-v21` 仅剩 dead screen socket。本轮新增产物已全部迁回本地。
 
@@ -14,7 +14,7 @@ best/last 均为 step=0、epoch=0、batch_cursor=0、total_tokens=0，optimizer 
 
 快照与验证位于 `outputs/autodl-v21-recovery-20261007/{rescue-manifest,verification}.json`，模型位于 `artifacts/models/tiny-ja-v2.1-e16k-d320-l6-continue/`。文件清单与大小通过，checkpoint 可加载；旧实例文件及 V1/V2.0 保持原样。SSH/W&B 凭据不在归档中，日志凭据相关行已去除。
 
-旧 W&B run 为 W&B本地记录，其本地二进制仅 7 bytes，不能视为包含可补同步的训练历史。
+旧W&B run的本地二进制仅7 bytes，没有可补同步的完整训练历史。
 
 ## 迁移材料
 

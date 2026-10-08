@@ -2,7 +2,7 @@
 
 设备为 iPhone16 Pro Max / iOS27.2（24B5099f），Xcode27.1，签名 Release，CPU_ONLY，最低iOS18。
 V2.1 extend5 step40000、INT8 block32，模型与 tokenizer 的身份见 [量化报告](v21-coreml.md)。
-客户端从 main `9dc3c929c33e24cef1400b00c5639e2f9477b619` 建独立分支；Mac 旧客户端未改。
+客户端基点为main `9dc3c929c33e24cef1400b00c5639e2f9477b619`，资源接入通过独立分支实现。
 
 ## 测试宿主
 
@@ -20,13 +20,13 @@ OrderedCollections 链接失败；clean test 后10项功能再次通过（另1�
 
 Instruments Activity Monitor：北京时间 **10:08:23.641—10:11:44.938**，201.297秒。
 实际扩展 `Vime.app/PlugIns/VimeKeyboard.appex/VimeKeyboard`，PID17014。
-164个有效sysmon采样，间隔中位数1.036秒。首次Wi-Fi尝试连接失败，之后用户连接USB，
+164个有效sysmon采样，间隔中位数1.036秒。首次Wi-Fi连接失败，改用USB后
 重新录制成功；两份trace分别保留。导出时Apple符号分析有dylib overlap警告，
 sysmon表可完整解析，录制结束原因是正常达到时间限制。
 
-用户确认「智能排序＋下一词联想」均开启，确定候选后看到下一词建议，未观察到异常。
-用户执行输入、选词、确定、退格和宿主切换；建议读音为kisha、hashi、nihongo及
-ashitanokaiginisankashimasu，未逐项保存实际输入或次数。
+手动输入时「智能排序＋下一词联想」均开启，确定候选后可见下一词建议，未观察到异常。
+操作覆盖输入、选词、确定、退格和宿主切换；测试方案列有kisha、hashi、nihongo及
+ashitanokaiginisankashimasu，实际输入与操作次数未逐项保存。
 
 扩展内opt-in审计从UTC02:08:54开始，导出191.902秒、1920个100ms样本。
 实际设置为candidate_ranking=languageModel、next_words=true。
@@ -77,13 +77,13 @@ LM阶段包含取消/失败尝试，没有将其计为全部成功请求。
 | 结果就绪到UI发布 | 256 | 42.49 / 8.79 / 1926.09 |
 
 UI发布有约1.93秒长尾；未保存事件关联时间戳，无法确定是否与宿主切换或调度有关。
-用户没有感到异常，该最大值仍保留为候选的已知未定位项，不将p95当作最大延迟。
+实际输入未感到明显异常，当前长尾可接受；最大值与未定位原因保留，p95与最大延迟分别统计。
 
 ## 结论与资料
 
 V2模型、tokenizer、分词/评分契约、取消/回退和本次实际扩展工作负载已验证。
-形成独立V2候选，V1保留显式回退。严格logits量化对齐失败、扩大草稿Top-1下降0.3个百分点、
-末段内存增长和UI发布长尾均已记录；这次没有正式发布或合并main。
+V2.1作为当前部署版本，V1保留显式回退。严格logits量化对齐失败、扩大草稿Top-1下降0.3个百分点、
+末段内存增长和UI发布长尾均保留原测量。部署代码已合入主分支；总体结论见[V2总结](../v2-summary.md)。
 审计开关由实际App成功写为false；每次测量最多240秒自动停止，不记录用户输入。
 
 原始证据：`outputs/deployment/v21-iphone-keyboard-extension-v1/` 中的成功/失败trace、toc.xml、
