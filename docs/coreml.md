@@ -1,6 +1,8 @@
 # Core ML 部署
 
-V1已有INT8接入与有限真机记录；V2.1 extend5 best（step40000）已完成训练和FP32评测，**尚未转换或量化**。2026-10-08的V2任务、交接包与Git方式见[Mac准备](mac-v21-preparation.md)。
+V1已有INT8接入与有限真机记录；V2.1 extend5 best（step40000）已完成Core ML、INT8 block32和iPhone候选验证，代码PR已合入，产物已归档。结果见[V2量化](reports/mac-20261008/v21-coreml.md)与[真实扩展](reports/mac-20261008/v21-iphone.md)，原交接约定见[Mac准备](mac-v21-preparation.md)。
+
+V2未压缩对齐通过，INT8严格logits对齐失败；AJIMEE144/200、原dev122/137保持命中数，扩大草稿1487→1481/2000。INT8包14.33MB，真实扩展内核footprint峰值34.72MiB、私有驻留采样峰值73.78MiB；UI发布最大约1.93秒，原因未定位。代码合并和本次候选验证不等于正式发布或长期设备验收。
 
 ## 接口与环境
 
@@ -20,10 +22,11 @@ source venv/coreml/bin/activate
 | --- | --- |
 | `scripts/deployment/prepare_mac.py` | 当前Git与V2 FP32输入交接ZIP，不转换模型 |
 | `scripts/deployment/coreml.py` | 推理bundle、reference、转换、对齐、候选/联想/计时；当前bundle仅支持V1 |
-| `scripts/deployment/coreml_conservative.py` | V1混合权重存储、FP32计算和INT8 block32；V2精度/参数筛选需适配 |
+| `scripts/deployment/coreml_v2.py` / `package_v2_ios.py` | 独立V2推理bundle、FP32转换、门控INT8及客户端资源 |
+| `scripts/deployment/coreml_conservative.py` | V1混合权重存储、FP32计算和INT8 block32 |
 | `scripts/deployment/package_ios.py` | 附带iOS参考的资源包，不是客户端构建或设备认证 |
 
-V2先增加架构分派和独立bundle格式，完成未压缩转换与数值对齐，再量化和同池评测，最后接入Vime及真机测量。V2 tokenizer不同于V1，资源需整体更新。具体输入路径与参考结果都在[Mac准备](mac-v21-preparation.md)，不直接套用V1导出命令。
+V2使用独立bundle与导出入口，已完成未压缩转换、对齐、量化、同池评测和真机测量。V2 tokenizer不同于V1，客户端模型与tokenizer需整体更新。输入约定见[Mac准备](mac-v21-preparation.md)，实际产物和调用记录见[V2量化报告](reports/mac-20261008/v21-coreml.md)。
 
 每个模型和报告使用新版本目录；旧checkpoint、tokenizer、manifest、失败实验与V1部署资源保持冻结。模型身份在首次导出或资源变更时绑定，之后复用记录；不重复全目录哈希或完整回归。新图与量化只做有关的长度、PAD/causal、分数及实际设备验证。
 

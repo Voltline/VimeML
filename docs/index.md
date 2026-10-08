@@ -1,6 +1,6 @@
 # 文档索引
 
-训练已停止。当前离线模型为V2.1 extend5 best / step40000；2026-10-08在Mac进行Core ML适配与量化，V1部署资源保留作对照。
+训练已停止。V2.1 extend5 best / step40000已完成Mac Core ML、INT8和iPhone候选验证，代码PR已合入，结果已恢复到本地；V1保留作对照和回退。
 
 ## 当前指南
 
@@ -21,6 +21,7 @@
 | 性能与恢复 | [续训配置](reports/v2-20261007/v21-plan.md)、[实测性能](reports/v2-20261007/v21-performance.md)、[旧step0恢复](reports/v2-20261007/v21-recovery.md) |
 | 数据与标签 | [3000条候选交接](reports/v2-20261007/ime-3000-handoff.md)、[扩大集初评](reports/v2-20261007/expanded-ime-evaluation.md)、[标签与错误审核](reports/v2-20261007/label-error-audit.md) |
 | V1 Mac历史 | [原交接](reports/mac-20261006/handoff.md)、[合并记录](reports/mac-20261006/merge-verification.md)、[模拟器](reports/mac-20261006/simulator-memory.md)、[真实键盘](reports/mac-20261006/iphone-keyboard-memory.md) |
+| V2 Mac完成 | [Core ML与量化](reports/mac-20261008/v21-coreml.md)、[iPhone宿主与真实扩展](reports/mac-20261008/v21-iphone.md) |
 
 报告按日期与实验保存；原始JSON、分数和trace保存在`outputs/`，报告不替代原始证据。
 

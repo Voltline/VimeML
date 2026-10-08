@@ -9,7 +9,7 @@ Vime 日语输入法的小型语言模型。AzooKey 根据假名生成候选，L
 | V1，7.39M 参数 | 1 epoch；validation BPC 3.4736559；AJIMEE 124/200 | 冻结基线，已有 iOS INT8 接入记录 |
 | V2.0，12.54M 参数 | 4 epochs；best step 375000；BPC 3.2598221；AJIMEE 125/200 | 完成并归档，尚未验证 Core ML 部署 |
 | V2.1 restart1 | 额外2 epochs；best step98426；BPC 3.0811788；AJIMEE 137/200 | 完成评测并下载，旧step0已归档 |
-| V2.1 extend5 | 追加3.27轮后停止；保留best step40000；BPC3.0802686；AJIMEE144/200 | 已完成评测与下载，[结果](docs/reports/v2-20261007/v21-extend.md) |
+| V2.1 extend5 | best step40000；FP32 BPC3.0802686；INT8 AJIMEE144/200，扩大草稿1481/2000 | Core ML与iPhone候选验证完成，PR已合入；[部署结果](docs/reports/mac-20261008/v21-coreml.md) |
 
 新2,000条development草稿标签下，V1/V2.0/restart1/extend5 best Top-1为72.65% / 73.15% / 73.80% / 74.35%；extend5相对restart1配对p=.22155，相对V1为.00648（探索性、未校正多重比较）。标签待正式审核，1,000条blind未LM计分。[追加结果](docs/reports/v2-20261007/v21-extend.md)。
 
@@ -50,4 +50,6 @@ Git 保存代码、配置、测试和文档。语料、模型、评分、日志�
 
 W&B账号和run链接只保存在本地监控记录，不提交仓库。
 
-Mac准备包为`handoff/vimeml-v21-mac-20261008.zip`；解压后`python3 setup_mac.py`建立带Git历史的独立工作区。Core ML适配与量化留在Mac执行，代码以分支／PR合并，产物单独回传ZIP。
+原Mac准备包为`handoff/vimeml-v21-mac-20261008.zip`；`python3 setup_mac.py`可建立带Git历史的独立工作区。代码通过分支／PR合并，产物单独回传ZIP。
+
+2026-10-08 Mac工作已完成，结果包归档于`handoff/mac-20261008-v21/`。INT8模型14.33MB；严格logits对齐失败、扩大草稿下降0.3个百分点和UI发布长尾仍保留为已知项，不等同正式发布验收。[真实键盘记录](docs/reports/mac-20261008/v21-iphone.md)。

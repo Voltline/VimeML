@@ -20,7 +20,9 @@ Git保存代码、配置、测试和文档；`datasets/artifacts/outputs/runs/ha
 
 ## Mac迁移
 
-当前唯一准备包为`handoff/vimeml-v21-mac-20261008.zip`：完整Git历史、独立V2权重、tokenizer/原token manifest、development候选与FP32参考、V1 INT8对照。使用方式和Git约定见[Mac准备](mac-v21-preparation.md)。包内`deployment.pt`模型tensor与原best一致，移除优化器；原checkpoint没有重写。
+2026-10-08回传已完成：`handoff/mac-20261008-v21/vimeml-v21-mac-results.zip`及原`handoff.json`保留；306份文件恢复到`artifacts/deployment/tiny-ja-v2.1-extend5-{bundle,fp32,int8-b32,client-resources}-v1/`和`outputs/deployment/v21-*/`。导入记录为`outputs/maintenance/mac-return-20261008/import-report.json`，按Git ancestry、路径、数量和大小核对，未重跑Apple运行时或逐文件SHA256。
+
+原准备包为`handoff/vimeml-v21-mac-20261008.zip`：完整Git历史、独立V2权重、tokenizer/原token manifest、development候选与FP32参考、V1 INT8对照。使用方式和Git约定见[Mac准备](mac-v21-preparation.md)。包内`deployment.pt`模型tensor与原best一致，移除优化器；原checkpoint没有重写。
 
 历史包保留：`handoff/mac-20261006-v1/`是昨日Mac源码／Vime客户端快照，`handoff/vimeml-v2-*.tar.gz`及`vimeml-v21-*.tar.gz`是原AutoDL启动、训练输入、恢复和评测记录。无需把这些全量包一起传给Mac；它们不是当前源码合并方式。
 
