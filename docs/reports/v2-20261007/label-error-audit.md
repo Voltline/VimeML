@@ -1,44 +1,16 @@
-# 开发标签复核与 V1/V2 错误分类
+# Historical label and error audit — 2026-10-07
 
-2026-10-07。137 条原开发输入完成隐藏候选/分数的 AI 复核，保留 135 条，隔离 `シャシンテン`（写真店/写真展）与 `オオサカテン`（大阪店/大阪展）。63 条增加共 86 个表记，另建 `ime-dev-label-reviewed-v3`；原标签和评分不改。
+AI review of the 137 historical development cases hides candidate/model scores during review, retains 135 cases, and quarantines ambiguous `シャシンテン` and `オオサカテン`. Sixty-three cases receive 86 additional accepted spellings in a separate `ime-dev-label-reviewed-v3` artifact. Original labels/scores remain unchanged. Prior exposure to four disagreement cases prevents describing this as independent blind native-speaker review.
 
-| 标签口径 | V1 Top-1 | V2 Top-1 | V1 Top-5 | V2 Top-5 |
+| Label version | V1 Top-1 | V2.0 Top-1 | V1 Top-5 | V2.0 Top-5 |
 | --- | ---: | ---: | ---: | ---: |
-| 原 137 条 | 122/137 | 124/137 | 134/137 | 136/137 |
-| 复核 135 条 | **131/135** | **131/135** | **134/135** | **134/135** |
+| Original | 122/137 | 124/137 | 134/137 | 136/137 |
+| Separate reviewed diagnostic | 131/135 | 131/135 | 134/135 | 134/135 |
 
-新口径正误一致，p=1；MRR .979630/.981481。原四条分歧的表记扩展后，净增两条消失。复核者此前见过四条分歧，因此不是独立母语盲审；词典是读音证据而非自动裁判。冻结后发现 D001 `カゴ`、D070 `Yシャツ` 漏收疑点，仍待审，未改主指标。
+The original net gain disappears under the revised diagnostic label set. Further missing-reference concerns remain unreviewed; main metrics are not retroactively altered. Dictionaries provide reading evidence rather than automatic correctness decisions.
 
-## 错误分类
+Among AJIMEE 200 plus reviewed development 135, 93 cases have at least one model error. AJIMEE has 38 reference recall misses for both models and 38/37 in-pool ranking errors, yielding 124/125 correct first choices. Categories include homophone sense, compound/counter segmentation, proper names, terminology, inflection, and missing spellings. Not every exact-reference miss is a semantic retrieval failure.
 
-AJIMEE 200 + 复核开发 135 共 335 条，93 条至少一个模型 Top-1 错误（AJIMEE 89、development 4）。主类型互斥，附注保留复合问题；分类为 AI 诊断。
+Examples include V2's correction of `直行座標` to `直交座標` and regression from `盗難` to `東南`. Contextual AJIMEE scores are 59/58 and context-free scores 65/67; no clear contextual advantage is established here. All recorded length fallbacks are zero. Error categories are AI diagnostics, not gold causal labels.
 
-| AJIMEE 失败阶段 | V1 | V2 |
-| --- | ---: | ---: |
-| 冻结答案不在池中 | 38 | 38 |
-| 答案在池中但非第一 | 38 | 37 |
-| 正确第一候选 | 124 | 125 |
-
-| 主错误类型，含召回缺失 | V1 | V2 |
-| --- | ---: | ---: |
-| 同音词 / 词义 | 35 | 36 |
-| 复合词 / 数量词切分 | 9 | 10 |
-| 专名 | 9 | 7 |
-| 术语 | 7 | 6 |
-| 活用 / 结构 | 4 | 4 |
-| 表记 / 参考漏收待审 | 11 | 12 |
-| 上下文不足待审 | 1 | 0 |
-| 合计 | 76 | 75 |
-
-38 条精确参考缺失中可能含表记漏收，不能都视为词义召回失败。V2 纠正 `直行座標→直交座標`，也损坏 `盗難→東南`；已覆盖同音词错误 19/18。开发集明确残留为 `雪を掻く` 不在池中、`花が作` 排在 `花が咲く` 前，另两条为表记待审。
-
-AJIMEE 读音 ≤16、17–32、33–64、>64 的 coverage 为 65/68、58/72、28/40、11/20；对应 V1/V2 Top-1 为 50/53、43/41、21/21、10/10。有上下文为 59/58，无上下文 65/67；未观察到明确上下文增益。Token mean 诊断为 76/81，低于主 sum；全部长度回退为 0。
-
-## 产物
-
-- 标签与决策：`artifacts/benchmarks/ime-dev-label-reviewed-v3/`。
-- 复核评分：`outputs/ime-eval/dev-label-audit-20261007/`。
-- 逐例诊断：`scripts/benchmarks/v2-error-decisions.tsv`、`outputs/ime-eval/v2-error-audit-20261007/`。
-- 工具：`audit_v2_labels.py`、`analyse_v2_errors.py`，复用缓存评分；词典依赖见 `requirements-evaluation.txt`。
-
-3,000 条真实新候选及草稿标签初评见 [扩大开发集报告](expanded-ime-evaluation.md)。
+Separate label decisions reside in `artifacts/benchmarks/ime-dev-label-reviewed-v3/`; cached audit scores and errors remain in `outputs/ime-eval/`. Tools `audit_v2_labels.py` and `analyse_v2_errors.py` reuse existing scores. [Expanded draft evaluation](expanded-ime-evaluation.md) remains the unchanged primary historical result.

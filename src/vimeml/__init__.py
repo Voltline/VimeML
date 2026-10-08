@@ -1,1 +1,1 @@
-"""Local Japanese language-model data pipeline."""
+"""Compact Japanese language models, data pipelines, and IME evaluation tools."""

@@ -1,0 +1,89 @@
+# V3 A: frozen V2.1 weights, fresh AdamW, two new-data passes; 5% cropped chat tokens.
+architecture = "tiny_gpt_v2"
+token_dir = "artifacts/token-data/corpus-v3-half/mixed"
+index_dir = "artifacts/token-data/corpus-v3-half/indexes/mixed"
+output_dir = "artifacts/models/tiny-ja-v3-a-chat05-d320-l6"
+log_dir = "runs/training/tiny-ja-v3-a-chat05-d320-l6"
+source_provenance = "handoff/source-provenance-v3-a.json"
+
+[data_mixture]
+directory = "artifacts/training-data/corpus-v3-chat05-filtered-c128"
+
+[initialization]
+checkpoint = "artifacts/models/tiny-ja-v2.1-e16k-d320-l6-extend5/best.pt"
+
+allow_new_data = true
+restore_optimizer = false
+
+[runtime]
+compile_backbone = true
+
+[model]
+vocab_size = 16384
+context_length = 128
+d_model = 320
+n_heads = 5
+n_layers = 6
+d_ff = 832
+dropout = 0.0
+norm = "rmsnorm"
+norm_eps = 0.00001
+activation = "swiglu"
+bias = false
+tie_embeddings = true
+position_embedding = "learned"
+
+[training]
+device = "cuda"
+precision = "bf16"
+seed = 42
+cpu_threads = 4
+batch_size = 512
+num_workers = 4
+bucket_multiplier = 64
+gradient_accumulation = 1
+loss_token_normalization = "epoch_mean_tokens"
+epochs = 2
+data_epoch_offset = 0
+max_steps = 0
+learning_rate = 0.0001
+min_learning_rate = 0.00001
+warmup_steps = 500
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+prefix_crop_probability = 0.30
+prefix_crop_min_remaining_tokens = 8
+log_every = 100
+eval_every = 2500
+eval_batches = 16
+checkpoint_every = 2500
+benchmark_warmup_steps = 100
+validate_full_at_end = true
+validate_full_each_epoch = true
+early_stopping_patience = 2
+early_stopping_min_delta = 0.01
+
+[evaluation]
+tokenizer_dir = "artifacts/tokenizers/ja-unigram-16k-v2"
+
+[evaluation.benchmarks]
+ajimee = "artifacts/benchmarks/ajimee-jwtd-v2-v1"
+development = "artifacts/benchmarks/ime-dev-v2"
+
+[evaluation.domains.chat]
+token_dir = "artifacts/token-data/corpus-v3-half/chat"
+index_dir = "artifacts/token-data/corpus-v3-half/indexes/chat"
+
+[evaluation.domains.old]
+token_dir = "artifacts/token-data/corpus-v2-16k"
+index_dir = "artifacts/training-data/corpus-v2-c128"
+
+[verification]
+mode = "metadata"
+
+[tracking]
+enabled = true
+project = "vimeml"
+mode = "online"

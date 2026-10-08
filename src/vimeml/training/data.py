@@ -300,6 +300,8 @@ class LengthBucketBatchSampler:
             self.sampler.set_epoch(epoch)
         if hasattr(self.dataset, "set_epoch"):
             self.dataset.set_epoch(self.epoch)
+        if isinstance(self.sampler, BlockShuffleSampler):
+            self.sampler.size = len(self.dataset)
 
     def __len__(self):
         return max(0, (len(self.sampler) + self.batch_size - 1) // self.batch_size - self.start_batch)

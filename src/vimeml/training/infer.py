@@ -31,7 +31,7 @@ def filtered_logits(logits, forbidden, temperature=1.0, top_k=0, top_p=1.0):
 
 
 class JapaneseLM:
-    def __init__(self, checkpoint, tokenizer_dir, device="cpu"):
+    def __init__(self, checkpoint, tokenizer_dir, device="cpu", *, hash_checkpoint=True):
         self.device = torch.device(device)
         if self.device.type not in {"cpu", "cuda"}:
             raise ValueError("Choose CPU or CUDA for this first inference tool.")
@@ -45,8 +45,10 @@ class JapaneseLM:
         if file_sha(token_manifest_path) != saved["signatures"]["tokens"]:
             raise ValueError("Token manifest does not match checkpoint.")
         token_manifest = json.loads(token_manifest_path.read_text(encoding="utf-8"))
-        expected = [digest for path, digest in token_manifest["input_sha256"].items()
-                    if path.replace("\\", "/").rsplit("/", 1)[-1] == "tokenizer.model"]
+        explicit_digest = token_manifest.get("tokenizer_model_sha256")
+        expected = ([explicit_digest] if explicit_digest else
+                    [digest for path, digest in token_manifest.get("input_sha256", {}).items()
+                     if path.replace("\\", "/").rsplit("/", 1)[-1] == "tokenizer.model"])
         model_path = tokenizer_dir / "tokenizer.model"
         if len(expected) != 1 or file_sha(model_path) != expected[0]:
             raise ValueError("Tokenizer model does not match checkpoint vocabulary.")
@@ -54,11 +56,18 @@ class JapaneseLM:
         self.special = {name: getattr(self.processor, f"{name}_id")() for name in ("pad", "unk", "bos", "eos")}
         if self.special != token_manifest["special_ids"]:
             raise ValueError("Special token IDs do not match training.")
+        identity = {"tokenizer_model_sha256": expected[0],
+                    "vocab_size": self.processor.vocab_size(), "special_ids": self.special}
+        if saved.get("tokenizer_identity") is not None and saved["tokenizer_identity"] != identity:
+            raise ValueError("Tokenizer identity does not match checkpoint.")
         self.model = model_from_checkpoint(saved)
         if self.processor.vocab_size() != self.model.config.vocab_size:
             raise ValueError("Vocabulary size mismatch.")
         self.model.to(self.device).eval()
-        self.metadata = {"checkpoint": str(checkpoint.resolve()), "checkpoint_sha256": file_sha(checkpoint),
+        self.checkpoint_identity = {"config": saved["config"], "signatures": saved["signatures"]}
+        self.metadata = {"checkpoint": str(checkpoint.resolve()),
+                         "checkpoint_sha256": file_sha(checkpoint) if hash_checkpoint else None,
+                         "checkpoint_bytes": checkpoint.stat().st_size,
                          "tokenizer_sha256": expected[0], "checkpoint_step": saved["step"],
                          "model": self.model.configuration(), "device": str(self.device), "precision": "fp32",
                          "policy": "Plain prefix continuation, separate sentence; no sliding context or KV cache."}

@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vimeml"
+version = "0.1.0"
+description = "Compact Japanese language models for input-method candidate reranking"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "GPL-2.0-only"
+license-files = ["LICENSE"]
+dynamic = ["dependencies"]
+keywords = ["japanese", "language-model", "ime", "coreml", "candidate-reranking"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Natural Language :: Japanese",
+]
+
+[project.urls]
+"V1 model" = "https://huggingface.co/Voltline/vimeml-tiny-ja-v1"
+"V2.1 model" = "https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["vimeml*"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}

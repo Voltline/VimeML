@@ -1,33 +1,39 @@
-# 文档索引
+# Documentation index
 
-V2系列实验已完成，当前部署版本为V2.1 extend5 step40000 / INT8 block32；V1保留作基线和回退。总体结果与实验取舍见[V2系列总结](reports/v2-summary.md)。
+V2.1 `extend5` step 40,000 / INT8 block-32 is the current deployment release. V1 remains a baseline and fallback. V3 A and V3 B training, evaluation, and archival are complete; their results do not establish a stable replacement advantage. Primary documents are English. [Chinese documentation](zh-CN/index.md) retains the corresponding reference material.
 
-## 使用与复现
+## Model, data, and runtime
 
-| 文档 | 内容 |
+| Document | Scope |
 | --- | --- |
-| [数据](data.md) | 冻结语料、来源、清洗和split |
-| [V2实验设计](plan_v2.md) / [V2训练](training-v2.md) | 模型、tokenizer、裁剪、配置和运行方式 |
-| [V1训练](training.md) | 冻结基线复现 |
-| [评测](evaluation.md) | 评分语义、同池结果、统计与标签限制 |
-| [Core ML](coreml.md) | 导出、量化、客户端接口与设备范围 |
-| [本地产物](artifacts.md) / [跨平台管理](reference/artifact-exchange.md) | 路径、归档、Git与ZIP协作 |
+| [Model card](../MODEL_CARD.md) | Architecture, intended use, releases, metrics, and limitations |
+| [Data](data.md) | Frozen corpora, cleaning, splits, and provenance |
+| [V1 training](training.md) | Original baseline and reproducibility |
+| [V2 training](training-v2.md) / [V2 design](plan_v2.md) | Architecture, tokenization, cropping, and schedules |
+| [V3 experiments](plan_v3.md) | Adaptation and joint retraining scope |
+| [Evaluation](evaluation.md) | Fixed-pool scoring, statistics, and benchmark roles |
+| [Standard IME](benchmarks/standard-ime.md) / [initial comparison](benchmarks/standard-ime-results-20261008.md) | Source splits, AI review, candidate export, and reference-set consumption |
+| [Core ML](coreml.md) | Conversion, quantization, and client contract |
+| [Artifact layout](artifacts.md) / [cross-platform exchange](reference/artifact-exchange.md) | Local assets, Git collaboration, and ZIP transfer |
 
-## V2实验记录
+## Experiment records
 
-| 阶段 | 报告 |
+| Experiment | Records |
 | --- | --- |
-| 数据与模型设计 | [Tokenizer](reports/v2-20261007/tokenizer.md)、[模型](reports/v2-20261007/model.md)、[Token store](reports/v2-20261007/token-data.md)、[Prefix crop](reports/v2-20261007/prefix-crop.md) |
-| V2.0 | [运行环境](reports/v2-20261007/autodl.md)、[完整评测](reports/v2-20261007/evaluation.md) |
-| V2.1 restart1 | [配置](reports/v2-20261007/v21-plan.md)、[性能对照](reports/v2-20261007/v21-performance.md)、[中断恢复](reports/v2-20261007/v21-recovery.md)、[评测](reports/v2-20261007/v21-evaluation.md) |
-| V2.1 extend5 | [追加训练与模型选择](reports/v2-20261007/v21-extend.md) |
-| 扩大IME数据集 | [候选构建](reports/v2-20261007/ime-3000-handoff.md)、[初评](reports/v2-20261007/expanded-ime-evaluation.md)、[标签与错误分析](reports/v2-20261007/label-error-audit.md) |
-| Core ML与iPhone | [转换和量化](reports/mac-20261008/v21-coreml.md)、[误差分析](reports/mac-20261008/v21-quantization-review.md)、[宿主与真实扩展](reports/mac-20261008/v21-iphone.md) |
+| V2 family | [Summary](reports/v2-summary.md) |
+| V2 data/model preparation | [Tokenizer](reports/v2-20261007/tokenizer.md), [architecture](reports/v2-20261007/model.md), [token store](reports/v2-20261007/token-data.md), [prefix crop](reports/v2-20261007/prefix-crop.md) |
+| V2.0 | [Environment](reports/v2-20261007/autodl.md), [evaluation](reports/v2-20261007/evaluation.md) |
+| V2.1 restart1 | [Plan](reports/v2-20261007/v21-plan.md), [throughput](reports/v2-20261007/v21-performance.md), [interrupted predecessor](reports/v2-20261007/v21-recovery.md), [evaluation](reports/v2-20261007/v21-evaluation.md) |
+| V2.1 extension | [Training and selection](reports/v2-20261007/v21-extend.md) |
+| Historical expanded IME set | [Construction](reports/v2-20261007/ime-3000-handoff.md), [initial evaluation](reports/v2-20261007/expanded-ime-evaluation.md), [label/error audit](reports/v2-20261007/label-error-audit.md) |
+| V2.1 Apple deployment | [Core ML](reports/mac-20261008/v21-coreml.md), [quantization review](reports/mac-20261008/v21-quantization-review.md), [iPhone measurements](reports/mac-20261008/v21-iphone.md) |
+| V3 A | [Evaluation](reports/v3-20261008/a-evaluation.md) |
+| V3 B | [Training plan](reports/v3-20261008/b-plan.md), [final evaluation](reports/v3-20261008/b-evaluation.md) |
 
-## V1参考与历史
+## Historical V1 references
 
-[FP32结果](reference/results.md)、[Core ML实测](reference/coreml-v1.md)、[模拟器内存](reports/mac-20261006/simulator-memory.md)、[真实扩展](reports/mac-20261006/iphone-keyboard-memory.md)、[快照归档](reports/mac-20261006/handoff.md)、[导入核对](reports/mac-20261006/merge-verification.md)。
+[FP32 results](reference/results.md), [Core ML measurements](reference/coreml-v1.md), [simulator memory](reports/mac-20261006/simulator-memory.md), [real keyboard extension](reports/mac-20261006/iphone-keyboard-memory.md), [artifact import](reports/mac-20261006/handoff.md), and [merge verification](reports/mac-20261006/merge-verification.md).
 
-详细方法：[语料流水线](reference/data-pipeline.md)、[AJIMEE导出](reference/ajimee-benchmark.md)、[开发集生成](reference/development-generation.md)、[组合排序](reference/hybrid-ranking.md)、[联想](reference/phrase-demo.md)。
+Methods: [corpus pipeline](reference/data-pipeline.md), [AJIMEE export](reference/ajimee-benchmark.md), [development generation](reference/development-generation.md), [hybrid ranking](reference/hybrid-ranking.md), and [phrase demo](reference/phrase-demo.md).
 
-`history/`保存V1实测前的[部署设计](history/deployment.md)、[命令参考](history/coreml-guide.md)和[阶段记录](history/workflow.md)，仅描述当时状态。各报告注明日期、版本与测量范围；原始JSON、逐候选分数和trace保存在`outputs/`。
+`history/` preserves pre-measurement [deployment design](history/deployment.md), [conversion commands](history/coreml-guide.md), and [workflow status](history/workflow.md). Historical expectations are distinct from subsequent measurements. Original JSON, candidate-level scores, and traces remain in Git-ignored `outputs/`.

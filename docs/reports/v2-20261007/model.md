@@ -1,26 +1,11 @@
-# V2.0 模型与训练入口
+# V2 architecture and training entry — 2026-10-07
 
-2026-10-07。TinyGPTV2 参数量 **12,537,920**；V1 `model.py` 保持原实现。
+TinyGPTV2 contains 12,537,920 parameters: vocabulary 16,384, context 128, hidden width 320, six layers, five heads of width 64, SwiGLU width 832, pre-RMSNorm with FP32 variance and epsilon 1e-5, causal SDPA, learned positions, bias-free linear layers, and tied embeddings.
 
-| 结构 | 配置 |
-| --- | --- |
-| 词表 / context | 16,384 / 128 |
-| Hidden / layers / heads | 320 / 6 / 5，head_dim=64 |
-| FFN | SwiGLU，d_ff=832 |
-| Norm | Pre-Norm RMSNorm，eps=1e-5，FP32 方差 |
-| Attention / position | causal SDPA / learned embedding |
-| Bias / tying | 无 Linear bias / 共享 token embedding 与 LM head |
+`model_factory.py` selects V1/V2 for training and inference; old configurations without an architecture field retain V1 behavior. V2 checkpoints use format `vimeml_tiny_gpt_v2`. Training computes vocabulary logits only for valid labels, avoiding unnecessary padding work.
 
-`model_factory.py` 在训练和推理中选择 V1/V2，未指定 architecture 的旧配置仍使用 V1。V2 checkpoint 格式为 `vimeml_tiny_gpt_v2`。训练仅对有效 label 计算词表 logits，避免 PAD 的无效计算。
+[train-v2.toml](../../../configs/train-v2.toml) specifies BF16, batch 256, four epochs, learning rate 1e-3 → 1e-4, warmup 1,000, AdamW betas 0.9/0.95, weight decay 0.1, clip 1, and 30% prefix crop. A zero maximum-step setting derives the budget from windows/epochs.
 
-[train-v2.toml](../../../configs/train-v2.toml) 最终配置为 BF16、batch 256、4 epochs、LR 1e-3 → 1e-4、warmup 1000、AdamW β=.9/.95、decay=.1、clip=1、prefix crop 30%。`max_steps=0` 根据窗口与 epoch 预算推导 update 数。
+The original targeted model check records parameter count, shapes, causality, masked loss, tying, finite gradients, save/load, and optimizer state on CUDA/BF16. Its fixture is not a trained model. Original evidence resides in `outputs/model-checks/tiny-ja-v2-phase-b/report.json`.
 
-## 已有验证
-
-`check_model_v2.py` 在 PyTorch 2.10.0+cu128 / CUDA / BF16 上用一次 synthetic update 检查：参数量、forward shape、causal masking、masked loss、weight tying、有限梯度、保存/重载与 optimizer state。耗时 18.49 秒，报告为 `outputs/model-checks/tiny-ja-v2-phase-b/report.json`；fixture checkpoint 不是正式模型。后续部署结果见[V2总结](../v2-summary.md)。
-
-## W&B
-
-配置 `[tracking] enabled=true, mode="online", project="vimeml"` 时，普通训练入口转入 `train_wandb.py`。TensorBoard 指标同步至 W&B，实际 run ID/URL 写入 `artifacts/tracking/<模型名>-live.json`；checkpoint、语料和代码不上传。恢复会新建同 group 的 run。
-
-正式 V2.0 run 已完成：W&B本地记录。最终结果见 [评测](evaluation.md)。
+Optional online tracking routes the normal entry through `train_wandb.py`; metrics are synchronized while checkpoints/corpora remain local. Account/run metadata remains in ignored tracking records. [Evaluation](evaluation.md) reports the completed V2.0 run.

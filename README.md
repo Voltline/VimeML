@@ -1,39 +1,68 @@
 # VimeML
 
-Vime日语输入法的小型语言模型。AzooKey根据假名检索候选，LM利用句内左文重排，并提供短语和下一词联想。
+Compact Japanese causal language models for kana-to-kanji candidate reranking and experimental text completion in the Vime input method.
 
-## 实验状态
+AzooKey supplies dictionary candidates. The language model reranks the fixed candidate pool using left context; dictionary retrieval remains an application dependency. Short continuation and next-word suggestions are secondary research features. These models are not instruction-tuned conversational assistants.
 
-V2系列实验于2026-10-08完成。当前部署模型为 **V2.1 extend5 best / step40000，INT8 block32**：12.54M参数、16K词表、context128，Core ML包14.33MB，CPU_ONLY、FP32计算、最低iOS18。训练、同池评测和iPhone真实键盘验证见[V2实验总结](docs/reports/v2-summary.md)。V1保留作基线和回退。
+## Model releases
 
-| 模型 | 完整validation BPC ↓ | AJIMEE /200 | 原dev /137 | 扩大草稿 /2000 |
+| Release | Parameters | Tokenizer | Context | Hugging Face |
+| --- | ---: | --- | ---: | --- |
+| V1 | 7,386,624 | 16K SentencePiece Unigram, V1 vocabulary | 128 | [Voltline/vimeml-tiny-ja-v1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1) |
+| V2.1 | 12,537,920 | 16K SentencePiece Unigram, V2 vocabulary | 128 | [Voltline/vimeml-tiny-ja-v2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1) |
+
+V2.1 is the current deployment release: `extend5` checkpoint step 40,000, with symmetric INT8 block-32 weight compression, FP32 computation, and CPU-only Core ML execution on iOS 18 or later. The Core ML package is 14.33 MB. V1 remains a baseline and fallback. V3 A and V3 B are completed research experiments; neither demonstrated a stable task-level advantage sufficient to replace V2.1.
+
+Release bundles include inference weights, matching tokenizer assets, Core ML resources, and aggregate evaluation records. Training checkpoints, datasets, credentials, and private benchmark texts are stored separately. The custom checkpoint format is not a Transformers `AutoModel` implementation. Details appear in the [model card](MODEL_CARD.md).
+
+## Evaluation summary
+
+The BPC column uses the same frozen V1/V2 validation text. IME columns report exact accepted-reference Top-1 counts on fixed AzooKey candidates.
+
+| Model | Validation BPC ↓ | AJIMEE / 200 | Historical development / 137 | Draft development / 2,000 |
 | --- | ---: | ---: | ---: | ---: |
-| V1 FP32 | 3.4736559 | 124 | 122 | 1453 |
-| V2.0 FP32 | 3.2598221 | 125 | 124 | 1463 |
-| V2.1 restart1 FP32 | 3.0811788 | 137 | 121 | 1476 |
-| V2.1 extend5 best FP32 | 3.0802686 | 144 | 122 | 1487 |
-| V2.1 extend5 INT8 | — | 144 | 122 | 1481 |
+| V1 FP32 | 3.4736559 | 124 | 122 | 1,453 |
+| V2.0 FP32 | 3.2598221 | 125 | 124 | 1,463 |
+| V2.1 restart1 FP32 | 3.0811788 | 137 | 121 | 1,476 |
+| V2.1 release FP32 | 3.0802686 | 144 | 122 | 1,487 |
+| V2.1 release INT8 | Not measured | 144 | 122 | 1,481 |
 
-量化后原两集命中数不变，扩大草稿下降0.3个百分点。严格logits对齐失败与UI发布长尾保留为已接受的实验差异，当前输入体验可接受。扩大标签尚未正式审核，1000条blind未计分；完整结论与统计范围见[评测](docs/evaluation.md)和[量化分析](docs/reports/mac-20261008/v21-quantization-review.md)。
+Quantization preserves the two small-set hit counts but reduces draft-set Top-1 by 0.3 percentage points. Strict elementwise logits alignment fails for the INT8 model; task-level measurements support its deployment under the recorded conditions, without establishing numerical equivalence. The 2,000-case labels remain drafts. The newer [Standard Japanese IME benchmark](docs/benchmarks/standard-ime.md) uses frozen AI-reviewed labels, not native-speaker gold annotations. Full methods, limitations, and V3 results appear in [evaluation](docs/evaluation.md).
 
-## 使用
+## Source installation and inference
 
-Python≥3.11。依赖见`requirements.txt`、`requirements-autodl.txt`和`requirements-evaluation.txt`。
+Python 3.11 or later is required. Platform-specific versions are pinned in `requirements.txt`; the recorded Linux/CUDA training environment uses `requirements-autodl.txt`. Optional benchmark preparation dependencies are listed in `requirements-evaluation.txt`.
 
-```powershell
-.venv\Scripts\python.exe -X utf8 scripts/training/infer.py
-.venv\Scripts\python.exe -X utf8 -u scripts/tools/phrase_demo.py
+```bash
+python -m venv .venv
+# POSIX activation; Windows: .venv\Scripts\Activate.ps1
+source .venv/bin/activate
+python -m pip install -e .
+python scripts/training/infer.py \
+  --checkpoint artifacts/models/tiny-ja-v2.1-e16k-d320-l6-extend5/best.pt \
+  --tokenizer artifacts/tokenizers/ja-unigram-16k-v2 \
+  --output outputs/inference/v21-local
 ```
 
-Python推理入口默认使用V1，其他checkpoint/tokenizer由命令行指定；联想网页默认地址为`http://127.0.0.1:8765/`。iOS客户端在独立Vime仓库维护，`examples/ios/`为历史接入参考。
+This command assumes the matching local training artifacts and their manifests are present. The default inference CLI selects V1. Hugging Face inference bundles have separate packaged-runtime instructions in their model cards; those bundles are not optimizer checkpoints. Core ML conversion and runtime evaluation require macOS. The current iOS application is maintained in the separate Vime repository; `examples/ios/` contains historical integration references.
 
-## 文档与目录
+## Repository structure
 
-| 内容 | 入口 |
+| Path | Contents |
 | --- | --- |
-| 文档导航与报告 | [索引](docs/index.md)、[V2总结](docs/reports/v2-summary.md) |
-| 模型与训练 | [V2实验设计](docs/plan_v2.md)、[V2训练](docs/training-v2.md)、[V1训练](docs/training.md) |
-| 数据与评测 | [语料](docs/data.md)、[评分与数据集](docs/evaluation.md) |
-| 部署与产物 | [Core ML](docs/coreml.md)、[本地产物](docs/artifacts.md)、[跨平台管理](docs/reference/artifact-exchange.md) |
+| `src/vimeml/` | Corpus processing, tokenization, training, evaluation, and deployment implementations |
+| `scripts/` | Command-line entry points organized by subsystem |
+| `configs/` | Versioned experiment and data-processing configurations |
+| `annotations/` | Versioned corpus review decisions |
+| `docs/` | Primary English documentation and dated experiment records |
+| `docs/zh-CN/` | Chinese documentation snapshots and reference material |
+| `examples/ios/` | Core ML probe, SentencePiece bridge, and historical client examples |
+| `templates/` | Artifact exchange templates |
+| `tests/` | Existing targeted implementation tests |
+| `datasets/`, `artifacts/`, `outputs/`, `runs/`, `handoff/` | Local, Git-ignored data, model artifacts, results, and transfer bundles |
 
-`src/vimeml/`保存实现，`scripts/`保存命令入口，`configs/`保存版本配置。Git跟踪源码、配置、测试、文档及许可证；模型、语料、评分、日志和迁移包保存在忽略目录。W&B账号、run链接及凭据不提交。
+## Documentation and licensing
+
+[Documentation index](docs/index.md) · [Model card](MODEL_CARD.md) · [Chinese overview](README.zh-CN.md) · [Contribution conventions](CONTRIBUTING.md) · [Licensing and attribution](NOTICE.md)
+
+Project code and published model weights use GPL-2.0. Upstream libraries and source datasets retain their own licenses. Private research benchmark text is not included in the public repository or model releases. Third-party notices remain with the corresponding components.

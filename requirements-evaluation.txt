@@ -3,3 +3,4 @@ fugashi==1.5.2
 unidic-lite==1.0.8
 sudachipy==0.7.0
 sudachidict-core==20260723.1
+pyahocorasick==2.3.1

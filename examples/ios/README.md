@@ -1,9 +1,9 @@
-# iOS参考与来源
+# iOS integration references
 
-`CoreMLProbe.swift` 是手动加载、预测与测量探针。`VimeSentencePiece/` 是官方SentencePiece0.2.1源码加C桥接，保留Apache-2.0及第三方许可，最低iOS18。`integration/` 是首次INT8候选重排接入的Swift代码与fixture快照。
+`CoreMLProbe.swift` is a manual model-loading, prediction, and measurement probe. `VimeSentencePiece/` provides SentencePiece 0.2.1 with a C bridge, preserving Apache-2.0 and third-party notices, with minimum iOS 18. `integration/` contains the historical first INT8 candidate-reranking Swift implementation and fixtures.
 
-`integration/` 早于Mac客户端后续的句内上下文、下一词联想、设置、取消与内存审计改动，不能把它当作当前Vime完整实现。当前客户端在独立Vime仓库维护，包含V2.1接入；`handoff/mac-20261006-v1/Vime-client.zip`仅保存当时的Git基点与patch。早期 `artifacts/deployment/tiny-ja-v1-ios18-int8-release-v1/` 的Swift副本与README也是历史快照。
+The historical integration predates later sentence-context, next-word, settings, cancellation, and memory-audit changes. Current V2.1 client implementation is maintained in the separate Vime repository. Local client/deployment snapshots preserve their original base and do not replace current client source.
 
-当前INT8包使用FP32计算、CPU_ONLY、iOS18。GPU/ALL路径曾触发量化gather断言；重新试验必须使用单独版本并手动验证。SentencePiece、联合分词评分、稳定排序与搜索均在应用侧实现，模型仅输出原始logits。
+The selected INT8 model uses FP32 CPU-only computation. GPU/ALL paths previously triggered quantized-gather assertions. Matching model/tokenizer/manifest assets are required. SentencePiece, joint-string scoring, stable ordering, and bounded search remain application-side; the Core ML model emits raw logits only.
 
-接入和实测限制见 [Core ML](../../docs/coreml.md)。
+[Core ML documentation](../../docs/coreml.md) records the runtime contract and measurement limitations. [Upstream attribution](VimeSentencePiece/UPSTREAM.md) preserves vendored provenance.

@@ -1,29 +1,19 @@
-# V2.1量化误差与实验结论
+# V2.1 quantization alignment review — 2026-10-08
 
-2026-10-08。V2系列实验完成，当前INT8精度损失和UI发布长尾在实验接受范围内。结论依据当前模型、冻结候选池与实际输入体验；严格数值对齐仍按原阈值记录为失败，长期设备与正式盲测质量另属测量范围。原始对齐、量化和设备报告保持冻结。
+The INT8 deployment package fails the original strict logits criterion while uncompressed conversion passes. The recorded tolerance is absolute 0.0003 plus relative 0.0003 × |reference|. Maximum errors are 0.0000457764 uncompressed and 1.00949144 INT8; T=128 INT8 mean absolute error is 0.108517, RMSE 0.139438.
 
-## 误差来源
+## Interpretation
 
-未压缩Core ML与Windows FP32最大logits差为0.0000457764，严格对齐通过；INT8 block32压缩后最大差1.00949144。T128样本平均绝对差0.108517、RMSE0.139438；PAD和未来token修改后的有效前缀差为0。现有证据主要指向有损权重量化，而非已观察到的转换、mask或tokenizer错误，尚未隔离证明各层贡献或完全排除量化运行时附加误差。
+Weight compression perturbs distributions and candidate scores. A low-margin decision can change under modest score perturbations, while aggregate hit counts remain stable. Thirty changed expanded-set first choices have median FP32 margin approximately 0.070 and maximum 0.3628; 27 have margin at most 0.25. The 1,910 unchanged multi-candidate cases have median margin approximately 3.0718; 60 single-candidate cases are excluded from that margin comparison.
 
-当前32个学习矩阵进行对称INT8量化，每32个权重共享一个scale；恢复的浮点权重近似原权重，FP32计算不能恢复舍入丢失的信息。误差可经线性层、注意力和SwiGLU传播；共享embedding/head在输入与输出两端使用，可能影响logits，但没有逐层消融证据将其认定为主因。[Apple量化接口说明](https://apple.github.io/coremltools/source/coremltools.optimize.coreml.quantization.html)。
+V1 INT8 also fails strict alignment, with maximum error approximately 3.66. Recurring failures do not establish an unavoidable small-model or architecture limitation. Uncompressed V2.1 agreement argues against a general conversion failure, but does not prove every compressed operation equivalent or identify a single cause.
 
-严格门槛为每项差值≤0.0003+0.0003×|FP32值|。这一门槛用于判断数值复现，不是INT8任务质量门槛。V1同样失败，最大差约3.66，其INT8分布KL约0.0059、模拟INT8约0.0060，也支持量化是主要来源。两个版本的fixture、权重分布不同，不能仅比较最大值推断架构优劣；没有证据证明小模型或当前架构必然无法量化对齐。
+## Task-level evidence
 
-## 任务影响
+AJIMEE and historical-development hit counts stay at 144/200 and 122/137. AJIMEE includes three corrections and three regressions; one development accepted spelling changes. Expanded draft Top-1 falls 1,487 → 1,481, eight corrections/fourteen regressions, net -6 or -0.3 percentage points, exact paired p=0.286279. Nonsignificance is not a formal equivalence result; draft labels and limited coverage constrain the conclusion.
 
-| 同池评测 | FP32 | INT8 | 结论 |
-| --- | ---: | ---: | --- |
-| AJIMEE | 144/200 | 144/200 | 3条改对、3条改错，命中数不变 |
-| 原development | 122/137 | 122/137 | 1条可接受答案之间变化 |
-| 扩大development草稿 | 1487/2000 | 1481/2000 | 8条改对、14条改错，下降0.3个百分点 |
+Fixed next-token choices match 12/12, but 32-token greedy trajectories match only 8/12. Candidate reranking and free generation have different perturbation sensitivity. Package size falls 50.36 → 14.33 MB. The compression is accepted for the recorded input-method deployment, with failure records preserved.
 
-扩大草稿30条首选变化的FP32前两名logP sum分差中位数0.0700，最大0.3628，其中27条≤0.25。未变化且至少两个候选的1910条中位数3.0718；60条单候选不进入分差统计。这支持接近的候选更容易被量化扰动交换，而大分差候选较稳定；未对具体词形重新贴标签或改答案。
+## Remaining boundaries
 
-扩大草稿配对精确双侧检验p=0.286279（8改对、14改错），未发现显著准确率下降；未预设等效界值，不能据此证明完全等效。logits绝对误差也不能直接读作概率误差：softmax对同一位置的公共偏移不敏感，排序取决于相对分数。当前数据未证明误差主要为公共偏移。12条下一token首选相同，32-token greedy仅8/12完全相同，长序列生成的一致性结论需与IME重排分开。
-
-## 接受决定
-
-选用INT8 block32作为V2.1部署版本，14.33MB相对FP32包减少约71.5%。严格logits失败是已接受的有损量化差异，UI长尾未造成明显输入异常；本轮实验结项。原对齐阈值保持不变，后续模型或量化策略变更使用独立版本与同池任务评估。
-
-资料：[原量化报告](v21-coreml.md)、[设备报告](v21-iphone.md)、[V1诊断](../../reference/coreml-v1.md)。分差与配对统计从现有FP32/INT8 scores计算，保存在`outputs/deployment/v21-quantization-analysis-v1/analysis.json`；分析范围不含blind。
+Numerical alignment, exact task labels, ranking changes, device response time, and long-term stability are separate measurements. No additional quantization method is established as universally inferior or superior. Limited real-device experience does not eliminate the approximately 1.93-second UI publication tail or demonstrate a sustained memory plateau. [Core ML record](v21-coreml.md) and [iPhone report](v21-iphone.md) retain evidence without attributing unmeasured mechanisms.

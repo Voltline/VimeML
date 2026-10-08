@@ -71,6 +71,7 @@ def main(argv=None):
             "training": config["training"],
             "initialization": config.get("initialization"),
             "runtime": config.get("runtime"),
+            "data_mixture": config.get("data_mixture"),
             "checkpoint_resume": args.resume,
         },
         settings=wandb.Settings(disable_git=True, init_timeout=30),

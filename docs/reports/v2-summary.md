@@ -1,51 +1,29 @@
-# V2系列实验总结
+# V2-family experiment summary
 
-实验日期：2026-10-07—2026-10-08。目标是在键盘扩展可承受的模型规模内，提高日语候选重排质量，并完成Core ML量化和真实设备验证。
+Completed on 2026-10-08. The deployment release is V2.1 `extend5` step 40,000, INT8 block-32, FP32 computation, and CPU-only Core ML. V1 remains a baseline/fallback. The release has 12.54M parameters, a 16K tokenizer, context 128, and a 14.33 MB Core ML package.
 
-V2系列实验完成，选用 **V2.1 extend5 best / step40000** 的INT8 block32版本作为当前部署模型。语言建模和AJIMEE结果优于V1，扩大开发集也有增益；量化后损失较小，实际输入体验可接受。严格logits对齐失败作为有损量化差异保留。
+## Fixed evaluation results
 
-## 模型与训练
+| Model | Old validation BPC ↓ | AJIMEE / 200 | Historical dev / 137 | Draft dev / 2,000 |
+| --- | ---: | ---: | ---: | ---: |
+| V1 FP32 | 3.4736559 | 124 | 122 | 1,453 |
+| V2.0 FP32 | 3.2598221 | 125 | 124 | 1,463 |
+| V2.1 restart1 FP32 | 3.0811788 | 137 | 121 | 1,476 |
+| V2.1 extension release FP32 | 3.0802686 | 144 | 122 | 1,487 |
+| V2.1 extension INT8 | Not measured | 144 | 122 | 1,481 |
 
-V2为12,537,920参数，16K词表、context128、320×6、5heads、RMSNorm、SwiGLU832、共享embedding/head。Tokenizer关闭dummy prefix，训练首窗口以30%概率裁去前缀；语料沿用冻结的FineWeb2 Japanese与Tatoeba。
+The release reduces old validation BPC by approximately 11.32% relative to V1. Draft development gains 34 cases over V1, with exploratory paired p=0.00648; labels and repeated development inspection limit the inference. The final extension step is not the selected release checkpoint.
 
-| 实验 | 起点与训练量 | 完整validation BPC ↓ | AJIMEE /200 | 原dev /137 | 扩大草稿 /2000 |
-| --- | --- | ---: | ---: | ---: | ---: |
-| V1 FP32 | 随机初始化，1 epoch | 3.4736559 | 124 | 122 | 1453 |
-| V2.0 FP32 | 随机初始化，4 epochs | 3.2598221 | 125 | 124 | 1463 |
-| V2.1 restart1 FP32 | V2.0 best权重，新AdamW，2 epochs | 3.0811788 | 137 | 121 | 1476 |
-| V2.1 extend5 best FP32 | restart1 best与AdamW状态，选step40000 | 3.0802686 | 144 | 122 | 1487 |
-| V2.1 extend5 INT8 | 上述best的权重量化 | — | 144 | 122 | 1481 |
+## Runtime and deployment outcome
 
-最终FP32 BPC比V1降低约11.32%。extend5预算为5轮，实际运行3.273轮后结束；最佳checkpoint出现在追加训练早期，后续三轮完整BPC未改善，停止时last为3.0920557。相同语料的继续训练已呈收益递减，未跑完的学习率衰减阶段不作效果结论。
+Batch 512 plus compiled hidden-stack execution improves full-run training throughput from V2.0 approximately 121k to restart1 approximately 273k effective tokens/s on the recorded RTX 4090 D. Different batch size, update count, and optimizer state also change optimization, so throughput improvements are not isolated task-quality evidence.
 
-4090 D上的纯训练吞吐从V2.0的121,228提高到restart1的273,368、extend5的280,712 tokens/s。优化包括整体backbone编译和batch256→512；同机对照支持两者的收益，完整运行差异不能仅归因于单项。
+V2.1 uncompressed conversion passes strict numerical alignment; INT8 fails it. Small-set hit counts remain unchanged while the expanded draft loses six cases. The quantized release is an accepted measured tradeoff, not numerically equivalent to FP32. The failure is not established as an intrinsic consequence of small size or architecture.
 
-## 量化与设备
+Recorded real-keyboard measurements show reranking mean 32.93 ms/p95 53.92 ms, a 28.00–28.30 MiB sampled footprint peak, and 34.72 MiB kernel lifetime peak. An approximately 1.93-second publication maximum and increasing late-session footprint remain unresolved. Limited-session input experience is acceptable; long-term memory/power guarantees are not established.
 
-CPU_ONLY、FP32计算、最低iOS18，INT32 `[1,T]` → FLOAT32 `[1,T,16384]`，1≤T≤128，无KV cache。模型、tokenizer、manifest及客户端fixture成套更新，V1保留显式回退。
+## Evidence and limitations
 
-| 指标 | 结果 |
-| --- | --- |
-| Core ML包体积 | FP32 50.36MB → INT8 14.33MB，减少约71.5% |
-| 未压缩logits对齐 | 通过，最大绝对差0.0000457764 |
-| INT8严格logits对齐 | 失败，最大绝对差1.00949144；PAD/causal有效前缀差0 |
-| INT8同池质量 | 原两集命中数不变，扩大草稿净少6条（-0.3个百分点） |
-| iPhone真实扩展 | iPhone16 Pro Max / iOS27.2，201.297秒记录 |
-| 内存 | 内核生命周期footprint峰值34.72MiB；私有驻留采样峰值73.78MiB，两个指标分别统计 |
-| LM评分／下一词p95 | 53.92ms / 38.11ms |
-| UI发布 | p95 8.79ms、最大1926.09ms；实际输入未感到明显异常，当前可接受 |
+[Training](../training-v2.md), [extension selection](v2-20261007/v21-extend.md), [quantization analysis](mac-20261008/v21-quantization-review.md), and [iPhone report](mac-20261008/v21-iphone.md) retain specific conditions and failures. Original score/trace assets remain local and immutable. Historical development labels are AI-reviewed or drafts, not native-speaker gold. The old 1,000-case blind set remains unscored.
 
-INT8首选变化主要集中于原本接近的候选。扩大草稿30条变化样本的FP32前两名分差中位数0.070，未变化且多候选的样本为3.072。配对检验p=.28628，未发现显著量化退化，但未建立统计等效性。当前部署以任务质量和实际体验为依据，不要求有损权重量化复现逐项FP32数值。
-
-## 解释范围
-
-AJIMEE为公开集，原137条标签由模型生成／辅助复核，扩大2000条标签仍为草稿。扩大集FP32相对V1净增34条，探索性配对p=.00648，未校正多重比较；1000条blind未计分。训练重叠、近重复与标签噪声限制仍在，当前成功结论不是母语gold盲测认证。
-
-真实设备记录覆盖有限工作负载，完全冷启动、长期内存平台期与系统终止审计尚缺完整证据。末段内存增长、第二次模型加载和UI长尾的原因未定位，原测量与失败结果均保留。
-
-## 记录索引
-
-- 训练：[V2.0](v2-20261007/evaluation.md)、[restart1](v2-20261007/v21-evaluation.md)、[extend5](v2-20261007/v21-extend.md)、[性能对照](v2-20261007/v21-performance.md)。
-- 部署：[Core ML与量化](mac-20261008/v21-coreml.md)、[量化误差分析](mac-20261008/v21-quantization-review.md)、[iPhone扩展](mac-20261008/v21-iphone.md)。
-- 数据：[扩大候选集](v2-20261007/ime-3000-handoff.md)、[标签与错误分析](v2-20261007/label-error-audit.md)。
-- 路径与复现：[评测](../evaluation.md)、[训练](../training-v2.md)、[Core ML](../coreml.md)、[产物管理](../artifacts.md)。
+Later [V3 experiments](../plan_v3.md) do not establish a stable replacement advantage. Public release links and architecture details appear in the [model card](../../MODEL_CARD.md).

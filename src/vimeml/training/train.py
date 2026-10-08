@@ -120,6 +120,10 @@ def evaluate(model, loader, device, precision, characters=None):
 def validate_config(config):
     model = configuration_for(config.get("architecture", "tiny_gpt_v1"), config["model"])
     settings = dict(config["training"])
+    normalization = settings.get("loss_token_normalization", "batch_tokens")
+    if normalization not in {"batch_tokens", "epoch_mean_tokens"} or (
+            normalization == "epoch_mean_tokens" and not config.get("data_mixture")):
+        raise ValueError("Epoch-mean loss normalization requires a frozen token mixture.")
     crop_probability = settings.get("prefix_crop_probability", 0.0)
     crop_minimum = settings.get("prefix_crop_min_remaining_tokens", 8)
     if (not math.isfinite(crop_probability) or not 0 <= crop_probability <= 1 or
@@ -176,17 +180,44 @@ def validate_epoch_schedule(settings, windows):
     return batches
 
 
+def tokenizer_identity_from_manifest(manifest):
+    """Read vocabulary identity from current or frozen legacy token manifests."""
+    digest = manifest.get("tokenizer_model_sha256")
+    if digest is None:
+        candidates = [value for name, value in manifest.get("input_sha256", {}).items()
+                      if name.replace("\\", "/").rsplit("/", 1)[-1] == "tokenizer.model"]
+        if len(candidates) != 1:
+            raise ValueError("Token manifest must identify exactly one tokenizer model.")
+        digest = candidates[0]
+    return {"tokenizer_model_sha256": digest,
+            "vocab_size": manifest["vocab_size"], "special_ids": manifest["special_ids"]}
+
+
 def run(config, resume=False, dry_run=False):
     model_config, settings = validate_config(config)
     architecture = config.get("architecture", "tiny_gpt_v1")
     token_dir, index_dir = ROOT / config["token_dir"], ROOT / config["index_dir"]
     output, log_dir = ROOT / config["output_dir"], ROOT / config["log_dir"]
     token_manifest = json.loads((token_dir / "manifest.json").read_text(encoding="utf-8"))
+    tokenizer_identity = tokenizer_identity_from_manifest(token_manifest)
     index_manifest = json.loads((index_dir / "manifest.json").read_text(encoding="utf-8"))
     if (token_manifest["vocab_size"] != model_config.vocab_size or
             index_manifest["context_length"] != model_config.context_length):
         raise ValueError("Model vocabulary/context must match token data/window index.")
     code_names = ["train.py", "model.py", "data.py", "model_factory.py"]
+    mixture = None
+    epoch_batches = None
+    if config.get("data_mixture"):
+        if architecture != "tiny_gpt_v2" or settings.get("data_epoch_offset", 0) != 0:
+            raise ValueError("Mixture epochs require V2 and data_epoch_offset=0.")
+        from vimeml.training.data_mixture import mixture_dataset
+        prepared = mixture_dataset(config, ROOT)
+        mixture = prepared.manifest
+        prepared.close()
+        if settings.get("epochs") != len(mixture["epochs"]) or settings["gradient_accumulation"] != 1:
+            raise ValueError("Training epochs must match the frozen mixture, with accumulation=1.")
+        code_names.append("data_mixture.py")
+        epoch_batches = [math.ceil(record["windows"] / settings["batch_size"]) for record in mixture["epochs"]]
     if architecture == "tiny_gpt_v2":
         code_names.extend(("model_v2.py", "data_v2.py"))
         if settings.get("validate_full_each_epoch", False):
@@ -197,15 +228,22 @@ def run(config, resume=False, dry_run=False):
                   "windows": file_sha(index_dir / "manifest.json"),
                   "training_code": {name: file_sha(Path(__file__).with_name(name))
                                     for name in code_names}}
+    if mixture:
+        signatures["mixture"] = file_sha(ROOT / config["data_mixture"]["directory"] / "manifest.json")
     if token_manifest.get("status") != "complete" or index_manifest.get("status") != "complete":
         raise ValueError("Complete token store and window index required.")
     if signatures["tokens"] != index_manifest["token_manifest_sha256"]:
         raise ValueError("Window index belongs to a different token dataset.")
-    windows_per_epoch = index_manifest["splits"]["train"]["windows"]
+    windows_per_epoch = mixture["epochs"][0]["windows"] if mixture else index_manifest["splits"]["train"]["windows"]
     if settings["max_steps"] == 0:
-        settings["max_steps"] = settings["epochs"] * math.ceil(windows_per_epoch / settings["batch_size"])
+        settings["max_steps"] = sum(epoch_batches) if mixture else settings["epochs"] * math.ceil(windows_per_epoch / settings["batch_size"])
         _, settings = validate_config({**config, "training": settings})
-    batches_per_epoch = validate_epoch_schedule(settings, windows_per_epoch)
+    if mixture:
+        if settings["max_steps"] != sum(epoch_batches):
+            raise ValueError("Mixture max_steps must cover the exact frozen epochs.")
+        batches_per_epoch = epoch_batches[0]
+    else:
+        batches_per_epoch = validate_epoch_schedule(settings, windows_per_epoch)
     device = torch.device(settings["device"])
     if device.type not in {"cpu", "cuda"}:
         raise ValueError("Initial trainer supports CPU or CUDA.")
@@ -221,7 +259,8 @@ def run(config, resume=False, dry_run=False):
     model = create_model(architecture, model_config)
     plan = {"architecture": architecture, "model": model.configuration(), "parameters": model.parameter_count(),
             "device": str(device), "precision": precision, "max_steps": settings["max_steps"],
-            "training_prediction_pairs_per_epoch": token_manifest["splits"]["train"]["prediction_pairs"],
+            "training_prediction_pairs_per_epoch": mixture["epochs"][0]["effective_tokens"] if mixture else token_manifest["splits"]["train"]["prediction_pairs"],
+            "data_mixture": mixture,
             "training_batches_per_epoch": batches_per_epoch,
             "planned_epochs": settings.get("epochs"),
             "initialization": config.get('initialization'),
@@ -260,11 +299,15 @@ def run(config, resume=False, dry_run=False):
         from vimeml.training.runtime_v2 import initialize_weights
         initialization = initialize_weights(model, ROOT / config['initialization']['checkpoint'], signatures,
             optimizer=optimizer if config['initialization'].get('restore_optimizer', False) else None,
-            precision=precision)
+            precision=precision, allow_new_data=config['initialization'].get('allow_new_data', False),
+            tokenizer_identity=tokenizer_identity)
         print(f"Initializing from step {initialization['source_step']}; {initialization['optimizer']}.", flush=True)
     scaler = torch.amp.GradScaler("cuda", enabled=precision == "fp16")
     step = epoch = batch_cursor = total_tokens = total_windows = 0
     total_dropped_tokens = total_cropped_windows = 0
+    total_chat_tokens = 0
+    chat_source_ids = [value for name, value in token_manifest["source_ids"].items()
+                       if name in ("real-persona-chat", "mrmp-chat")]
     best_val = math.inf
     best_epoch_bpc = config.get('initialization', {}).get('baseline_validation_bpc', math.inf)
     degrading_epochs = 0
@@ -285,6 +328,9 @@ def run(config, resume=False, dry_run=False):
         total_windows = saved["total_windows"]
         total_dropped_tokens = saved.get("total_dropped_tokens", 0)
         total_cropped_windows = saved.get("total_cropped_windows", 0)
+        total_chat_tokens = saved.get("total_chat_tokens", 0)
+        if mixture:
+            batches_per_epoch = epoch_batches[epoch]
         best_epoch_bpc = saved.get("best_epoch_bpc", math.inf)
         degrading_epochs = saved.get("degrading_epochs", 0)
         evaluated_epochs = saved.get("evaluated_epochs", [])
@@ -316,7 +362,9 @@ def run(config, resume=False, dry_run=False):
     if device.type == "cuda":
         environment["gpu"] = torch.cuda.get_device_name(device)
     write_json(output / "environment.json", environment)
-    if settings.get("prefix_crop_probability", 0.0):
+    if mixture:
+        train_data = mixture_dataset(config, ROOT)
+    elif settings.get("prefix_crop_probability", 0.0):
         train_data = PrefixCropWindowDataset(token_dir, index_dir, "train", seed=settings["seed"],
             probability=settings["prefix_crop_probability"],
             min_remaining_tokens=settings.get("prefix_crop_min_remaining_tokens", 8))
@@ -350,6 +398,7 @@ def run(config, resume=False, dry_run=False):
 
     signal.signal(signal.SIGINT, stop_handler)
     iterator = full_loader = None
+    domain_loaders = {}
     start_time = time.perf_counter()
     latest_validation = None
 
@@ -361,6 +410,8 @@ def run(config, resume=False, dry_run=False):
             "precision": precision, "step": step, "epoch": epoch, "batch_cursor": batch_cursor,
             "source_provenance": environment.get('source_provenance'),
             "initialization": initialization,
+            "tokenizer_identity": tokenizer_identity,
+            "total_chat_tokens": total_chat_tokens,
             "total_tokens": total_tokens, "total_windows": total_windows,
             "total_dropped_tokens": total_dropped_tokens, "total_cropped_windows": total_cropped_windows,
             "best_val": best_val, "rng": rng_state(),
@@ -413,7 +464,8 @@ def run(config, resume=False, dry_run=False):
         writer.flush()
         patience = settings.get('early_stopping_patience', 0)
         early_stopped = bool(patience and degrading_epochs >= patience)
-        report = {'epoch': number, 'step': step, 'validation': result, 'ime': ime,
+        domains = evaluate_domains()
+        report = {'epoch': number, 'step': step, 'validation': result, 'domains': domains, 'ime': ime,
                   'best_epoch_bpc': best_epoch_bpc, 'degrading_epochs': degrading_epochs,
                   'early_stopped': early_stopped}
         epoch_output = output / 'epoch-evaluation' / f'epoch-{number}'
@@ -427,12 +479,34 @@ def run(config, resume=False, dry_run=False):
         print(f"[epoch {number}] BPC={result['bpc']:.6f} IME={ime}", flush=True)
         return result
 
+    def evaluate_domains():
+        reports = {}
+        for name, paths in config.get('evaluation', {}).get('domains', {}).items():
+            if name not in domain_loaders:
+                data = SentenceWindowDataset(ROOT / paths['token_dir'], ROOT / paths['index_dir'], 'validation')
+                loader = make_loader(data, settings['batch_size'], settings['num_workers'], settings['seed'],
+                    shuffle=False, pin_memory=device.type == 'cuda', bucket_multiplier=settings['bucket_multiplier'], worker_init_fn=worker_init)
+                metadata = json.loads((ROOT / paths['token_dir'] / 'manifest.json').read_text(encoding='utf-8'))['splits']['validation']
+                domain_loaders[name] = (data, loader, metadata)
+            data, loader, metadata = domain_loaders[name]
+            reports[name] = evaluate(model, loader, device, precision, metadata['characters'])
+            if reports[name]['prediction_pairs'] != metadata['prediction_pairs']:
+                raise ValueError(f'Incomplete {name} domain validation')
+            for key, value in reports[name].items():
+                if isinstance(value, (int, float)):
+                    writer.add_scalar(f'domain/{name}/{key}', value, step)
+        writer.flush()
+        return reports
+
     interval_loss = interval_tokens = interval_positions = 0
     interval_windows = interval_dropped_tokens = interval_cropped_windows = 0
+    interval_chat_tokens = 0
     interval_seconds = interval_data_seconds = 0.0
     try:
         if not resume:
             latest_validation = validation()
+            if config.get('evaluation', {}).get('domains'):
+                write_json(output / 'initial-domain-validation.json', evaluate_domains())
             best_val = latest_validation["loss"]
             save_checkpoint(last_path)  # Initial state can resume even before step 1.
             save_checkpoint(output / "best.pt")
@@ -458,6 +532,8 @@ def run(config, resume=False, dry_run=False):
                 except StopIteration:
                     epoch += 1
                     batch_cursor = 0
+                    if mixture:
+                        batches_per_epoch = epoch_batches[epoch]
                     train_loader.batch_sampler.set_epoch(epoch + settings.get('data_epoch_offset', 0))
                     iterator = iter(train_loader)
                     batch = next(iterator)
@@ -465,6 +541,8 @@ def run(config, resume=False, dry_run=False):
                 batch_cursor += 1
             data_seconds = time.perf_counter() - update_start
             token_count = sum(int(batch["lengths"].sum()) for batch in microbatches)
+            chat_tokens = sum(int(batch['lengths'][torch.isin(batch['source_id'], torch.tensor(chat_source_ids, dtype=torch.int64))].sum())
+                              for batch in microbatches) if chat_source_ids else 0
             dropped_tokens = sum(int(batch["crop_offset"].sum()) for batch in microbatches if "crop_offset" in batch)
             cropped_windows = sum(int((batch["crop_offset"] > 0).sum()) for batch in microbatches if "crop_offset" in batch)
             window_count = sum(batch["input_ids"].shape[0] for batch in microbatches)
@@ -479,7 +557,9 @@ def run(config, resume=False, dry_run=False):
                 labels = batch["labels"].to(device, non_blocking=True)
                 with amp_context(device, precision):
                     result = model(inputs, labels)
-                    loss = result["loss_sum"] / token_count
+                    denominator = (mixture["epochs"][epoch]["effective_tokens"] / batches_per_epoch
+                                   if settings.get("loss_token_normalization") == "epoch_mean_tokens" else token_count)
+                    loss = result["loss_sum"] / denominator
                 loss_sums.append(result["loss_sum"].detach())
                 scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
@@ -497,6 +577,8 @@ def run(config, resume=False, dry_run=False):
             seconds = time.perf_counter() - update_start
             step += 1
             total_tokens += token_count
+            total_chat_tokens += chat_tokens
+            interval_chat_tokens += chat_tokens
             total_windows += window_count
             total_dropped_tokens += dropped_tokens
             total_cropped_windows += cropped_windows
@@ -523,7 +605,9 @@ def run(config, resume=False, dry_run=False):
                     "data/padding_fraction": 1 - interval_tokens / interval_positions,
                     "data/wait_fraction": interval_data_seconds / interval_seconds,
                     "timing/update_seconds": seconds,
-                    "progress/epoch_fraction": total_windows / windows_per_epoch,
+                    "data/chat_token_fraction": interval_chat_tokens / interval_tokens,
+                    "data/chat_token_fraction_cumulative": total_chat_tokens / total_tokens,
+                    "progress/epoch_fraction": epoch + batch_cursor / batches_per_epoch,
                     "progress/trained_tokens": total_tokens, "progress/percent": 100 * step / settings["max_steps"]}
                 if device.type == "cuda":
                     metrics["memory/peak_allocated_mib"] = torch.cuda.max_memory_allocated(device) / 1024**2
@@ -533,6 +617,7 @@ def run(config, resume=False, dry_run=False):
                 elapsed = time.perf_counter() - start_time
                 progress = {"status": "training", "step": step, "max_steps": settings["max_steps"],
                     "epoch": epoch, "batch_cursor": batch_cursor, "total_tokens": total_tokens,
+                    "total_chat_tokens": total_chat_tokens,
                     "total_dropped_tokens": total_dropped_tokens, "total_cropped_windows": total_cropped_windows,
                     "elapsed_seconds_this_session": elapsed, "metrics": metrics}
                 write_json(output / "progress.json", progress)
@@ -543,6 +628,7 @@ def run(config, resume=False, dry_run=False):
                       f"padding={metrics['data/padding_fraction']:.1%} elapsed={elapsed:.1f}s", flush=True)
                 interval_loss = interval_tokens = interval_positions = 0
                 interval_windows = interval_dropped_tokens = interval_cropped_windows = 0
+                interval_chat_tokens = 0
                 interval_seconds = interval_data_seconds = 0.0
             if step % settings["eval_every"] == 0 or step == settings["max_steps"]:
                 latest_validation = validation()
@@ -558,10 +644,13 @@ def run(config, resume=False, dry_run=False):
         save_checkpoint(last_path)
         status = "early_stopped" if early_stopped else ("complete" if step >= settings["max_steps"] else "interrupted")
         if status == "complete" and settings.get("epochs"):
-            expected_tokens = settings["epochs"] * token_manifest["splits"]["train"]["prediction_pairs"]
-            expected_windows = settings["epochs"] * index_manifest["splits"]["train"]["windows"]
+            expected_tokens = sum(r["uncropped_tokens"] for r in mixture["epochs"]) if mixture else settings["epochs"] * token_manifest["splits"]["train"]["prediction_pairs"]
+            expected_windows = sum(r["windows"] for r in mixture["epochs"]) if mixture else settings["epochs"] * index_manifest["splits"]["train"]["windows"]
             if total_tokens + total_dropped_tokens != expected_tokens or total_windows != expected_windows:
                 raise ValueError("Training did not cover the exact promised windows/prediction pairs.")
+            if mixture and (total_chat_tokens != sum(r["chat_tokens"] for r in mixture["epochs"]) or
+                            total_tokens != sum(r["effective_tokens"] for r in mixture["epochs"])):
+                raise ValueError("Effective token coverage/chat quota differs from the frozen mixture.")
         full_validation = None
         if status in {'complete', 'early_stopped'} and settings.get("validate_full_at_end", False):
             print("[validation_full] Evaluating all validation windows for last/best checkpoints...", flush=True)
@@ -605,8 +694,12 @@ def run(config, resume=False, dry_run=False):
         summary = {"status": status, "step": step, "parameters": model.parameter_count(),
             "total_trained_tokens": total_tokens, "best_validation_loss": best_val,
             "total_trained_windows": total_windows,
-            "completed_data_passes": total_windows / windows_per_epoch,
-            "effective_token_passes": total_tokens / token_manifest["splits"]["train"]["prediction_pairs"],
+            "total_chat_tokens": total_chat_tokens,
+            "chat_token_fraction": total_chat_tokens / total_tokens if total_tokens else None,
+            "completed_data_passes": epoch + batch_cursor / batches_per_epoch,
+            "effective_token_passes": total_tokens / (mixture["epochs"][0]["effective_tokens"]
+                if mixture else token_manifest["splits"]["train"]["prediction_pairs"]),
+            "effective_token_passes_basis": "First frozen cropped mixture epoch" if mixture else "Uncropped token-store train split",
             "prefix_crop_dropped_tokens": total_dropped_tokens,
             "prefix_cropped_windows": total_cropped_windows,
             "uncropped_prediction_pairs_seen": total_tokens + total_dropped_tokens,
@@ -617,7 +710,7 @@ def run(config, resume=False, dry_run=False):
             "benchmark_effective_tokens_per_second": speed,
             "benchmark_seconds_excluding_validation_checkpoints_and_first_warmup_steps": benchmark_seconds,
             "estimated_one_epoch_training_hours_excluding_validation_checkpoints":
-                token_manifest["splits"]["train"]["prediction_pairs"] / speed / 3600 if speed else None,
+                plan['training_prediction_pairs_per_epoch'] / speed / 3600 if speed else None,
             "estimate_note": "Short-run measurement; length mix, GPU power/temperature and validation/checkpoint overhead affect full-run time.",
             "elapsed_seconds_this_session": time.perf_counter() - start_time,
             "checkpoint": str(last_path), "tensorboard": str(log_dir)}
@@ -644,6 +737,9 @@ def run(config, resume=False, dry_run=False):
         iterator = train_loader = val_loader = full_loader = None
         train_data.close()
         val_data.close()
+        for data, loader, _ in domain_loaders.values():
+            del loader
+            data.close()
 
 
 def main(argv=None):

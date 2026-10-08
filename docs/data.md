@@ -1,98 +1,35 @@
-# 数据
+# Data and provenance
 
-正式语料 `outputs/corpus-fast-v1/`：2,289,346 条来源记录 → 25,713,003 条唯一句子。tiny-ja-v1 用的就是这一版，以下命令用于复现或构建新版本。
+## Frozen V1/V2 corpus
 
-## 来源
+The sentence corpus combines nine FineWeb2-Edu Japanese `small_tokens_cleaned` Parquet shards and Tatoeba Japanese sentences. The selected web shards are `train-00010`, `00030`, `00050`, `00070`, `00090`, `00110`, `00130`, `00150`, and `00170` of 283, totaling approximately 2.43 GB compressed.
 
-| 来源 | 文件 | 说明 |
-| --- | --- | --- |
-| FineWeb2-Edu Japanese | `datasets/fineweb-2-edu-japanese/train-000{10,30,…,170}-of-00283.parquet`，9 个分片，约 2.43 GB 压缩 | 教育类网页文本 |
-| Tatoeba | `datasets/Tatoeba/jpn_sentences.tsv` | 普通日语例句 |
+Deterministic cleaning processes 2,289,346 source records into 25,713,003 unique sentences. Unicode/basic-noise cleanup, conservative line joining, sentence segmentation, quarantine, document grouping, and exact deduplication precede splitting. Approved decisions reside in `annotations/approved-v1.jsonl`; 638 quarantined blocks remain excluded.
 
-路径写在 `configs/corpus-parallel.toml`。构建全程离线，不调用 API。
+| Split | Sentences |
+| --- | ---: |
+| Train | 25,185,368 |
+| Validation | 260,337 |
+| Test | 267,298 |
 
-## 处理流程
+The target ratio is 98/1/1 with seed 42. Source documents and exact duplicate text share a split. Semantic near-duplicate and public-benchmark overlap audits are incomplete. Text cleaning does not establish factual quality, unbiased content, or absence of personal information.
 
-```text
-parquet / TSV
-  → Unicode 与确定性基础清理
-  → 噪声判定：keep / drop / review
-  → 保守恢复句内换行 → 分句，隔离碎片
-  → 按文档分组、精确去重、切分 split（防止同句跨 split）
-  → TXT / JSONL / 来源审计
-```
+The frozen exports reside in `outputs/corpus-fast-v1/`. The original merge manifest retains `stage=merged_corpus_staging` and `ready_for_lm_training=false`; later review/training decisions are separate records rather than edits to the original fingerprint. [Pipeline methods](reference/data-pipeline.md) describe reconstruction.
 
-- 清洗保留原文和修改原因。纯空白、装饰行、独立 URL 直接 drop；可疑的导航尾缀进入 review。
-- 换行恢复只接续明显断开的句子，不会把标题、数量等相邻行盲目拼接。
-- split 比例 98% / 1% / 1%，seed 42。相同文本按组分配，保证不跨 split。
-- 只做了精确去重。语义近重复、与公开评测集的重叠没有做全面审计。
-- 只生成句内语料，没有生成读音增强数据。
+## V3 sources and selected pool
 
-## 构建
+V3 adds [JpnMix](https://huggingface.co/datasets/AdaMLLab/JpnMix) `minhash_deduped`, [RealPersonaChat](https://github.com/nu-dialogue/real-persona-chat), and the [multi-relational multi-party chat corpus](https://github.com/nu-dialogue/multi-relational-multi-party-chat-corpus).
 
-单机并行（每个 worker 有自己的 SQLite，清洗完自动按哈希桶并行合并）：
+Sixteen JpnMix shards were downloaded, but the experiments use only the current eight-shard cleaned sample. Those eight shards contain 971,513 source documents, approximately 2.038 GB compressed. The selected web pool contains 349,384 documents and 499,999,997 prediction pairs before the subsequent pricing/catalogue exclusions. Observed upstream proportions are C4 28.39%, CulturaX 22.60%, FineWeb2 22.97%, and HPLT2 26.05%; all five nominal JpnMix sources are not represented in this sample.
 
-```powershell
-.\.venv\Scripts\python.exe -X utf8 -u scripts/corpus/build.py --config configs/corpus-parallel.toml --output outputs/corpus-new-v2 --workers 8
-```
+The dialogue sources contain 14,543 conversations and 509,299 turns in total. Chat validation/test are held out by whole conversation, not individual utterance. Speaker independence is not established. The raw dialogue content contains 5,222,806 tokens excluding BOS/EOS.
 
-`--resume` 会复用指纹一致且校验通过的分区。
+V3 A uses the selected new pool plus chat. V3 B adds the old V2 training corpus. Both use frozen virtual mappings and a 5% chat share measured in effective post-crop tokens. This share involves repeated dialogue exposure, not equivalent amounts of new unique chat text. A 49,205-block pricing/catalogue exclusion affects training only; broad validation/test distributions remain intact. V3 B additionally excludes 1,062 old and 16,854 new overlapping sequences and 67 exact cross-pool web duplicates.
 
-跨机分区：两台机器使用相同的代码、配置、数据和批准记录，只是分区编号不同，最后在同一台机器上合并。全局去重和 split 只在合并时做。
+Overlap screening uses exact identity and anchor/containment rules. It is not a comprehensive semantic decontamination audit. WRIME and JMultiWOZ remain evaluation sources. [V3 design](plan_v3.md) records budgets and normalization.
 
-```powershell
-# Windows
-.\.venv\Scripts\python.exe -X utf8 -u scripts/corpus/preprocess.py --config configs/corpus-sharded.toml --part 0/2 --output outputs/corpus-part-0
-```
+## Storage and licensing
 
-```bash
-# Mac
-.venv/bin/python -u scripts/corpus/preprocess.py --config configs/corpus-sharded.toml --part 1/2 --output outputs/corpus-part-1
-```
+Sentence exports retain source spans and provenance. Encoded storage uses little-endian uint16 tokens, uint64 sequence offsets and JSONL row offsets, and uint8 source identifiers. A sequence is BOS + complete sentence + EOS. Long-sequence windows cover every prediction target once; later windows do not introduce artificial BOS tokens.
 
-```powershell
-# 合并
-.\.venv\Scripts\python.exe -X utf8 -u scripts/corpus/merge.py --config configs/corpus-sharded.toml --parts outputs/corpus-part-0 outputs/corpus-part-1 --output outputs/corpus-new-v2 --workers 8
-```
-
-## 审核
-
-v1 的审核已完成：638 个隔离块继续排除，批准记录在 `annotations/approved-v1.jsonl`，校准文档 ID 在 `annotations/calibration-documents-v1.json`。修改清洗规则需要建立新的语料版本。
-
-审核流程：
-
-1. `prepare.py`：并行重放规则，抽出 review 目标，以及按保留句、拼接边界、碎片、drop、特殊字符分层的抽检样本（样本取自 train，不是全库均匀抽样）。
-2. `run.py`：调用 DeepSeek（SJTU 接口）给出审查建议。只给建议，不润色、不补写、不自动批准。默认 8 RPM / 80K TPM，重试也计入；同一命令可续跑，原始回复和失败记录都会保留。
-3. 人工核对 issue / uncertain 并抽查 ok，再用 `approve.py` 只记录明确选中的边界或片段。
-
-```powershell
-.\.venv\Scripts\python.exe -X utf8 -u scripts/review/prepare.py --workers 8
-.\.venv\Scripts\python.exe -X utf8 scripts/review/run.py --dry-run      # 不读 key、不联网、不写文件
-$env:SJTU_API_KEY = "..."
-.\.venv\Scripts\python.exe -X utf8 -u scripts/review/run.py --workers 5 --batch-size 10
-```
-
-两个账号可以用 `scripts/review/run_multi_key.py`（读取 `SJTU_API_KEY` / `SJTU_API_KEY_2`，每个账号 3 并发、各自独立限额；更多账号用 `--key-env`）。401/403 会停用该账号，429 只暂停该账号。不要和 `run.py` 同时写同一个输出目录。
-
-默认输入 / 输出目录分别是 `outputs/corpus-fast-v1/` 和 `outputs/corpus-review-v1/`，新版本用 `--help` 查看路径参数。
-
-## 产物
-
-| 文件 | 用途 |
-| --- | --- |
-| `train/validation/test.txt` | 每行一个完整句子，供 SentencePiece 使用 |
-| `train/validation/test.jsonl` | 与 txt 同顺序，带来源，供编码时追踪 |
-| `provenance.jsonl` | 重复来源与 span 的完整追踪 |
-| `documents.jsonl` / `index.sqlite` | 文档与审核索引 |
-| `fragments/` `dropped_blocks/` `review_blocks.jsonl` | 隔离内容与规则审计 |
-| `manifest.json` / `stats.json` | 版本指纹与计数 |
-| `integrity-check.json` / `build-records/` | 完整性与构建依据 |
-
-## 校验
-
-```powershell
-.\.venv\Scripts\python.exe -X utf8 scripts/tools/check_corpus.py         # manifest、核心代码、统计、文件大小
-.\.venv\Scripts\python.exe -X utf8 scripts/tools/check_corpus.py --full  # 重新读取全部数据并计算哈希
-```
-
-合并 manifest 里的 `stage=merged_corpus_staging`、`ready_for_lm_training=false` 是构建时写入的，为了保持指纹不回写；v1 后来已审核并用于训练。`src/vimeml/data/` 和合并核心代码保持原路径和内容，否则已有指纹会失效。
+Data and token stores remain in ignored `datasets/`, `outputs/`, and `artifacts/`. Source-level licenses and attribution are retained locally; [NOTICE](../NOTICE.md) distinguishes project licensing from dataset terms.

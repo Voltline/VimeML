@@ -4,6 +4,8 @@ import json
 import math
 from pathlib import Path
 
+import numpy as np
+
 import sentencepiece as spm
 
 from vimeml.training.data import write_json
@@ -20,11 +22,9 @@ def validation_subset(dataset, sampled_indices, tokenizer_dir):
         for sentence in sentences:
             tokens = dataset._store[sentence]
             characters += len(processor.decode(tokens[1:-1]))
-            first = sentence + sum(
-                int(end - start - 1)
-                for start, end, item in zip(dataset.first, dataset.end, dataset.sentences)
-                if item < sentence
-            )
+            position = int(np.searchsorted(dataset.sentences, sentence, side="left"))
+            extra = 0 if position == 0 else int(dataset.end[position - 1] - dataset.sentences[position - 1] - 1)
+            first = sentence + extra
             indices.extend(
                 range(first, first + math.ceil((len(tokens) - 1) / dataset.context_length))
             )
@@ -34,7 +34,8 @@ def validation_subset(dataset, sampled_indices, tokenizer_dir):
 
 
 def epoch_ime(model, tokenizer_dir, benchmarks, root, output, epoch_number):
-    from vimeml.benchmarks.evaluate_ajimee import load_export, rerank, summarize
+    from vimeml.benchmarks.evaluate_ajimee import load_export, metrics, rerank, summarize
+    from vimeml.benchmarks.standard_ime import FORMAT, allow_evaluation, load_standard_export, source_metrics
     from vimeml.training.infer import JapaneseLM
 
     lm = JapaneseLM.__new__(JapaneseLM)
@@ -50,7 +51,16 @@ def epoch_ime(model, tokenizer_dir, benchmarks, root, output, epoch_number):
     model.eval()
     try:
         for name, directory in benchmarks.items():
-            manifest, provenance, rows = load_export(Path(root) / directory)
+            path = Path(root) / directory
+            header = json.loads((path / "manifest.json").read_text(encoding="utf-8"))
+            standard = header.get("format") == FORMAT
+            if standard:
+                if header.get("split") != "development":
+                    raise ValueError("Training diagnostics may only open standard IME development")
+                allow_evaluation(header)
+                manifest, provenance, rows = load_standard_export(path)
+            else:
+                manifest, provenance, rows = load_export(path)
             rerank(lm, rows)
             report = {
                 "epoch": epoch_number,
@@ -60,6 +70,10 @@ def epoch_ime(model, tokenizer_dir, benchmarks, root, output, epoch_number):
                 "metrics": summarize(rows),
                 "policy": "Frozen joint tokenization; full-vocabulary suffix logP sum; stable ties; no EOS.",
             }
+            if standard:
+                report.update(source_metrics=source_metrics(rows, metrics),
+                              label_quality=manifest["label_quality"],
+                              labels_formal_gold=manifest["labels_formal_gold"])
             destination = Path(output) / "epoch-evaluation" / f"epoch-{epoch_number}" / name
             destination.mkdir(parents=True, exist_ok=True)
             write_json(destination / "metrics.json", report)

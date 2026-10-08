@@ -1,5 +1,6 @@
 """Optional training compilation and frozen-weight initialization for V2."""
 
+import json
 from types import MethodType
 from pathlib import Path
 
@@ -80,7 +81,8 @@ def compile_backbone(model):
     }
 
 
-def initialize_weights(model, checkpoint, signatures, optimizer=None, precision=None):
+def initialize_weights(model, checkpoint, signatures, optimizer=None, precision=None,
+                       allow_new_data=False, tokenizer_identity=None):
     """Start a separate run; optionally carry compatible AdamW moments forward."""
     path = Path(checkpoint)
     saved = torch.load(path, map_location="cpu", weights_only=True)
@@ -89,12 +91,30 @@ def initialize_weights(model, checkpoint, signatures, optimizer=None, precision=
         or saved["model_config"] != model.configuration()
     ):
         raise ValueError("Initialization requires the same V2 model configuration.")
-    if any(
+    data_changed = any(
         saved["signatures"][name] != signatures[name] for name in ("tokens", "windows")
-    ):
-        raise ValueError(
-            "Initialization requires the same tokenizer/token store and window index."
-        )
+    )
+    tokenizer_check = None
+    if data_changed:
+        if not allow_new_data or optimizer is not None or tokenizer_identity is None:
+            raise ValueError("New-data initialization requires explicit permission, matching tokenizer and a fresh optimizer.")
+        source_identity = saved.get("tokenizer_identity")
+        if source_identity is None:
+            root = Path(__file__).resolve().parents[3]
+            source_manifest = root / saved["config"]["token_dir"] / "manifest.json"
+            source_tokens = json.loads(source_manifest.read_text(encoding="utf-8"))
+            source_hash = source_tokens.get("tokenizer_model_sha256")
+            if source_hash is None:
+                candidates = [value for name, value in source_tokens.get("input_sha256", {}).items()
+                              if name.replace("\\", "/").endswith("/tokenizer.model")]
+                if len(candidates) != 1:
+                    raise ValueError("Source tokenizer identity is unavailable in the frozen manifest.")
+                source_hash = candidates[0]
+            source_identity = {"tokenizer_model_sha256": source_hash,
+                               "vocab_size": source_tokens["vocab_size"], "special_ids": source_tokens["special_ids"]}
+        if source_identity != tokenizer_identity:
+            raise ValueError("Source and target tokenizer identities differ.")
+        tokenizer_check = "Frozen tokenizer identity matched; new corpus allowed; optimizer reset"
     if optimizer is not None:
         if saved.get("precision") != precision or not saved.get("optimizer", {}).get(
             "state"
@@ -129,6 +149,8 @@ def initialize_weights(model, checkpoint, signatures, optimizer=None, precision=
         "source_epoch": saved["epoch"],
         "source_batch_cursor": saved["batch_cursor"],
         "source_signatures": saved["signatures"],
+        "new_training_data": data_changed,
+        "tokenizer_compatibility": tokenizer_check,
         "file_bytes": path.stat().st_size,
         "optimizer": (
             "restored AdamW moments and parameter step counters; new local scheduler and data cursors"

@@ -25,13 +25,17 @@ from vimeml.training.train import learning_rate, optimizer_for, worker_init
 
 def build_loader(config, batch_size, workers, cuda):
     settings = config["training"]
-    dataset = PrefixCropWindowDataset(
-        ROOT / config["token_dir"],
-        ROOT / config["index_dir"],
-        seed=settings["seed"],
-        probability=settings["prefix_crop_probability"],
-        min_remaining_tokens=settings["prefix_crop_min_remaining_tokens"],
-    )
+    if config.get("data_mixture"):
+        from vimeml.training.data_mixture import mixture_dataset
+        dataset = mixture_dataset(config, ROOT)
+    else:
+        dataset = PrefixCropWindowDataset(
+            ROOT / config["token_dir"],
+            ROOT / config["index_dir"],
+            seed=settings["seed"],
+            probability=settings["prefix_crop_probability"],
+            min_remaining_tokens=settings["prefix_crop_min_remaining_tokens"],
+        )
     loader = make_loader(
         dataset,
         batch_size,
@@ -95,7 +99,10 @@ def measure(config, saved, batch_size, workers, warmup, steps, variant, plan_onl
                 inputs = batch["input_ids"].to(device, non_blocking=True)
                 labels = batch["labels"].to(device, non_blocking=True)
                 with torch.autocast("cuda", dtype=torch.bfloat16):
-                    loss = model(inputs, labels)["loss_sum"] / tokens
+                    denominator = (dataset.manifest["epochs"][dataset.epoch]["effective_tokens"] /
+                                   math.ceil(len(dataset) / batch_size)
+                                   if settings.get("loss_token_normalization") == "epoch_mean_tokens" else tokens)
+                    loss = model(inputs, labels)["loss_sum"] / denominator
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(
                     model.parameters(), settings["grad_clip"], error_if_nonfinite=True
@@ -190,6 +197,7 @@ def main():
     parser.add_argument("--warmup", type=int, default=32)
     parser.add_argument("--steps", type=int, default=128)
     parser.add_argument("--workers", type=int)
+    parser.add_argument("--variants", nargs="+", choices=("eager", "compiled"), default=["eager", "compiled"])
     parser.add_argument(
         "--plan-only",
         action="store_true",
@@ -225,7 +233,7 @@ def main():
         )
     args.output.mkdir(parents=True)
     report = {
-        "format": "vimeml_v21_real_data_performance_v1",
+        "format": "vimeml_v3_real_data_performance_v1" if config.get("data_mixture") else "vimeml_v21_real_data_performance_v1",
         "status": "running",
         "torch_version": str(torch.__version__),
         "gpu": None if args.plan_only else torch.cuda.get_device_name(),
@@ -241,7 +249,7 @@ def main():
     }
     try:
         for size in args.batch_sizes:
-            variants = ("loader_only",) if args.plan_only else ("eager", "compiled")
+            variants = ("loader_only",) if args.plan_only else args.variants
             for variant in variants:
                 try:
                     item = measure(
@@ -262,7 +270,7 @@ def main():
                     }
                 report["results"].append(item)
                 write_json(args.output / "report.json", report)
-            if not args.plan_only:
+            if not args.plan_only and "eager" in args.variants and "compiled" in args.variants:
                 eager, compiled = report["results"][-2:]
                 if any(
                     item.get("status") == "unavailable_cuda_oom"

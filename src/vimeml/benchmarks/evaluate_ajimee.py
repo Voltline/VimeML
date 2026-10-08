@@ -15,6 +15,8 @@ def read_json(path):
 
 def load_export(directory):
     manifest = read_json(directory / "manifest.json")
+    if manifest.get("format") == "vimeml_standard_ime_candidates_v1":
+        raise ValueError("Use scripts/benchmarks/evaluate_standard_ime.py for the versioned label and blind protocol.")
     if manifest.get("format") == EXPANDED_FORMAT:
         return load_expanded_export(directory, manifest)
     if manifest.get("format") not in (FORMAT, DEVELOPMENT_FORMAT) or manifest.get("status") != "complete":
