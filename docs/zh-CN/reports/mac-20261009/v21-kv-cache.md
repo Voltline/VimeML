@@ -2,7 +2,10 @@
 
 从最新VimeML main `0a85a36`、Vime main `1ea4cf8`建立独立实验分支，沿用V2.1 extend5
 step40000的冻结bundle、V2 tokenizer、INT8 block32、FP32计算和CPU_ONLY，不训练、不改标签、
-不使用blind、不替换为V3。完整方法与原始报告索引见[英文记录](../../../reports/mac-20261009/v21-kv-cache.md)。
+不使用blind、不替换为V3。收尾时客户端 main 更新至 `d96d94e`（两处错音候选与
+Xcode Cloud 基线资源），已无冲突合入并重跑13项针对性功能检查。性能测量使用 KV 提交
+`1c6c433`（基于 `1ea4cf8`）；后续 main 未改动 LM 推理与固定性能工作负载，性能数据沿用原测量。
+完整方法与原始报告索引见[英文记录](../../../reports/mac-20261009/v21-kv-cache.md)。
 
 ## 实现与边界
 
@@ -80,5 +83,6 @@ scatter_along_axis导出遇到形状推断限制；最终index_put/scatter_nd组
 接受产物位于`artifacts/deployment/tiny-ja-v2.1-extend5-kv-{fp32-v5,int8-b32-v2,client-resources-v2}/`。
 FP32/INT8包逻辑大小50,382,727/14,355,753字节，压缩32个有限学习矩阵，结构mask与norm不压缩。
 报告位于`outputs/deployment/v21-kv-*`。
-结果ZIP只迁移新模型、必要编译资源、KV报告及双仓库handoff清单；原V2 tokenizer/基线从前次包复用，
-代码走独立关联PR，模型不提交Git。迁移按路径/数量/大小核验，复用既有模型身份，不反复全树SHA256。
+结果ZIP只迁移新模型、必要编译资源、KV报告及双仓库handoff清单。客户端 main `d96d94e`
+已跟踪原V2模型/tokenizer，正常克隆后只需安装KV资源；重新导出仍需前次包中的冻结ML bundle。
+代码走独立关联PR，KV模型不提交Git。迁移按路径/数量/大小核验，复用既有模型身份，不反复全树SHA256。

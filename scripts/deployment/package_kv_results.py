@@ -35,7 +35,7 @@ def main():
     record = {"format":"vimeml_v21_kv_mac_results_v1","date":"2026-10-09",
         "repositories":repositories,"acceptance":json.loads(a.status.read_text()),
         "environment":json.loads((a.int8/"manifest.json").read_text())["environment"],"files":inventory,
-        "baseline_payload":"Reuse original vimeml-v21-mac-results.zip for the V2 tokenizer/baseline; this archive adds KV only.",
+        "baseline_payload":"Client main d96d94e tracks the original V2 model/tokenizer. This archive adds KV only; re-exporting still requires the bound inference bundle from the original vimeml-v21-mac-results.zip.",
         "restore_policy":"Restore original relative ignored paths. Preserve conflicts under a new version; merge source through Git PRs.",
         "verification":"Existing manifest identities; ZIP paths/count/logical sizes verified, no repeated tree hashes."}
     data=(json.dumps(record,ensure_ascii=False,indent=2)+"\n").encode()

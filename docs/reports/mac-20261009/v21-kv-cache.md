@@ -1,6 +1,10 @@
 # V2.1 KV cache — 2026-10-09
 
 The independent experiment starts from VimeML main `0a85a36` and Vime main `1ea4cf8`.
+Before closeout, client main advanced to `d96d94e` (two-error phonetic candidates and tracked
+Xcode Cloud baseline resources); that update was merged without conflicts and the13 targeted
+functional tests were rerun. Performance measurements use KV commit `1c6c433` based on
+`1ea4cf8`; the later main update changes neither LM inference nor the fixed benchmark fixtures.
 It reuses the bound V2.1 extend5 best / step40000 inference bundle, tokenizer and original
 INT8 block32 recipe. No training, label changes, blind selection or V3 model substitution.
 
@@ -117,6 +121,8 @@ compressed, while structural mask constants and norms remain unchanged.
 All new reports are under `outputs/deployment/v21-kv-*`.
 
 `vimeml-v21-kv-mac-results.zip` transfers accepted models, client compiled resources, all KV reports
-and `handoff.json` with both source commits/PRs, identities and path/size inventory. Original V2
-tokenizer/baseline payload is reused from the previous results ZIP. Source changes travel through
-separate linked PRs. No model binaries or client source snapshots are committed or included as backups.
+and `handoff.json` with both source commits/PRs, identities and path/size inventory. Client main `d96d94e`
+already tracks the original V2 model/tokenizer, so only the KV resource installer is needed after
+cloning. Re-exporting requires the bound ML inference bundle from the previous results ZIP.
+Source changes travel through separate linked PRs. KV model binaries and client source snapshots
+are not committed or included as backups.
