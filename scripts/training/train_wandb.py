@@ -27,6 +27,11 @@ def main(argv=None):
     )
     args = parser.parse_args(argv)
     config = tomllib.loads(args.config.read_text(encoding="utf-8"))
+    # This entry runs in a fresh process; V4 registration in its caller is lost.
+    if config.get("architecture") == "tiny_gpt_v4":
+        from vimeml.training.model_factory_v4 import register_v4
+
+        register_v4()
     output = ROOT / config["output_dir"]
     tracking_config = config.get("tracking", {})
     tracking = {
@@ -34,7 +39,7 @@ def main(argv=None):
         "entity": args.entity or tracking_config.get("entity"),
         "name": args.name or output.name,
         "group": output.name,
-        "mode": "offline" if args.offline else "online",
+        "mode": "offline" if args.offline else tracking_config.get("mode", "online"),
     }
     if args.dry_run:
         from vimeml.training.train import run
@@ -64,7 +69,7 @@ def main(argv=None):
         dir=str(tracking_dir),
         sync_tensorboard=True,
         save_code=False,
-        force=not args.offline,
+        force=tracking["mode"] == "online",
         config={
             "architecture": config.get("architecture", "tiny_gpt_v1"),
             "model": config["model"],

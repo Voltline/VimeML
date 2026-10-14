@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
 from vimeml.training.model_factory_v4 import register_v4
-from vimeml.training.train import run
+from vimeml.training.train import main as training_main
 
 
 def main(argv=None):
@@ -20,10 +20,14 @@ def main(argv=None):
     config = tomllib.loads(args.config.read_text(encoding="utf-8"))
     if config.get("architecture") != "tiny_gpt_v4":
         parser.error("This entry point accepts only tiny_gpt_v4 configurations")
-    if config.get("tracking", {}).get("enabled", False):
-        parser.error("This local V4 entry uses TensorBoard; set tracking.enabled=false")
     register_v4()
-    return run(config, resume=args.resume, dry_run=args.dry_run)
+    # Reuse the established tracking dispatch, including its offline mode.
+    forwarded = ["--config", str(args.config.resolve())]
+    if args.resume:
+        forwarded.append("--resume")
+    if args.dry_run:
+        forwarded.append("--dry-run")
+    return training_main(forwarded)
 
 if __name__ == "__main__":
     main()

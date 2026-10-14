@@ -18,6 +18,21 @@ spec.loader.exec_module(entry)
 
 
 class WandbEntryTests(unittest.TestCase):
+    def test_v4_registers_in_fresh_tracking_process(self):
+        from vimeml.training.model_factory import ARCHITECTURES
+        from vimeml.training.model_factory_v4 import register_v4
+
+        register_v4()
+        legacy = {key: value for key, value in ARCHITECTURES.items() if key != "tiny_gpt_v4"}
+        fake = SimpleNamespace(init=Mock(side_effect=AssertionError("Network init forbidden")))
+        with patch.dict(ARCHITECTURES, legacy, clear=True), patch.dict(sys.modules, {"wandb": fake}), \
+                patch.object(trainer, "run", side_effect=lambda config, **_: trainer.validate_config(config)) as run:
+            with contextlib.redirect_stdout(io.StringIO()):
+                entry.main(["--config", str(ROOT / "configs/train-v4-b.toml"), "--dry-run"])
+            self.assertIn("tiny_gpt_v4", ARCHITECTURES)
+            self.assertEqual(run.call_args.args[0]["training"]["epochs"], 4)
+            fake.init.assert_not_called()
+
     def test_dry_run_never_initializes_wandb(self):
         fake = SimpleNamespace(init=Mock(side_effect=AssertionError("Network init forbidden")))
         with patch.dict(sys.modules, {"wandb": fake}), patch.object(trainer, "run") as run:

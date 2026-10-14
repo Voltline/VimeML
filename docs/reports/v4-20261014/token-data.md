@@ -34,7 +34,7 @@ The fixed configuration uses 8 workers, one native encoder thread per worker, ba
 
 Window indices preserve every next-token pair, including EOS. At boundaries, adjacent windows share one input token; prediction targets neither overlap nor disappear. Later windows do not receive an artificial BOS. PAD=0 and padded labels=-100; collators mask padding from loss. These artifacts use the existing `TokenStore`, `SentenceWindowDataset` and CPU PyTorch DataLoader contracts without changing V1/V2 code.
 
-V4 indices contain train/validation only. Shared `prepare_indexes` now accepts explicit splits, and the V4 training entry selects these two splits. Legacy CLI defaults remain unchanged. The full training configuration and launch commands are in [the V4 training guide](../../training-v4.md).
+V4 indices contain train/validation only. Shared `prepare_indexes` now accepts explicit splits, and the V4 training entry selects these two splits. Legacy CLI defaults remain unchanged. The full training configuration and runtime design are in [V4 training design](../../training-v4.md).
 
 ## Verification and limitations
 

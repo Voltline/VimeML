@@ -34,7 +34,7 @@ V4 的 `rows.bin` 保存对应 **TXT** 的 uint64 字节偏移，与旧 JSONL �
 
 context128 窗口保留所有 next-token prediction pairs，包括 EOS。窗口接缝共享一个 input token，预测目标无重叠、无遗漏；后续窗口不补 BOS。PAD=0，padding labels=-100，并有 attention mask。使用现有 `TokenStore`、`SentenceWindowDataset` 和 CPU PyTorch DataLoader 契约，不修改 V1/V2 核心代码。
 
-V4 index 只包含 train/validation。共享 `prepare_indexes` 已支持显式 split，V4 训练入口选择这两个 split，旧 CLI 默认行为不变。正式配置与启动命令见 [V4 训练指南](../../training-v4.md)。
+V4 index 只包含 train/validation。共享 `prepare_indexes` 已支持显式 split，V4 训练入口选择这两个 split，旧 CLI 默认行为不变。正式配置与运行设计见 [V4 训练设计](../../training-v4.md)。
 
 ## 验证与限制
 

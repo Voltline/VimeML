@@ -363,6 +363,8 @@ def run(config, resume=False, dry_run=False):
     if config.get('runtime', {}).get('compile_backbone', False):
         from vimeml.training.runtime_v2 import compile_backbone
         environment['runtime_optimization'] = compile_backbone(model)
+        if architecture == "tiny_gpt_v4":
+            environment['runtime_optimization']['checkpoint_inference'] = 'Plain TinyGPTV4'
     source_provenance = ROOT / config.get('source_provenance', 'source-provenance.json')
     if source_provenance.exists():
         environment['source_provenance'] = json.loads(source_provenance.read_text(encoding='utf-8'))
