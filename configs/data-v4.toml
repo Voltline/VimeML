@@ -1,0 +1,23 @@
+# V4 uses 8K to move parameter capacity from embedding to the backbone.
+# No test or blind text is consumed by this pipeline.
+[paths]
+corpus_dir = "outputs/corpus-fast-v1"
+tokenizer_dir = "artifacts/tokenizers/v4-a/ja-unigram-8192"
+tokenizer_experiment_dir = "artifacts/tokenizers/v4-a"
+source_store_dir = "artifacts/token-data/corpus-v2-16k"
+output_dir = "artifacts/token-data/corpus-v4-8k"
+index_dir = "artifacts/training-data/corpus-v4-c128"
+
+[encoding]
+workers = 8
+batch_size = 4096
+chunk_mib = 128
+
+[windows]
+context_length = 128
+
+[checks]
+seed = 42
+batch_size = 64
+num_workers = 2
+check_batches = 4

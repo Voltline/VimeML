@@ -99,11 +99,13 @@ class TrainerTests(unittest.TestCase):
                 path.write_bytes(data)
                 hashes[path.name] = file_sha(path)
             splits[split] = {"sentences": len(sequences), "stored_tokens": offsets[-1],
+                             "characters": sum(len(sequence) - 2 for sequence in sequences),
                              "prediction_pairs": offsets[-1] - len(sequences),
                              "max_sequence_tokens": max(map(len, sequences))}
         write_json(token_dir / "manifest.json", {"status": "complete",
             "format": "vimeml_sentence_tokens_v1", "token_dtype": "uint16_le", "offset_dtype": "uint64_le",
             "offset_unit": "tokens", "vocab_size": 16, "special_ids": {"pad": 0, "unk": 1, "bos": 2, "eos": 3},
+            "tokenizer_model_sha256": "synthetic-single-character-fixture",
             "source_ids": {"fineweb": 0, "tatoeba": 1}, "splits": splits, "output_sha256": hashes})
         prepare_indexes(token_dir, self.root / "indexes", 8)
         self.config = {"token_dir": str(token_dir), "index_dir": str(self.root / "indexes"),
@@ -172,8 +174,8 @@ class TrainerTests(unittest.TestCase):
         original_evaluate = train.evaluate
         sampled_losses = iter((10.0, 9.0, 8.0, 9.0))
 
-        def controlled_validation(model, loader, device, precision):
-            result = original_evaluate(model, loader, device, precision)
+        def controlled_validation(model, loader, device, precision, characters=None):
+            result = original_evaluate(model, loader, device, precision, characters)
             if len(loader.batch_sampler.sampler) == 4:
                 result["loss"] = next(sampled_losses)
             return result

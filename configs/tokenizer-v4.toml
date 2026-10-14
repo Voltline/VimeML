@@ -1,0 +1,30 @@
+# V4-a tokenizer; independent of the frozen V1/V2 artifacts.
+[paths]
+corpus_dir = "outputs/corpus-fast-v1"
+output_dir = "artifacts/tokenizers/v4-a"
+required_chars_file = "configs/kana-v4.txt"
+benchmark_development = "artifacts/benchmarks/ime-standard-ja-v1-candidates/development"
+
+[training]
+model_type = "unigram"
+vocab_size = 8192
+character_coverage = 0.9995
+byte_fallback = true
+normalization_rule_name = "identity"
+remove_extra_whitespaces = false
+add_dummy_prefix = false
+user_defined_symbols = ["<CTX>", "<READ>", "<OUT>"]
+num_threads = 12
+input_sentence_size = 2000000
+seed = 42
+max_sentence_length = 8192
+
+[comparison]
+vocab_sizes = [8192, 12288, 16384]
+
+[measurement]
+workers = 8
+batch_size = 4096
+
+[monitoring]
+tensorboard = true

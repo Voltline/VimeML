@@ -9,6 +9,7 @@ V2系列实验已完成，当前部署版本为V2.1 extend5 step40000 / INT8 blo
 | 文档 | 内容 |
 | --- | --- |
 | [数据](data.md) | 冻结语料、来源、清洗和split |
+| [V4正式训练](training-v4.md) | 固定8K模型、本地准备完成、直接启动与恢复 |
 | [V3数据实验](plan_v3.md) / [A评测](reports/v3-20261008/a-evaluation.md) / [B联合重训](reports/v3-20261008/b-plan.md) / [B评测](reports/v3-20261008/b-evaluation.md) | A与B训练、评测、归档完成；B未形成稳定替换收益，保留V2.1部署 |
 | [V2实验设计](plan_v2.md) / [V2训练](training-v2.md) | 模型、tokenizer、裁剪、配置和运行方式 |
 | [V1训练](training.md) | 冻结基线复现 |
@@ -18,6 +19,9 @@ V2系列实验已完成，当前部署版本为V2.1 extend5 step40000 / INT8 blo
 | [本地产物](artifacts.md) / [跨平台管理](reference/artifact-exchange.md) | 路径、归档、Git与ZIP协作 |
 
 ## V2实验记录
+
+V4-a 本地工作：[Tokenizer 初始化、训练与词表对照](reports/v4-20261014/tokenizer.md)、[8K token 数据与窗口](reports/v4-20261014/token-data.md)。
+模型与训练入口见 [固定架构、本地验收和启动配置](reports/v4-20261014/model.md)。
 
 | 阶段 | 报告 |
 | --- | --- |

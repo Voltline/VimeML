@@ -91,7 +91,10 @@ def prepare_split(token_dir, index_dir, split, context_length, manifest_sha, ver
                 "index_sha256": file_sha(path), "token_manifest_sha256": manifest_sha}
 
 
-def prepare_indexes(token_dir, index_dir, context_length=128, verification="sha256"):
+def prepare_indexes(token_dir, index_dir, context_length=128, verification="sha256", *, splits=None):
+    selected_splits = SPLITS if splits is None else tuple(splits)
+    if not selected_splits or len(set(selected_splits)) != len(selected_splits) or any(s not in SPLITS for s in selected_splits):
+        raise ValueError("Invalid index split selection.")
     if not isinstance(context_length, int) or context_length < 1:
         raise ValueError("context_length must be a positive integer.")
     if verification not in {"sha256", "metadata"}:
@@ -105,17 +108,17 @@ def prepare_indexes(token_dir, index_dir, context_length=128, verification="sha2
                 cached.get("token_manifest_sha256")) != (
                     "complete", "vimeml_sentence_windows_v1", context_length, manifest_sha):
             raise ValueError("Index directory belongs to a different dataset/context; use a new directory.")
-        for split in SPLITS:
+        for split in selected_splits:
             path = index_dir / f"{split}.windows.npz"
             if (path.stat().st_size != cached["splits"][split]["index_bytes"] or
                     (verification == "sha256" and file_sha(path) != cached["splits"][split]["index_sha256"])):
                 raise ValueError(f"Window index hash mismatch: {split}")
         return cached
     index_dir.mkdir(parents=True, exist_ok=True)
-    print(f"Preparing window indexes (3 parallel splits; {verification} verification)...", flush=True)
-    with ThreadPoolExecutor(max_workers=3) as pool:
+    print(f"Preparing window indexes ({len(selected_splits)} parallel splits; {verification} verification)...", flush=True)
+    with ThreadPoolExecutor(max_workers=len(selected_splits)) as pool:
         jobs = {split: pool.submit(prepare_split, token_dir, index_dir, split,
-                                  context_length, manifest_sha, verification) for split in SPLITS}
+                                  context_length, manifest_sha, verification) for split in selected_splits}
         splits = {split: future.result() for split, future in jobs.items()}
     if file_sha(token_dir / "manifest.json") != manifest_sha:
         raise ValueError("Token manifest changed during preparation.")

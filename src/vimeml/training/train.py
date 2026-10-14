@@ -129,14 +129,16 @@ def validate_config(config):
     if (not math.isfinite(crop_probability) or not 0 <= crop_probability <= 1 or
             type(crop_minimum) is not int or crop_minimum < 1):
         raise ValueError("Invalid prefix crop probability or minimum token count.")
-    if crop_probability and config.get("architecture", "tiny_gpt_v1") != "tiny_gpt_v2":
-        raise ValueError("Prefix crops are only enabled for tiny_gpt_v2.")
+    if crop_probability and config.get("architecture", "tiny_gpt_v1") not in {"tiny_gpt_v2", "tiny_gpt_v4"}:
+        raise ValueError("Prefix crops require a V2 or V4 architecture.")
     if settings.get("early_stopping_patience", 0) < 0 or settings.get("early_stopping_min_delta", 0) < 0:
         raise ValueError("Invalid epoch degradation stopping configuration.")
     if type(settings.get('data_epoch_offset', 0)) is not int or settings.get('data_epoch_offset', 0) < 0:
         raise ValueError('data_epoch_offset must be a nonnegative integer.')
-    if config.get('runtime', {}).get('compile_backbone', False) and config.get('architecture') != 'tiny_gpt_v2':
-        raise ValueError('Backbone compilation is only supported for V2.')
+    if config.get('runtime', {}).get('compile_backbone', False) and config.get('architecture') not in {'tiny_gpt_v2', 'tiny_gpt_v4'}:
+        raise ValueError('Backbone compilation requires a V2 or V4 architecture.')
+    if config.get('architecture') == 'tiny_gpt_v4' and config.get('initialization', {}).get('checkpoint'):
+        raise ValueError('V4-a starts from scratch; use --resume only for its own run.')
     automatic_steps = settings.get("max_steps") == 0 and settings.get("epochs", 0) > 0
     schedule = settings.get("learning_rate_schedule", "cosine")
     stable_steps = settings.get("stable_steps", 0)
@@ -224,6 +226,10 @@ def run(config, resume=False, dry_run=False):
             code_names.append("evaluation_v2.py")
         if config.get('runtime', {}).get('compile_backbone', False) or config.get('initialization', {}).get('checkpoint'):
             code_names.append('runtime_v2.py')
+    elif architecture == "tiny_gpt_v4":
+        code_names.extend(("model_v4.py", "model_factory_v4.py", "model_v2.py", "data_v2.py", "evaluation_v2.py"))
+        if config.get('runtime', {}).get('compile_backbone', False):
+            code_names.append('runtime_v2.py')
     signatures = {"tokens": file_sha(token_dir / "manifest.json"),
                   "windows": file_sha(index_dir / "manifest.json"),
                   "training_code": {name: file_sha(Path(__file__).with_name(name))
@@ -291,7 +297,8 @@ def run(config, resume=False, dry_run=False):
     elif log_dir.exists() and any(log_dir.iterdir()):
         raise ValueError("TensorBoard directory is nonempty; use a new log directory.")
     prepare_indexes(token_dir, index_dir, model_config.context_length,
-                    verification=config.get("verification", {}).get("mode", "sha256"))
+                    verification=config.get("verification", {}).get("mode", "sha256"),
+                    splits=("train", "validation") if architecture == "tiny_gpt_v4" else None)
     model.to(device)
     optimizer = optimizer_for(model, settings, device)
     initialization = None
@@ -720,7 +727,7 @@ def run(config, resume=False, dry_run=False):
         write_json(output / "summary.json", summary)
         write_json(output / "progress.json", summary)
         write_json(output / "manifest.json", {"status": status,
-                   "format": "vimeml_tiny_gpt_run_v2" if architecture == "tiny_gpt_v2" else "vimeml_tiny_gpt_run_v1",
+                   "format": {"tiny_gpt_v2": "vimeml_tiny_gpt_run_v2", "tiny_gpt_v4": "vimeml_tiny_gpt_run_v4"}.get(architecture, "vimeml_tiny_gpt_run_v1"),
                    "architecture": architecture,
                    "plan": plan, "signatures": signatures, "step": step})
         print(json.dumps(summary, ensure_ascii=False, indent=2))

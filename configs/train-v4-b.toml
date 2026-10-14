@@ -1,0 +1,59 @@
+# V4 base LM training from scratch. Start directly after completed local checks.
+architecture = "tiny_gpt_v4"
+token_dir = "artifacts/token-data/corpus-v4-8k"
+index_dir = "artifacts/training-data/corpus-v4-c128"
+output_dir = "artifacts/models/tiny-ja-v4-b-e8k-d384-l7"
+log_dir = "runs/training/tiny-ja-v4-b-e8k-d384-l7"
+source_provenance = "handoff/source-provenance-v4.json"
+[runtime]
+compile_backbone = false
+[model]
+vocab_size = 8192
+context_length = 128
+d_model = 384
+n_heads = 6
+n_layers = 7
+d_ff = 960
+dropout = 0.0
+norm = "rmsnorm"
+norm_eps = 0.00001
+activation = "swiglu"
+bias = false
+tie_embeddings = true
+position_embedding = "learned"
+[training]
+device = "cuda"
+precision = "bf16"
+seed = 42
+cpu_threads = 4
+batch_size = 128
+num_workers = 4
+bucket_multiplier = 64
+gradient_accumulation = 1
+epochs = 2
+max_steps = 0
+learning_rate = 0.0006
+min_learning_rate = 0.00006
+warmup_steps = 1000
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+prefix_crop_probability = 0.30
+prefix_crop_min_remaining_tokens = 8
+log_every = 50
+eval_every = 2000
+checkpoint_every = 5000
+eval_batches = 32
+benchmark_warmup_steps = 20
+validate_full_at_end = true
+validate_full_each_epoch = true
+early_stopping_patience = 2
+early_stopping_min_delta = 0.01
+[evaluation]
+tokenizer_dir = "artifacts/tokenizers/v4-a/ja-unigram-8192"
+[evaluation.benchmarks]
+[verification]
+mode = "sha256"
+[tracking]
+enabled = false
