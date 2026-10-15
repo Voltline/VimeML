@@ -11,7 +11,8 @@ V2.1 `extend5` step 40,000 / INT8 block-32 is the current deployment release. V1
 | [V1 training](training.md) | Original baseline and reproducibility |
 | [V2 training](training-v2.md) / [V2 design](plan_v2.md) | Architecture, tokenization, cropping, and schedules |
 | [V3 experiments](plan_v3.md) | Adaptation and joint retraining scope |
-| [V4 training](training-v4.md) | Fixed 8K model, completed local preparation, direct full training and resume |
+| [V4 training](training-v4.md) | Fixed 8K architecture, completed A/B schedules, results, and recovery |
+| [V4 post-training](posttraining-v4.md) / [conversion data](data-v4-c1.md) | Prepared C1 dataset, trainer, conditional scoring, and frozen first-run settings |
 | [Evaluation](evaluation.md) | Fixed-pool scoring, statistics, and benchmark roles |
 | [Standard IME](benchmarks/standard-ime.md) / [initial comparison](benchmarks/standard-ime-results-20261008.md) | Source splits, AI review, candidate export, and reference-set consumption |
 | [Core ML](coreml.md) | Conversion, quantization, and client contract |
@@ -31,7 +32,8 @@ V2.1 `extend5` step 40,000 / INT8 block-32 is the current deployment release. V1
 | V3 A | [Evaluation](reports/v3-20261008/a-evaluation.md) |
 | V3 B | [Training plan](reports/v3-20261008/b-plan.md), [final evaluation](reports/v3-20261008/b-evaluation.md) |
 | V4-a data preparation | [Tokenizer and vocabulary comparison](reports/v4-20261014/tokenizer.md), [8K token data and windows](reports/v4-20261014/token-data.md) |
-| V4-a model preparation | [Fixed architecture, local acceptance, and training launch](reports/v4-20261014/model.md) |
+| V4-a model preparation | [Fixed architecture and local acceptance](reports/v4-20261014/model.md) |
+| V4 base LM | [A continuation experiment](reports/v4-20261015/evaluation.md), [B twelve-epoch cosine comparison](reports/v4-20261015/b12cosine-evaluation.md) |
 
 ## Historical V1 references
 

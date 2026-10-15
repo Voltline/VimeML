@@ -24,6 +24,11 @@ ROOT = Path(__file__).resolve().parents[3]
 
 def learning_rate(step, settings):
     """One-based update; optional stable phase before the cosine decay."""
+    if "continuation_start_step" in settings:
+        start = settings["continuation_start_step"]
+        fraction = min(1.0, max(0.0, (step - start) / (settings["max_steps"] - start)))
+        high, low = settings["continuation_start_learning_rate"], settings["min_learning_rate"]
+        return low + (high - low) * (1 + math.cos(math.pi * fraction)) / 2
     warmup, maximum = settings["warmup_steps"], settings["max_steps"]
     high, low = settings["learning_rate"], settings["min_learning_rate"]
     if warmup and step <= warmup:
@@ -133,6 +138,10 @@ def validate_config(config):
         raise ValueError("Prefix crops require a V2 or V4 architecture.")
     if settings.get("early_stopping_patience", 0) < 0 or settings.get("early_stopping_min_delta", 0) < 0:
         raise ValueError("Invalid epoch degradation stopping configuration.")
+    if settings.get("early_stopping_mode", "degradation") not in {"degradation", "plateau"}:
+        raise ValueError("Invalid early stopping mode.")
+    if settings.get("early_stopping_mode") == "plateau" and config.get("architecture") != "tiny_gpt_v4":
+        raise ValueError("Plateau stopping is currently V4-only.")
     if type(settings.get('data_epoch_offset', 0)) is not int or settings.get('data_epoch_offset', 0) < 0:
         raise ValueError('data_epoch_offset must be a nonnegative integer.')
     if config.get('runtime', {}).get('compile_backbone', False) and config.get('architecture') not in {'tiny_gpt_v2', 'tiny_gpt_v4'}:
@@ -165,6 +174,9 @@ def validate_config(config):
             settings["benchmark_warmup_steps"] < 0 or
             (not automatic_steps and settings["benchmark_warmup_steps"] >= settings["max_steps"])):
         raise ValueError("Invalid optimizer or benchmark configuration.")
+    if config.get("continuation"):
+        from vimeml.training.continuation_v4 import configure
+        configure(config, settings)
     return model, settings
 
 
@@ -197,6 +209,8 @@ def tokenizer_identity_from_manifest(manifest):
 
 def run(config, resume=False, dry_run=False):
     model_config, settings = validate_config(config)
+    if config.get("continuation") and not resume:
+        raise ValueError("An explicit V4 continuation requires --resume.")
     architecture = config.get("architecture", "tiny_gpt_v1")
     token_dir, index_dir = ROOT / config["token_dir"], ROOT / config["index_dir"]
     output, log_dir = ROOT / config["output_dir"], ROOT / config["log_dir"]
@@ -228,6 +242,8 @@ def run(config, resume=False, dry_run=False):
             code_names.append('runtime_v2.py')
     elif architecture == "tiny_gpt_v4":
         code_names.extend(("model_v4.py", "model_factory_v4.py", "model_v2.py", "data_v2.py", "evaluation_v2.py"))
+        if config.get("continuation"):
+            code_names.append("continuation_v4.py")
         if config.get('runtime', {}).get('compile_backbone', False):
             code_names.append('runtime_v2.py')
     signatures = {"tokens": file_sha(token_dir / "manifest.json"),
@@ -320,13 +336,18 @@ def run(config, resume=False, dry_run=False):
     degrading_epochs = 0
     evaluated_epochs = []
     early_stopped = False
+    early_stopping_reference_bpc = best_epoch_bpc
     benchmark_tokens = benchmark_steps = 0
     benchmark_seconds = 0.0
     restored_rng = None
     if resume:
         saved = torch.load(last_path, map_location="cpu", weights_only=True)
         if saved["config"] != config or saved["signatures"] != signatures or saved["precision"] != precision:
-            raise ValueError("Resume requires the same configuration, precision and dataset signatures.")
+            if not config.get("continuation"):
+                raise ValueError("Resume requires the same configuration, precision and dataset signatures.")
+            from vimeml.training.continuation_v4 import validate_resume
+            validate_resume(saved, config, signatures, precision, last_path)
+            print(f"Extending V4 at committed step {saved['step']} with optimizer/RNG/cursors preserved.", flush=True)
         model.load_state_dict(saved["model"])
         optimizer.load_state_dict(saved["optimizer"])
         scaler.load_state_dict(saved["scaler"])
@@ -339,6 +360,7 @@ def run(config, resume=False, dry_run=False):
         if mixture:
             batches_per_epoch = epoch_batches[epoch]
         best_epoch_bpc = saved.get("best_epoch_bpc", math.inf)
+        early_stopping_reference_bpc = saved.get("early_stopping_reference_bpc", best_epoch_bpc)
         degrading_epochs = saved.get("degrading_epochs", 0)
         evaluated_epochs = saved.get("evaluated_epochs", [])
         early_stopped = saved.get("early_stopped", False)
@@ -425,6 +447,7 @@ def run(config, resume=False, dry_run=False):
             "total_dropped_tokens": total_dropped_tokens, "total_cropped_windows": total_cropped_windows,
             "best_val": best_val, "rng": rng_state(),
             "best_epoch_bpc": best_epoch_bpc, "degrading_epochs": degrading_epochs,
+            "early_stopping_reference_bpc": early_stopping_reference_bpc,
             "evaluated_epochs": evaluated_epochs, "early_stopped": early_stopped,
             "benchmark_tokens": benchmark_tokens, "benchmark_steps": benchmark_steps,
             "benchmark_seconds": benchmark_seconds,
@@ -444,7 +467,7 @@ def run(config, resume=False, dry_run=False):
         return result
 
     def evaluate_epoch(number):
-        nonlocal full_loader, best_epoch_bpc, degrading_epochs, early_stopped
+        nonlocal full_loader, best_epoch_bpc, degrading_epochs, early_stopped, early_stopping_reference_bpc
         from vimeml.training.evaluation_v2 import epoch_ime
         print(f"[epoch {number}] Full validation and frozen IME evaluations...", flush=True)
         save_checkpoint(last_path)
@@ -456,8 +479,15 @@ def run(config, resume=False, dry_run=False):
         if result['prediction_pairs'] != token_manifest['splits']['validation']['prediction_pairs']:
             raise ValueError('Incomplete epoch validation coverage.')
         improved = result['bpc'] < best_epoch_bpc
-        degrading_epochs = (degrading_epochs + 1 if result['bpc'] > best_epoch_bpc +
-                            settings.get('early_stopping_min_delta', .01) else 0)
+        if settings.get("early_stopping_mode") == "plateau":
+            if result["bpc"] < early_stopping_reference_bpc - settings.get("early_stopping_min_delta", .01):
+                early_stopping_reference_bpc = result["bpc"]
+                degrading_epochs = 0
+            else:
+                degrading_epochs += 1
+        else:
+            degrading_epochs = (degrading_epochs + 1 if result['bpc'] > best_epoch_bpc +
+                                settings.get('early_stopping_min_delta', .01) else 0)
         if improved:
             best_epoch_bpc = result['bpc']
         ime = epoch_ime(model, ROOT / config['evaluation']['tokenizer_dir'],
@@ -476,6 +506,8 @@ def run(config, resume=False, dry_run=False):
         domains = evaluate_domains()
         report = {'epoch': number, 'step': step, 'validation': result, 'domains': domains, 'ime': ime,
                   'best_epoch_bpc': best_epoch_bpc, 'degrading_epochs': degrading_epochs,
+                  'early_stopping_mode': settings.get('early_stopping_mode', 'degradation'),
+                  'early_stopping_reference_bpc': early_stopping_reference_bpc,
                   'early_stopped': early_stopped}
         epoch_output = output / 'epoch-evaluation' / f'epoch-{number}'
         epoch_output.mkdir(parents=True, exist_ok=True)

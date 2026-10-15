@@ -1,0 +1,70 @@
+# Checkpoint-bound V4 continuation on AutoDL RTX 4090; at most eight epochs.
+architecture = "tiny_gpt_v4"
+token_dir = "artifacts/token-data/corpus-v4-8k"
+index_dir = "artifacts/training-data/corpus-v4-c128"
+output_dir = "artifacts/models/tiny-ja-v4-b-e8k-d384-l7"
+log_dir = "runs/training/tiny-ja-v4-b-e8k-d384-l7"
+source_provenance = "handoff/source-provenance-v4.json"
+[runtime]
+compile_backbone = true
+[model]
+vocab_size = 8192
+context_length = 128
+d_model = 384
+n_heads = 6
+n_layers = 7
+d_ff = 960
+dropout = 0.0
+norm = "rmsnorm"
+norm_eps = 0.00001
+activation = "swiglu"
+bias = false
+tie_embeddings = true
+position_embedding = "learned"
+[training]
+device = "cuda"
+precision = "bf16"
+seed = 42
+cpu_threads = 4
+batch_size = 512
+num_workers = 4
+bucket_multiplier = 64
+gradient_accumulation = 1
+epochs = 8
+max_steps = 0
+learning_rate = 0.0006
+min_learning_rate = 0.00006
+warmup_steps = 1000
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+prefix_crop_probability = 0.30
+prefix_crop_min_remaining_tokens = 8
+log_every = 50
+eval_every = 2000
+checkpoint_every = 5000
+# Keep the fixed subset at 4096 sampled windows despite the larger batch.
+eval_batches = 8
+benchmark_warmup_steps = 20
+validate_full_at_end = true
+validate_full_each_epoch = true
+early_stopping_patience = 2
+early_stopping_min_delta = 0.01
+early_stopping_mode = "plateau"
+[evaluation]
+tokenizer_dir = "artifacts/tokenizers/v4-a/ja-unigram-8192"
+[evaluation.benchmarks]
+[verification]
+mode = "sha256"
+[tracking]
+enabled = true
+project = "vimeml"
+mode = "online"
+
+[continuation]
+source_step = 144039
+source_max_steps = 196940
+source_learning_rate = 0.0001514367042345479
+source_checkpoint_sha256 = "edd966060a91e1dc8d78bfe16d56388ac3faf48ce39e732f5dae75a98f845684"
+source_train_sha256 = "4adaf7fa85cddd0636ed6e047278433a12dac09be96ff80cd96786dd198d2a2d"
