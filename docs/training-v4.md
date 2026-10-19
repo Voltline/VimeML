@@ -64,4 +64,6 @@ Binary artifacts are excluded from Git. Source, tokenizer, token/window manifest
 
 ## Conversion post-training
 
-[V4-C1](posttraining-v4.md) uses B's step-584,000 weights with reading-conditioned conversion and ordinary-LM replay. The [first dataset](data-v4-c1.md), dedicated code, and [AutoDL configuration](../configs/posttrain-v4-c1.toml) are prepared; formal post-training has not started. Its conversion-pool epoch budget is separate from the base-LM schedules above.
+[V4-C1](posttraining-v4.md) uses B's step-584,000 weights with reading-conditioned conversion and ordinary-LM replay. C1 and the [C1r2 revision](zh-CN/reports/v4-20261016/c1r2.md) are complete. Their conversion-pool epochs are separate from the base-LM schedules above.
+
+[V4.1 joint pretraining](training-v41.md) completed sixteen LM mixture epochs from new random weights using the base LM pool, V3 natural chat, and C1r2 conversion data. It is a separate experiment and preserves the A/B and C1 artifacts.

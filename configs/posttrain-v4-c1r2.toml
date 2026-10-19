@@ -1,0 +1,79 @@
+# Fixed C1 conversion + ordinary LM replay, prepared for AutoDL RTX4090.
+stage = "v4-c1"
+architecture = "tiny_gpt_v4"
+conversion_dir = "artifacts/posttrain-data/v4-c1r2"
+token_dir = "artifacts/token-data/corpus-v4-8k"
+index_dir = "artifacts/training-data/corpus-v4-c128"
+tokenizer_dir = "artifacts/tokenizers/v4-a/ja-unigram-8192"
+output_dir = "artifacts/models/tiny-ja-v4-c1r2-e8k-d384-l7"
+log_dir = "runs/training/tiny-ja-v4-c1r2-e8k-d384-l7"
+
+[initialization]
+checkpoint = "artifacts/models/tiny-ja-v4-b12cosine-e8k-d384-l7/best.pt"
+sha256 = "18c49f1d4de5b2852f98c9bc30bf48ca7c84077cfb09a25e3c9002cedf5d1106"
+step = 584000
+
+[identities]
+conversion = "5f001302a416be82c063e7495dc1e9f8d84ba68795dfccdcecc011eadc79f91e"
+acceptance = "bf21442b6382e6ec1ff93c381450909008ded14ba1b7cf17305a3b576bbe6945"
+tokens = "c988f8eabfb903de25bc6d526f9ea42e686771814f7e33da56e0e6dc17931d5b"
+windows = "256b877e4b439862d4aa6dc1798603b9d7adf7203f233efe1702756d4b09805a"
+tokenizer = "296a2bdf4f4862be8bda848ed1cd261f0b0fd43064181fad5a513c6ce73081b5"
+
+[model]
+vocab_size = 8192
+context_length = 128
+d_model = 384
+n_heads = 6
+n_layers = 7
+d_ff = 960
+dropout = 0.0
+norm = "rmsnorm"
+norm_eps = 0.00001
+activation = "swiglu"
+bias = false
+tie_embeddings = true
+position_embedding = "learned"
+
+[runtime]
+compile_backbone = true
+
+[training]
+lm_retention_policy = "monitor"
+device = "cuda"
+precision = "bf16"
+seed = 42
+cpu_threads = 4
+num_workers = 4
+validation_workers = 0
+bucket_multiplier = 64
+conversion_batch = 256
+lm_batch = 256
+conversion_microbatch = 256
+lm_microbatch = 256
+conversion_weight = 0.7
+lm_weight = 0.3
+epochs = 12
+learning_rate = 0.0001
+min_learning_rate = 0.00001
+warmup_ratio = 0.01
+weight_decay = 0.01
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+prefix_crop_probability = 0.30
+log_every = 50
+eval_every = 2000
+checkpoint_every = 2000
+validation_batch = 256
+validation_subset = 4096
+early_stopping_relative_delta = 0.002
+early_stopping_patience = 3
+baseline_lm_bpc = 3.0277770232964114
+lm_relative_degradation = 0.01
+lm_degradation_patience = 2
+
+[tracking]
+enabled = true
+project = "vimeml"
+mode = "online"

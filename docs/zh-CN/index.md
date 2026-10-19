@@ -10,7 +10,7 @@ V2系列实验已完成，当前部署版本为V2.1 extend5 step40000 / INT8 blo
 | --- | --- |
 | [数据](data.md) | 冻结语料、来源、清洗和split |
 | [V4 基础训练](training-v4.md) | 固定 8K 架构、已完成 A/B 调度、结果与恢复 |
-| [V4 后训练](posttraining-v4.md) / [转换数据](data-v4-c1.md) | 已准备的 C1 数据、训练器、条件评分与首轮配置 |
+| [V4 后训练](posttraining-v4.md) / [转换数据](data-v4-c1.md) | 已完成 C1/C1r2、冻结数据、条件评分与后训练设置 |
 | [V3数据实验](plan_v3.md) / [A评测](reports/v3-20261008/a-evaluation.md) / [B联合重训](reports/v3-20261008/b-plan.md) / [B评测](reports/v3-20261008/b-evaluation.md) | A与B训练、评测、归档完成；B未形成稳定替换收益，保留V2.1部署 |
 | [V2实验设计](plan_v2.md) / [V2训练](training-v2.md) | 模型、tokenizer、裁剪、配置和运行方式 |
 | [V1训练](training.md) | 冻结基线复现 |
@@ -24,6 +24,9 @@ V2系列实验已完成，当前部署版本为V2.1 extend5 step40000 / INT8 blo
 | 阶段 | 报告 |
 | --- | --- |
 | 基础 LM | [A 续训实验](reports/v4-20261015/evaluation.md)、[B 完整十二轮对照](reports/v4-20261015/b12cosine-evaluation.md) |
+| 转换后训练 | [C1r2 数据修订、完整结果与 Reading 消融](reports/v4-20261016/c1r2.md) |
+| V4.1 混合预训练 | [训练设置](training-v41.md)、[十六轮完整评估](reports/v41-20261016/evaluation.md) |
+| 外部日语模型 | [TinySwallow](reports/v4-20261016/external-1p5b.md)、[RakutenAI](reports/v4-20261016/external-rakuten-1p5b.md)、[Sarashina](reports/v4-20261016/external-sarashina-1p4b.md) |
 
 V4-a 本地工作：[Tokenizer 初始化、训练与词表对照](reports/v4-20261014/tokenizer.md)、[8K token 数据与窗口](reports/v4-20261014/token-data.md)。
 模型与训练入口见 [固定架构、本地验收和启动配置](reports/v4-20261014/model.md)。

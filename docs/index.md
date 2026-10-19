@@ -12,7 +12,8 @@ V2.1 `extend5` step 40,000 / INT8 block-32 is the current deployment release. V1
 | [V2 training](training-v2.md) / [V2 design](plan_v2.md) | Architecture, tokenization, cropping, and schedules |
 | [V3 experiments](plan_v3.md) | Adaptation and joint retraining scope |
 | [V4 training](training-v4.md) | Fixed 8K architecture, completed A/B schedules, results, and recovery |
-| [V4 post-training](posttraining-v4.md) / [conversion data](data-v4-c1.md) | Prepared C1 dataset, trainer, conditional scoring, and frozen first-run settings |
+| [V4 post-training](posttraining-v4.md) / [conversion data](data-v4-c1.md) | Completed C1/C1r2 experiments, frozen data, conditional scoring, and first-run settings |
+| [V4.1 joint pretraining](training-v41.md) | Completed sixteen-epoch LM/chat/conversion experiment and local evaluation |
 | [Evaluation](evaluation.md) | Fixed-pool scoring, statistics, and benchmark roles |
 | [Standard IME](benchmarks/standard-ime.md) / [initial comparison](benchmarks/standard-ime-results-20261008.md) | Source splits, AI review, candidate export, and reference-set consumption |
 | [Core ML](coreml.md) | Conversion, quantization, and client contract |
@@ -34,6 +35,9 @@ V2.1 `extend5` step 40,000 / INT8 block-32 is the current deployment release. V1
 | V4-a data preparation | [Tokenizer and vocabulary comparison](reports/v4-20261014/tokenizer.md), [8K token data and windows](reports/v4-20261014/token-data.md) |
 | V4-a model preparation | [Fixed architecture and local acceptance](reports/v4-20261014/model.md) |
 | V4 base LM | [A continuation experiment](reports/v4-20261015/evaluation.md), [B twelve-epoch cosine comparison](reports/v4-20261015/b12cosine-evaluation.md) |
+| V4 conversion post-training | [C1r2 data revision and diagnostics (Chinese)](zh-CN/reports/v4-20261016/c1r2.md) |
+| V4.1 joint pretraining | [Results summary](training-v41.md), [complete evaluation (Chinese)](zh-CN/reports/v41-20261016/evaluation.md) |
+| External Japanese LMs | [TinySwallow](zh-CN/reports/v4-20261016/external-1p5b.md), [RakutenAI](zh-CN/reports/v4-20261016/external-rakuten-1p5b.md), [Sarashina](zh-CN/reports/v4-20261016/external-sarashina-1p4b.md) |
 
 ## Historical V1 references
 

@@ -157,7 +157,8 @@ def load_conditional_checkpoint(path, tokenizer, device="cpu"):
     from vimeml.training import model_factory_v4
     from vimeml.training.model_factory import model_from_checkpoint
     from vimeml.posttraining.runtime import TASK_CONTRACT, validate_task_checkpoint
-    saved = torch.load(path, map_location="cpu", weights_only=True)
+    checkpoint_path = Path(path)
+    saved = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     validate_task_checkpoint(saved)
     if saved["posttraining"]["task_contract"] != TASK_CONTRACT:
         raise ValueError("Incompatible conditional scoring contract")
@@ -168,4 +169,4 @@ def load_conditional_checkpoint(path, tokenizer, device="cpu"):
     codec = ConversionCodec(tokenizer)
     model = model_from_checkpoint(saved).to(device).eval()
     return model, codec, {"step": saved["step"], "stage": saved["posttraining"]["stage"],
-                          "checkpoint_sha256": file_sha(path), "source": saved["initialization"]}
+                          "checkpoint_sha256": file_sha(checkpoint_path), "source": saved["initialization"]}

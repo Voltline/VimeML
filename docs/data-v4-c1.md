@@ -1,6 +1,6 @@
 # V4-C1 conversion dataset — 2026-10-15
 
-The first conversion dataset contains **2,841,003 training and 18,956 validation examples**, prepared from the original LM train/validation text with the frozen 8K tokenizer. It uses automatic dual-dictionary silver labels. Formal post-training has not started. [Chinese report](zh-CN/data-v4-c1.md) · [Training design](posttraining-v4.md).
+The first conversion dataset contains **2,841,003 training and 18,956 validation examples**, prepared from the original LM train/validation text with the frozen 8K tokenizer. It uses automatic dual-dictionary silver labels. This page preserves the first C1 dataset; the completed [C1r2 experiment](zh-CN/reports/v4-20261016/c1r2.md) uses a separate revised dataset. [Chinese report](zh-CN/data-v4-c1.md) · [Training design](posttraining-v4.md).
 
 ## Frozen counts
 

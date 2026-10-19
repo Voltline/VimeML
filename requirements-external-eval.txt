@@ -1,0 +1,5 @@
+# Optional external-model evaluation; installed separately from training.
+transformers==4.57.6
+tokenizers==0.22.2
+safetensors==0.7.0
+huggingface-hub==0.36.0

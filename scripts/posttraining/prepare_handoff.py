@@ -20,8 +20,9 @@ def main():
     from vimeml.training.data import file_sha, write_json
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=ROOT / "outputs/handoff-v4-c1")
+    parser.add_argument("--config", type=Path, default=ROOT / "configs/posttrain-v4-c1.toml")
     args = parser.parse_args()
-    config_path = ROOT / "configs/posttrain-v4-c1.toml"
+    config_path = args.config.resolve()
     config = tomllib.loads(config_path.read_text(encoding="utf-8"))
     plan = build_plan(config, verify_files=True)
     code = sorted((ROOT / "src/vimeml").rglob("*.py"))

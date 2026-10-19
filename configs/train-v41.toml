@@ -1,0 +1,66 @@
+# V4.1: random-initialized joint pretraining with a frozen 16-epoch schedule.
+stage = "v4.1"
+architecture = "tiny_gpt_v4"
+token_dir = "artifacts/token-data/corpus-v4-8k"
+index_dir = "artifacts/training-data/corpus-v4-c128"
+conversion_dir = "artifacts/posttrain-data/v4-c1r2"
+tokenizer_dir = "artifacts/tokenizers/v4-a/ja-unigram-8192"
+output_dir = "artifacts/models/tiny-ja-v41-e8k-d384-l7"
+log_dir = "runs/training/tiny-ja-v41-e8k-d384-l7"
+dataset_sha256 = "0c01da0210233f36c047db21d93ea3a50be7e8c949a7c4dfaa4e464bf2cac9cd"
+
+[initialization]
+mode = "random"
+
+[data_mixture]
+directory = "artifacts/training-data/corpus-v41-mixed-c128"
+
+[model]
+vocab_size = 8192
+context_length = 128
+d_model = 384
+n_heads = 6
+n_layers = 7
+d_ff = 960
+dropout = 0.0
+norm = "rmsnorm"
+norm_eps = 0.00001
+activation = "swiglu"
+bias = false
+tie_embeddings = true
+position_embedding = "learned"
+
+[runtime]
+compile_backbone = true
+
+[training]
+device = "cuda"
+precision = "bf16"
+seed = 1219827974
+cpu_threads = 4
+num_workers = 4
+bucket_multiplier = 64
+lm_batch = 512
+lm_microbatch = 512
+conversion_batch = 64
+conversion_microbatch = 64
+lm_weight = 0.8
+conversion_weight = 0.2
+epochs = 16
+learning_rate = 0.0006
+min_learning_rate = 0.00006
+warmup_steps = 1000
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+prefix_crop_probability = 0.30
+log_every = 100
+eval_every = 2000
+checkpoint_every = 5000
+validation_batch = 256
+
+[tracking]
+enabled = true
+project = "vimeml"
+mode = "online"

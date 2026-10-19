@@ -27,7 +27,7 @@ TASK_CONTRACT = {
 def validate_task_checkpoint(saved):
     if (saved.get("format") != "vimeml_tiny_gpt_v4" or saved.get("architecture") != "tiny_gpt_v4"
             or saved.get("model_config") != GPTV4Config().__dict__
-            or saved.get("posttraining", {}).get("stage") != STAGE
+            or saved.get("posttraining", {}).get("stage") not in (STAGE, "v4.1")
             or saved["posttraining"].get("task_contract") != TASK_CONTRACT):
         raise ValueError("Explicit compatible V4-C1 checkpoint required")
     expected = {"tokenizer_model_sha256": TOKENIZER_SHA, "vocab_size": 8192,
@@ -116,10 +116,11 @@ def apply_epoch_result(state, conversion_loss, lm_bpc, ime_correct, settings):
     allowed = lm_bpc <= settings["baseline_lm_bpc"] * (1 + settings["lm_relative_degradation"])
     state["forgetting_count"] = 0 if allowed else state["forgetting_count"] + 1
     key = [int(ime_correct), -conversion_loss, -state["step"]]
-    if allowed and (state["best_rerank_key"] is None or key > state["best_rerank_key"]):
+    enforce_lm = settings.get("lm_retention_policy", "enforce") == "enforce"
+    if (allowed or not enforce_lm) and (state["best_rerank_key"] is None or key > state["best_rerank_key"]):
         state["best_rerank_key"] = key
         roles += ["best-rerank", "best"]
-    if state["forgetting_count"] >= settings["lm_degradation_patience"]:
+    if enforce_lm and state["forgetting_count"] >= settings["lm_degradation_patience"]:
         state["stop_reason"] = "lm_retention_guard"
     elif state["plateau_count"] >= settings["early_stopping_patience"]:
         state["stop_reason"] = "conversion_plateau"

@@ -46,6 +46,8 @@ def build_plan(config, root=ROOT, verify_files=False):
         raise ValueError("Use the dedicated V4-C1 configuration")
     model = GPTV4Config(**config["model"])
     settings = dict(config["training"])
+    if settings.get("lm_retention_policy", "enforce") not in ("enforce", "monitor"):
+        raise ValueError("Unknown LM retention policy")
     positive_ints = ("epochs", "conversion_batch", "lm_batch", "conversion_microbatch", "lm_microbatch",
                      "bucket_multiplier", "cpu_threads", "log_every", "eval_every", "checkpoint_every",
                      "validation_batch", "validation_subset", "early_stopping_patience", "lm_degradation_patience")

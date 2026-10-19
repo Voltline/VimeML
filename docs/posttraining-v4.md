@@ -1,6 +1,6 @@
 # V4 conversion post-training
 
-V4-C1 adds reading-conditioned conversion and ordinary-LM replay to the completed V4-B language model. The dataset, dedicated trainer, conditional scorer, and AutoDL configuration are prepared as of 2026-10-15. Formal post-training has not started. [Chinese document](zh-CN/posttraining-v4.md).
+V4-C1 adds reading-conditioned conversion and ordinary-LM replay to the completed V4-B language model. The first run stopped after epoch two under its LM retention guard on 2026-10-16. The [C1r2 revision](zh-CN/reports/v4-20261016/c1r2.md) completed eleven conversion passes before its conversion plateau stop; best conditional Standard development was 473/728, below V4-B's ordinary-LM 498/728. The sections below retain the initial C1 design; subsequent experiments are recorded separately. [Chinese document](zh-CN/posttraining-v4.md).
 
 C1 tests whether reading supervision improves the existing AzooKey candidate pools while retaining ordinary language modeling. C2, a separate candidate-ranking experiment, depends on positive C1 results. These stages are distinct from the A/B base-LM schedule experiments in the [V4-B evaluation](reports/v4-20261015/b12cosine-evaluation.md).
 
@@ -40,7 +40,7 @@ Each optimizer update consumes 256 conversion and 256 LM examples. Losses are no
 
 ## First-run configuration
 
-The [C1 configuration](../configs/posttrain-v4-c1.toml) freezes these initial experiment settings. Their task effectiveness remains unmeasured.
+The [C1 configuration](../configs/posttrain-v4-c1.toml) freezes these initial experiment settings. Measured outcomes and the revised configuration are recorded in the C1r2 report rather than applied retroactively to this first-run design.
 
 | Setting | Value |
 | --- | --- |
