@@ -43,6 +43,10 @@ Final complete LM BPC is **3.045152** at epoch 20, the best epoch, versus V2.1 *
 
 Against V2.1, Standard improves 46 cases and regresses 28 (+18; descriptive exact McNemar p=0.047), with gains in both WRIME (+13) and JMultiWOZ (+5). Legacy is −4 (15/19) and AJIMEE −5 (8/13). These p-values are uncorrected for repeated sets, models and experiments; Standard has been reused across experiments and is not an independent test.
 
+A preregistered fixed-reference evaluation (plan `81512f147d3749ef9a36e61470fce173`, registered before scoring, run once) gives **541/725** (WRIME 315, JMultiWOZ 226) versus V2.1 535 and V3 A 546: +6 against V2.1 with 40 improvements and 34 regressions (p=0.56). The 725 cases were consumed in the original V2.1/V3 A comparison, so this is a fixed reference, not a new blind test; the historical 1,000-case blind set remains unscored. [Reference and regression analysis (Chinese)](zh-CN/reports/v42-20261020/reference-regressions.md).
+
+Of all 210 Top-1 flips against V2.1 across the five sets, 61% are notation changes of the same word (kana/kanji/okurigana) where the frozen references list one form. V4.2 shifts toward hiragana (82 versus 51 flips); this costs Legacy formal web text 14 cases while fixing 7, which accounts for its −4. AJIMEE losses are mostly genuine encyclopedic homophone errors (11 of 13). Meaning-level gains on Standard development (+13) shrink to +3 on the reference.
+
 Clearing left context lowers Standard from 523 to 510 and AJIMEE from 139 to 130, so context contributes, though unevenly across sets. Relative to V4.1, V4.2 removes the conversion objective and lengthens the schedule together, so the improvement is not attributable to removing READ alone.
 
 ## Source and artifacts
@@ -58,4 +62,4 @@ Clearing left context lowers Standard from 523 to 510 and AJIMEE from 139 to 130
 
 The trainer, entry point and configuration are byte-identical to the archived run source and match its recorded `code_sha256`. Only the launcher's site-specific interpreter default was replaced by `VIMEML_PYTHON`. The evaluation entry preserves the archived local script's scoring logic and adds an explicit output argument; the completed evaluation retains its original script hash. Other epoch checkpoints and `last.pt` remain in the private training-output repository.
 
-V4.2 is the strongest ordinary-LM reranking candidate so far on Standard development, but Legacy and AJIMEE regressions remain. Epoch 20 is frozen for independent benchmark validation before any decision to replace V2.1. No Core ML export or device validation has been performed.
+V4.2 is a sound ordinary-LM reranker and is not worse than V2.1 on the fixed reference, but the evidence does not support replacing V2.1: the reference gain is small and not significant, the main differences are notation style, and AJIMEE shows a few real encyclopedic regressions. No Core ML export or device validation has been performed.

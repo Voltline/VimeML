@@ -23,6 +23,8 @@ def main():
     parser.add_argument("--allow-draft-development", action="store_true")
     parser.add_argument("--evaluation-plan", type=Path)
     parser.add_argument("--cached-scores", type=Path, help="Reuse matching FP32 legacy scores; regression track only")
+    parser.add_argument("--architecture", choices=("v2", "v4"), default="v2",
+                        help="v4 loads tiny_gpt_v4 with TF32 disabled; pass the matching 8K --tokenizer")
     args = parser.parse_args()
     manifest = read(args.benchmark / "manifest.json")
     plan = read(args.evaluation_plan) if args.evaluation_plan else None
@@ -57,6 +59,20 @@ def main():
                     row["candidates"] != cached["candidates"] or row["orders"]["azookey"] != cached["orders"]["azookey"]):
                 raise ValueError("Frozen legacy case/candidate pool differs from the cache.")
             row.update({k: cached[k] for k in ("orders", "fallbacks", "lm_scores")})
+    elif args.architecture == "v4":
+        import torch
+        from vimeml.training.infer_v4 import JapaneseLMV4
+        torch.set_num_threads(4)
+        torch.backends.cuda.matmul.allow_tf32 = False
+        torch.backends.cudnn.allow_tf32 = False
+        torch.set_float32_matmul_precision("highest")
+        lm = JapaneseLMV4(args.checkpoint, args.tokenizer, args.device)
+        metadata = lm.metadata
+        if plan:
+            expected = next(m for m in plan["models"] if m["checkpoint"] == str(args.checkpoint.resolve()))
+            if metadata["checkpoint_step"] != expected["step"] or metadata["checkpoint_sha256"] != expected["sha256"]:
+                raise ValueError("Checkpoint identity differs from the precommitted snapshot.")
+        rerank(lm, rows)
     else:
         import torch
         from vimeml.training.infer import JapaneseLM

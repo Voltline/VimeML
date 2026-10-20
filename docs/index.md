@@ -1,6 +1,6 @@
 # Documentation index
 
-V2.1 `extend5` step 40,000 / INT8 block-32 is the current deployment release. V1 remains a baseline and fallback. V3 A and V3 B training, evaluation, and archival are complete; their results do not establish a stable replacement advantage. V4.2 epoch 20 is the current strongest ordinary-LM candidate on Standard development and awaits independent validation. Primary documents are English. [Chinese documentation](zh-CN/index.md) retains the corresponding reference material.
+V2.1 `extend5` step 40,000 / INT8 block-32 is the current deployment release. V1 remains a baseline and fallback. V3 A and V3 B training, evaluation, and archival are complete; their results do not establish a stable replacement advantage. V4.2 epoch 20 leads on Standard development but is only +6 (not significant) over V2.1 on the fixed reference. Primary documents are English. [Chinese documentation](zh-CN/index.md) retains the corresponding reference material.
 
 ## Model, data, and runtime
 
@@ -38,7 +38,7 @@ V2.1 `extend5` step 40,000 / INT8 block-32 is the current deployment release. V1
 | V4 base LM | [A continuation experiment](reports/v4-20261015/evaluation.md), [B twelve-epoch cosine comparison](reports/v4-20261015/b12cosine-evaluation.md) |
 | V4 conversion post-training | [C1r2 data revision and diagnostics (Chinese)](zh-CN/reports/v4-20261016/c1r2.md) |
 | V4.1 joint pretraining | [Results summary](training-v41.md), [complete evaluation (Chinese)](zh-CN/reports/v41-20261016/evaluation.md) |
-| V4.2 LM/chat pretraining | [Results summary](training-v42.md), [complete evaluation (Chinese)](zh-CN/reports/v42-20261020/evaluation.md) |
+| V4.2 LM/chat pretraining | [Results summary](training-v42.md), [complete evaluation (Chinese)](zh-CN/reports/v42-20261020/evaluation.md), [fixed reference and regression analysis (Chinese)](zh-CN/reports/v42-20261020/reference-regressions.md) |
 | External Japanese LMs | [TinySwallow](zh-CN/reports/v4-20261016/external-1p5b.md), [RakutenAI](zh-CN/reports/v4-20261016/external-rakuten-1p5b.md), [Sarashina](zh-CN/reports/v4-20261016/external-sarashina-1p4b.md) |
 
 ## Historical V1 references

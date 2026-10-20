@@ -32,7 +32,7 @@ Preparation/export/evaluation entry points reside in `scripts/benchmarks/{downlo
 
 ## Consumption and statistical interpretation
 
-The initial V2.1/V3 A comparison was preregistered under plan `8ac20582a3ca4dce9c79eb09342b836c`. The 725-case split was consumed in that comparison. Later models require a frozen selection and a registered reference-test plan before a single fixed reference evaluation; the reference result does not guide checkpoint reselection or label edits. Independent future generalization claims require a new unseen release.
+The initial V2.1/V3 A comparison was preregistered under plan `8ac20582a3ca4dce9c79eb09342b836c`. The 725-case split was consumed in that comparison. Later models require a frozen selection and a registered reference-test plan before a single fixed reference evaluation; the reference result does not guide checkpoint reselection or label edits. Registered reference evaluations since then: V3 B epoch 2 (plan `395a97f9f163450f897a11c3a9befe92`, 533/725) and V4.2 epoch 20 (plan `81512f147d3749ef9a36e61470fce173`, 541/725). Independent future generalization claims require a new unseen release.
 
 Paired comparisons require identical case IDs, references, readings, context, provenance, candidates, and engine order. Case-level exact McNemar statistics are exploratory; author/user dependence, multiple comparisons, and development selection are not fully corrected. [Initial results](standard-ime-results-20261008.md) and [V3 B results](../reports/v3-20261008/b-evaluation.md) retain source-level outcomes.
 
