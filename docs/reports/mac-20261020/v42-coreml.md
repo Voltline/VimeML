@@ -15,7 +15,7 @@ Environment: Apple M3, 16 GiB, macOS 27.2 (26B5112a), Xcode 27.1, Python 3.11.17
 | 5. Measurements | V4.2 and V2.1 FP32/INT8, stateless and KV, same Mac harness; INT8 changes size, not CPU latency; V4.2 single-token KV prefill is ~30× V2.1 chunk prefill at 119 tokens |
 | 6. iOS resources | v1 (single-token KV) and v2 (chunk KV) prepared |
 | 7. Chunked KV graph | FP32 gate passed (max 5.2e-5), INT8 equals stateless INT8 within 4.0e-5; Top-1 and primary orders equal stateless on all tracks; P=119 prefill 6.6 ms vs 170 ms single-token |
-| 8. iOS | Vime opt-in V4.2 variant; simulator functional tests and benchmark done; iPhone 16 Pro Max run deferred |
+| 8. iOS | Vime opt-in V4.2 variant; simulator and iPhone 16 Pro Max functional tests pass; device `predict` +0.16–0.35 ms vs V2.1, rerank p95 lower, peak footprint 5.6 MB lower (thermal `fair`) |
 
 ## 1. Mac PyTorch baseline
 
@@ -107,7 +107,7 @@ The deployed V2.1 packages were scored with the same frozen pools, scorer and Ma
 | AJIMEE | 144 | 144 | 3 / 3 | 139 | 9 / 14 | −5 | 0.405 |
 | Historical development | 122 | 122 | 0 / 0 | 123 | 4 / 3 | +1 | 1.0 |
 
-For reference, the FP32 pairing V2.1 → V4.2 under this harness is 46/28 (p=0.047), 15/19, 8/13 and 4/3, identical to the recorded CUDA comparison for Standard. Quantization leaves the direction of the V2.1/V4.2 differences unchanged: V4.2 is ahead on Standard and behind on Legacy and AJIMEE, and none of the INT8 differences reaches p<0.05. These are exploratory development comparisons, not a replacement decision.
+For reference, the FP32 pairing V2.1 → V4.2 under this harness is 46/28 (p=0.047), 15/19, 8/13 and 4/3, identical to the recorded CUDA comparison for Standard. Quantization leaves the direction of the V2.1/V4.2 differences unchanged: V4.2 is ahead on Standard and behind on Legacy and AJIMEE, and none of the INT8 differences reaches p<0.05. These are exploratory development comparisons, not a replacement decision; the preregistered fixed-reference evaluation (FP32, +6 against V2.1, p=0.56) is recorded separately in the [reference and regression analysis](../../zh-CN/reports/v42-20261020/reference-regressions.md).
 
 ## 5. Measurements
 
@@ -246,7 +246,23 @@ Simulator benchmark: `VimeLanguageModelBenchmarkTests` (unchanged workload: fixe
 
 The rerank workload includes pools of up to 93 candidates; 10 of 90 direct `scores` calls exceed 250 ms for both variants. The keyboard's `rerank` path applies its own 250 ms soft budget, which this direct call does not. In this simulator workload V4.2 runs about 5–14% slower than V2.1 for T≥8 and end-to-end requests (22% at T=1), while its smaller vocabulary halves the log-softmax row cost; footprint is within 0.5 MB. An earlier three-round simulator run (`sim-benchmark`, before the thermal-state fields were added) gave the same picture. Simulator numbers run on the Mac CPU and are not iPhone measurements.
 
-iPhone 16 Pro Max: an optimized signed build-for-testing is ready (iOS 27.2 device, Developer Mode on), but the device run is deferred at the user's request; no physical-device numbers are reported here.
+iPhone 16 Pro Max (iPhone17,2, iOS 27.2 build 24B115, wired USB, connected to the Mac and charging), the same optimized signed build: the 29 model functional tests pass on the device, including all five V4.2 tests (6,755 tokenization fixtures, Mac INT8 scores within 0.002, 20 beam prefixes). The benchmark ran in four alternating rounds with one variant per test-host process. The device reported thermal state `fair` (not `nominal`) at the start and end of every run, and Low Power Mode off. Numbers therefore reflect a warm, charging phone. Medians over four processes:
+
+| Metric (ms unless noted) | V2.1 INT8 | V4.2 INT8 |
+| --- | ---: | ---: |
+| First load in process / reload | 192.5 / 65.9 | 175.0 / 28.0 |
+| First predict | 3.70 | 4.36 |
+| `predict` T=1 / 8 / 32 / 64 / 128, p50 | 1.03 / 1.50 / 2.04 / 2.95 / 4.55 | 1.28 / 1.69 / 2.39 / 3.25 / 4.90 |
+| `predict` T=128 p95 | 4.68 | 4.99 |
+| Rerank scoring (`scores`, 90 calls) p50 / p95 / max | 21.3 / 136.8 / 139.8 | 25.1 / 120.9 / 122.6 |
+| Calls over 250 ms | 0 of 90 | 0 of 90 |
+| Beam suggestions p50 / p95 | 101.8 / 106.8 | 108.9 / 113.2 |
+| Next words p50 / p95 | 13.2 / 18.3 | 16.1 / 20.1 |
+| Log-softmax row | 0.09 | 0.04 |
+| Footprint before / after load / after 50 predicts (MB) | 25.5 / 36.0 / 40.0 | 25.4 / 34.7 / 36.7 |
+| Footprint peak (ledger, MB) | 49.95 | 44.35 |
+
+On the device, V4.2 costs 0.16–0.35 ms more per `predict` call than V2.1 (8–24% depending on length); beam and next-word requests are 7% and 21% slower at p50. Rerank scoring is slower at the median (25.1 vs 21.3 ms) but faster at the tail (p95 120.9 vs 136.8 ms), where the 16K-vocabulary normalizer dominates long candidate pools. V4.2 reloads 2.4× faster and peaks 5.6 MB lower in this test host. Spread between processes is small (T=128 p50 within 0.2 ms for each variant). This is the XCTest host process, not the keyboard extension; extension memory limits, typing latency in third-party hosts, cold device boot and battery use were not measured, and the earlier V2.1 keyboard-session report is a different workload.
 
 ## Records
 
