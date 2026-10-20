@@ -1,4 +1,6 @@
-"""Prepare V4.2 INT8 client resources and native fixtures; V1/V2 releases stay intact.
+"""Prepare V4-family INT8 client resources and native fixtures; V1/V2 releases stay intact.
+
+`--variant` names the resources (default V4.2: `TinyJapaneseV42INT8`, `VimeLMManifestV42.json`).
 
 Device runs belong to the separate Vime repository; this only writes resources.
 """
@@ -15,11 +17,13 @@ import numpy as np
 import torch
 from vimeml.deployment import v2, v4_chunk, v4_coreml as v4
 from vimeml.deployment.bundle import fresh_directory, read_json, write_json
+from vimeml.deployment.v4_variants import DEFAULT, VARIANTS
 from vimeml.training.data import file_sha
 from vimeml.training.evaluate_ime import score_candidates
 from vimeml.tools.phrase_demo import PhraseDemo
 
-MODEL_VERSION = "4.2-epoch20-step1081942-int8-b32-v1"
+def model_version(variant):
+    return f"{variant.label.split()[0][1:]}-epoch{variant.epoch}-step{variant.step}-int8-b32-v1"
 
 
 def compile_package(package, destination):
@@ -31,7 +35,7 @@ def compile_package(package, destination):
     return compiled
 
 
-def package(bundle, stateless, kv, alignments, template, output, chunk=False):
+def package(bundle, stateless, kv, alignments, template, output, chunk=False, variant=DEFAULT):
     """`chunk=True`: `kv` is the chunked KV package (resources v2); otherwise the single-token one (v1)."""
     if output.exists():
         raise ValueError("Resource output exists.")
@@ -105,13 +109,17 @@ def package(bundle, stateless, kv, alignments, template, output, chunk=False):
     staging = output / "compile"
     compiled = {"stateless": compile_package(stateless, staging / "stateless"),
                 "kv": compile_package(kv, staging / "kv")}
-    names = {"stateless": "TinyJapaneseV42INT8.mlmodelc",
-             "kv": "TinyJapaneseV42KVChunkINT8.mlmodelc" if chunk else "TinyJapaneseV42KVINT8.mlmodelc"}
+    variant = VARIANTS[variant]
+    if lm.metadata["checkpoint_step"] != variant.step:
+        raise ValueError("Bundle checkpoint differs from the selected variant.")
+    tag = variant.resource_tag
+    names = {"stateless": f"TinyJapanese{tag}INT8.mlmodelc",
+             "kv": f"TinyJapanese{tag}KVChunkINT8.mlmodelc" if chunk else f"TinyJapanese{tag}KVINT8.mlmodelc"}
     for key, name in names.items():
         shutil.copytree(compiled[key], resources / name)
     shutil.rmtree(staging)
     shutil.copyfile(Path(bundle) / "tokenizer.model", resources / "VimeJapaneseTokenizerV4.model")
-    manifest = {"format": "vime_ios_lm_v4", "architecture": v4.ARCHITECTURE, "model_version": MODEL_VERSION,
+    manifest = {"format": "vime_ios_lm_v4", "architecture": v4.ARCHITECTURE, "model_version": model_version(variant),
         "minimum_ios": 18, "vocab_size": 8192, "context_length": 128, "compute_units": "CPU_ONLY",
         "special_ids": lm.special, "forbidden_generation_ids": list(lm.forbidden),
         "reserved_marker_ids": [4, 5, 6], "tokenizer_sha256": lm.metadata["tokenizer_sha256"],
@@ -129,9 +137,9 @@ def package(bundle, stateless, kv, alignments, template, output, chunk=False):
         "kv_graph": "chunk" if chunk else "single_token",
         **({"kv_chunk_fixture_max_suffix_sum_delta": max(deltas),
             "kv_chunk_fixture_within_1e-5": max(deltas) <= 1e-5} if chunk else {}),
-        "quality_review": "Candidate only; V2.1 remains the deployed default. See VimeML docs/reports/mac-20261020. Device acceptance is separate."}
-    write_json(resources / "VimeLMManifestV42.json", manifest)
-    write_json(output / "VimeLMFixturesV42.json", fixtures)
+        "quality_review": "Candidate only; V2.1 remains the deployed default. See VimeML docs/reports/mac-*. Device acceptance is separate."}
+    write_json(resources / f"VimeLMManifest{tag}.json", manifest)
+    write_json(output / f"VimeLMFixtures{tag}.json", fixtures)
     write_json(output / "manifest.json", {"format": "vimeml_v4_ios_resources_v1", "model": lm.metadata,
         "files": v2.inventory(output), "template_sha256": file_sha(template),
         "note": "Resources/ is for a future Vime client installer. No client source snapshot or device run included."})
@@ -142,10 +150,11 @@ def main():
     for name in ("bundle", "stateless", "kv", "kv-alignment", "template", "output"):
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--chunk", action="store_true", help="--kv is the chunked KV package")
+    parser.add_argument("--variant", choices=sorted(VARIANTS), default=DEFAULT)
     args = parser.parse_args()
     torch.set_num_threads(2)
     package(args.bundle, args.stateless, args.kv, {"kv_vs_stateless": args.kv_alignment}, args.template, args.output,
-            args.chunk)
+            args.chunk, args.variant)
 
 
 if __name__ == "__main__":

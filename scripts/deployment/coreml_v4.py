@@ -1,4 +1,8 @@
-"""Independent V4.2 deployment stages; every stage writes a fresh output directory."""
+"""Independent V4-family deployment stages; every stage writes a fresh output directory.
+
+`--variant` selects the frozen checkpoint, PyTorch fixtures and CUDA reference
+(`vimeml.deployment.v4_variants`); the default keeps the recorded V4.2 commands.
+"""
 import argparse
 import json
 import sys
@@ -10,13 +14,19 @@ sys.path.insert(0, str(ROOT / "src"))
 import numpy as np
 import torch
 from vimeml.deployment import v4_chunk, v4_coreml as v4
+from vimeml.deployment.v4_variants import DEFAULT, VARIANTS
 from vimeml.deployment.bundle import environment, fresh_directory, write_json
 from vimeml.training.data import file_sha
 
-CHECKPOINT = ROOT / "artifacts/models/tiny-ja-v42-e8k-d384-l7/deployment.pt"
 TOKENIZER = ROOT / "artifacts/tokenizers/v4-a/ja-unigram-8192"
-REFERENCE = ROOT / "outputs/deployment/tiny-ja-v42-epoch20-fp32-input"
-CUDA_SCORES = ROOT / "outputs/evaluation-v42-20261020"
+CHECKPOINT = REFERENCE = CUDA_SCORES = CUDA_LABEL = None
+
+
+def select(name):
+    global CHECKPOINT, REFERENCE, CUDA_SCORES, CUDA_LABEL
+    variant = VARIANTS[name]
+    CHECKPOINT, REFERENCE = ROOT / variant.checkpoint, ROOT / variant.reference
+    CUDA_SCORES, CUDA_LABEL = ROOT / variant.cuda_scores, variant.cuda_label
 
 
 @torch.inference_mode()
@@ -47,13 +57,14 @@ def baseline(output):
         "model": lm.metadata, "reference": info, "tolerances": {"atol": v4.TOLERANCE, "rtol": v4.TOLERANCE},
         "errors": errors})
     print(json.dumps({"fixtures_passed": passed, "max_abs": max(e["max_abs"] for e in errors)}), flush=True)
-    summary = v4.evaluate_tracks(lm, output / "tracks", CUDA_SCORES, "V4.2 FP32 CUDA (2026-10-20)")
+    summary = v4.evaluate_tracks(lm, output / "tracks", CUDA_SCORES, CUDA_LABEL)
     return passed, summary
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--threads", type=int, default=4)
+    parser.add_argument("--variant", choices=sorted(VARIANTS), default=DEFAULT)
     stages = parser.add_subparsers(dest="stage", required=True)
     commands = {name: stages.add_parser(name) for name in (
         "baseline", "export", "convert", "convert-kv", "align", "align-kv", "compress", "compress-kv",
@@ -82,6 +93,7 @@ def main():
     if args.threads < 1 or args.output.exists():
         parser.error("Positive threads and a fresh output path are required.")
     torch.set_num_threads(args.threads)
+    select(args.variant)
     if args.stage == "baseline":
         passed, _ = baseline(args.output)
         if not passed:

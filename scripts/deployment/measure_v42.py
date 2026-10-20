@@ -1,10 +1,12 @@
-"""Same-harness Mac measurements for V4.2 and V2.1 FP32/INT8 Core ML packages.
+"""Same-harness Mac measurements for V4-family and V2.1 FP32/INT8 Core ML packages.
 
 Stages:
   prepare-v21-kv  Measurement-only V2.1 KV packages from the deployed V2.1 bundle,
                   using the unchanged `kv_cache` converter and the INT8 block32 recipe.
   run             Compile every package with `coremlcompiler`, then measure each model
-                  in fresh worker processes, interleaved across models.
+                  in fresh worker processes, interleaved across models. `--set v42` (default)
+                  is the recorded V4.2 run; `--set v43` measures V4.3 epochs 30/27 against V4.2
+                  epoch 20 and V2.1 in the same session.
 Mac CPU_ONLY Python host-process numbers; they do not substitute for iPhone measurements.
 """
 import argparse
@@ -25,19 +27,38 @@ import numpy as np
 DEPLOY = ROOT / "artifacts/deployment"
 V21_KV = {"fp32": DEPLOY / "tiny-ja-v2.1-extend5-kv-fp32-mac-v42-measure-v1",
           "int8": DEPLOY / "tiny-ja-v2.1-extend5-kv-int8-b32-mac-v42-measure-v1"}
-MODELS = [
+KV4 = (7, 1, 6, 128, 64)
+V42_MODELS = [
     # name, family, graph, package directory, vocab, cache shape
     ("v42-fp32", "V4.2", "stateless", DEPLOY / "tiny-ja-v4.2-epoch20-fp32-v1", 8192, None),
     ("v42-int8", "V4.2", "stateless", DEPLOY / "tiny-ja-v4.2-epoch20-int8-b32-v1", 8192, None),
     ("v21-fp32", "V2.1", "stateless", DEPLOY / "tiny-ja-v2.1-extend5-fp32-v1", 16384, None),
     ("v21-int8", "V2.1", "stateless", DEPLOY / "tiny-ja-v2.1-extend5-int8-b32-v1", 16384, None),
-    ("v42-kv-fp32", "V4.2", "kv_single_token", DEPLOY / "tiny-ja-v4.2-epoch20-kv-fp32-v1", 8192, (7, 1, 6, 128, 64)),
-    ("v42-kv-int8", "V4.2", "kv_single_token", DEPLOY / "tiny-ja-v4.2-epoch20-kv-int8-b32-v1", 8192, (7, 1, 6, 128, 64)),
-    ("v42-kvchunk-fp32", "V4.2", "kv_chunk_v4", DEPLOY / "tiny-ja-v4.2-epoch20-kvchunk-fp32-v1", 8192, (7, 1, 6, 128, 64)),
-    ("v42-kvchunk-int8", "V4.2", "kv_chunk_v4", DEPLOY / "tiny-ja-v4.2-epoch20-kvchunk-int8-b32-v1", 8192, (7, 1, 6, 128, 64)),
+    ("v42-kv-fp32", "V4.2", "kv_single_token", DEPLOY / "tiny-ja-v4.2-epoch20-kv-fp32-v1", 8192, KV4),
+    ("v42-kv-int8", "V4.2", "kv_single_token", DEPLOY / "tiny-ja-v4.2-epoch20-kv-int8-b32-v1", 8192, KV4),
+    ("v42-kvchunk-fp32", "V4.2", "kv_chunk_v4", DEPLOY / "tiny-ja-v4.2-epoch20-kvchunk-fp32-v1", 8192, KV4),
+    ("v42-kvchunk-int8", "V4.2", "kv_chunk_v4", DEPLOY / "tiny-ja-v4.2-epoch20-kvchunk-int8-b32-v1", 8192, KV4),
     ("v21-kv-fp32", "V2.1", "kv_chunk", V21_KV["fp32"], 16384, (6, 1, 5, 128, 64)),
     ("v21-kv-int8", "V2.1", "kv_chunk", V21_KV["int8"], 16384, (6, 1, 5, 128, 64)),
 ]
+V43_MODELS = [
+    ("v43e30-fp32", "V4.3 e30", "stateless", DEPLOY / "tiny-ja-v4.3-epoch30-fp32-v1", 8192, None),
+    ("v43e30-int8", "V4.3 e30", "stateless", DEPLOY / "tiny-ja-v4.3-epoch30-int8-b32-v1", 8192, None),
+    ("v43e27-int8", "V4.3 e27", "stateless", DEPLOY / "tiny-ja-v4.3-epoch27-int8-b32-v1", 8192, None),
+    ("v42-fp32", "V4.2", "stateless", DEPLOY / "tiny-ja-v4.2-epoch20-fp32-v1", 8192, None),
+    ("v42-int8", "V4.2", "stateless", DEPLOY / "tiny-ja-v4.2-epoch20-int8-b32-v1", 8192, None),
+    ("v21-fp32", "V2.1", "stateless", DEPLOY / "tiny-ja-v2.1-extend5-fp32-v1", 16384, None),
+    ("v21-int8", "V2.1", "stateless", DEPLOY / "tiny-ja-v2.1-extend5-int8-b32-v1", 16384, None),
+    ("v43e30-kvchunk-fp32", "V4.3 e30", "kv_chunk_v4", DEPLOY / "tiny-ja-v4.3-epoch30-kvchunk-fp32-v1", 8192, KV4),
+    ("v43e30-kvchunk-int8", "V4.3 e30", "kv_chunk_v4", DEPLOY / "tiny-ja-v4.3-epoch30-kvchunk-int8-b32-v1", 8192, KV4),
+    ("v43e27-kvchunk-int8", "V4.3 e27", "kv_chunk_v4", DEPLOY / "tiny-ja-v4.3-epoch27-kvchunk-int8-b32-v1", 8192, KV4),
+    ("v42-kvchunk-fp32", "V4.2", "kv_chunk_v4", DEPLOY / "tiny-ja-v4.2-epoch20-kvchunk-fp32-v1", 8192, KV4),
+    ("v42-kvchunk-int8", "V4.2", "kv_chunk_v4", DEPLOY / "tiny-ja-v4.2-epoch20-kvchunk-int8-b32-v1", 8192, KV4),
+    ("v21-kv-fp32", "V2.1", "kv_chunk", V21_KV["fp32"], 16384, (6, 1, 5, 128, 64)),
+    ("v21-kv-int8", "V2.1", "kv_chunk", V21_KV["int8"], 16384, (6, 1, 5, 128, 64)),
+]
+MODEL_SETS = {"v42": V42_MODELS, "v43": V43_MODELS}
+MODELS = V42_MODELS
 LENGTHS = (1, 8, 32, 64, 128)
 PREFIXES = (7, 31, 63, 119)
 
@@ -225,7 +246,9 @@ def prepare_v21_kv():
         raise SystemExit("V2.1 KV measurement gate failed; evidence preserved.")
 
 
-def run(output, rounds, repeats, warmup):
+def run(output, rounds, repeats, warmup, model_set="v42"):
+    global MODELS
+    MODELS = MODEL_SETS[model_set]
     from vimeml.deployment.bundle import environment
     output.mkdir(parents=True, exist_ok=False)
     compiled_root = output / "compiled"
@@ -277,7 +300,7 @@ def run(output, rounds, repeats, warmup):
 
     hardware = {key: subprocess.run(["sysctl", "-n", key], capture_output=True, text=True).stdout.strip()
                 for key in ("machdep.cpu.brand_string", "hw.memsize", "hw.perflevel0.physicalcpu", "hw.perflevel1.physicalcpu")}
-    report = {"format": "vimeml_v42_mac_measurements_v1", "environment": environment(),
+    report = {"format": f"vimeml_{model_set}_mac_measurements_v1", "model_set": model_set, "environment": environment(),
               "macos": platform.mac_ver()[0], "macos_build": subprocess.run(["sw_vers", "-buildVersion"], capture_output=True, text=True).stdout.strip(),
               "xcode": subprocess.run(["xcodebuild", "-version"], capture_output=True, text=True).stdout.strip(),
               "hardware": hardware, "compute_units": "CPU_ONLY",
@@ -298,6 +321,7 @@ def main():
     measure.add_argument("--rounds", type=int, default=5)
     measure.add_argument("--repeats", type=int, default=50)
     measure.add_argument("--warmup", type=int, default=5)
+    measure.add_argument("--set", dest="model_set", choices=sorted(MODEL_SETS), default="v42")
     work = stages.add_parser("worker")
     for name in ("name", "graph", "compiled"):
         work.add_argument("--" + name, required=True)
@@ -310,7 +334,7 @@ def main():
     elif args.stage == "run":
         if args.output.exists():
             parser.error("Fresh output path required.")
-        run(args.output, args.rounds, args.repeats, args.warmup)
+        run(args.output, args.rounds, args.repeats, args.warmup, args.model_set)
     else:
         shape = tuple(map(int, args.cache_shape.split(","))) if args.cache_shape else None
         worker(args.name, args.graph, args.compiled, args.vocab, shape, args.repeats, args.warmup, args.seed)

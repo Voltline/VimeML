@@ -4,7 +4,7 @@ Source changes use Git branches and pull requests. Model assets, scores, compile
 
 ## Inference-input archive
 
-`scripts/deployment/prepare_mac.py` packages a clean committed worktree as a Git bundle plus inference inputs. The completed 2026-10-08 input summary is `handoff/mac-20261008-v21/vimeml-v21-mac-20261008-input.json`. The V4.2 Core ML input is created by `prepare_mac_v42.py`; its task brief is [V4.2 Core ML handoff](mac-v42-coreml.md) and its summary is `handoff/mac-20261020-v42/vimeml-v42-mac-20261020-input.json`. Consumed input ZIPs were removed on 2026-10-20 after their payloads were verified locally. `setup_mac.py` creates a distinct checkout, binds origin, and restores ignored assets without overwriting an existing directory.
+`scripts/deployment/prepare_mac.py` packages a clean committed worktree as a Git bundle plus inference inputs. The completed 2026-10-08 input summary is `handoff/mac-20261008-v21/vimeml-v21-mac-20261008-input.json`. The V4.2 Core ML input is created by `prepare_mac_v42.py`; its task brief is [V4.2 Core ML handoff](mac-v42-coreml.md) and its summary is `handoff/mac-20261020-v42/vimeml-v42-mac-20261020-input.json`. The V4.3 input (epochs 30 and 27, with V4.2/V2.1 baseline packages for same-session measurement) is created by `prepare_mac_v43.py`; its task brief is [V4.3 Core ML handoff](mac-v43-coreml.md). Consumed input ZIPs were removed on 2026-10-20 after their payloads were verified locally. `setup_mac.py` creates a distinct checkout, binds origin, and restores ignored assets without overwriting an existing directory.
 
 | Input | Scope |
 | --- | --- |

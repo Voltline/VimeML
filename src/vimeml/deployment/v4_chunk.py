@@ -97,7 +97,7 @@ def convert(bundle, output):
         outputs=[ct.TensorType(name="logits", dtype=np.float32),
                  ct.TensorType(name="new_key_cache", dtype=np.float32),
                  ct.TensorType(name="new_value_cache", dtype=np.float32)], skip_model_load=True)
-    model.short_description = "VimeML V4.2 chunked KV step; FP32 computation and caches."
+    model.short_description = "VimeML V4 chunked KV step; FP32 computation and caches."
     model.user_defined_metadata["bundle_manifest_sha256"] = lm.metadata["bundle_manifest_sha256"]
     base.finish(output, model, FORMAT, {"kind": "fp32", "minimum_ios": 18, "bundle": lm.metadata,
         "cache_shape": list(CACHE_SHAPE), "cache_dtype": "float32", "compute_units": "CPU_ONLY",

@@ -148,7 +148,7 @@ def convert(bundle, output):
         inputs=[ct.TensorType(name="input_ids", shape=(1, ct.RangeDim(lower_bound=1, upper_bound=128, default=16)),
                               dtype=np.int32)],
         outputs=[ct.TensorType(name="logits", dtype=np.float32)], skip_model_load=True)
-    model.short_description = "VimeML V4.2 RMSNorm/SwiGLU 8K; FP32 computation; no KV cache."
+    model.short_description = "VimeML V4 RMSNorm/SwiGLU 8K; FP32 computation; no KV cache."
     model.user_defined_metadata["bundle_manifest_sha256"] = lm.metadata["bundle_manifest_sha256"]
     finish(output, model, PACKAGE_FORMAT, {"kind": "fp32", "minimum_ios": 18, "bundle": lm.metadata,
         "interface": {"input_ids": "int32 [1,T], 1<=T<=128; right PAD",
@@ -171,7 +171,7 @@ def convert_kv(bundle, output):
         outputs=[ct.TensorType(name="logits", dtype=np.float32),
                  ct.TensorType(name="new_key_cache", dtype=np.float32),
                  ct.TensorType(name="new_value_cache", dtype=np.float32)], skip_model_load=True)
-    model.short_description = "VimeML V4.2 single-token KV step; FP32 computation and caches."
+    model.short_description = "VimeML V4 single-token KV step; FP32 computation and caches."
     model.user_defined_metadata["bundle_manifest_sha256"] = lm.metadata["bundle_manifest_sha256"]
     finish(output, model, KV_FORMAT, {"kind": "fp32", "minimum_ios": 18, "bundle": lm.metadata,
         "cache_shape": list(CACHE_SHAPE), "cache_dtype": "float32", "compute_units": "CPU_ONLY",
