@@ -4,7 +4,7 @@ Source changes use Git branches and pull requests. Model assets, scores, compile
 
 ## Inference-input archive
 
-`scripts/deployment/prepare_mac.py` packages a clean committed worktree as a Git bundle plus inference inputs. The completed 2026-10-08 input is `handoff/vimeml-v21-mac-20261008.zip`; its base commit is recorded in `handoff-manifest.json`. `setup_mac.py` creates a distinct checkout, binds origin, and restores ignored assets without overwriting an existing directory.
+`scripts/deployment/prepare_mac.py` packages a clean committed worktree as a Git bundle plus inference inputs. The completed 2026-10-08 input is `handoff/vimeml-v21-mac-20261008.zip`; its base commit is recorded in `handoff-manifest.json`. The V4.2 Core ML input is created by `prepare_mac_v42.py`; its task brief is [V4.2 Core ML handoff](mac-v42-coreml.md). `setup_mac.py` creates a distinct checkout, binds origin, and restores ignored assets without overwriting an existing directory.
 
 | Input | Scope |
 | --- | --- |
