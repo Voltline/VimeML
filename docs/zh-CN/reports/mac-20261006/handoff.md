@@ -8,7 +8,7 @@ iPhone16 Pro Max实际输入体验可接受。截图中的6.7→29.31→45.77MB�
 
 | 原始材料 | 保存位置／范围 |
 | --- | --- |
-| VimeML源码、结果、训练输入 | `handoff/mac-20261006-v1/VimeML-{source,results,training-inputs}.zip` |
+| VimeML源码、结果、训练输入 | `handoff/mac-20261006-v1/VimeML-{source,results,training-inputs}.zip`；结果与训练输入包于2026-10-20逐字节核对本地文件后删除（两份环境记录恢复到`outputs/`） |
 | Vime客户端 | 同目录`Vime-client.zip`；Git基点abc3e4d、差异patch及当时资源 |
 | 清单与旧校验 | 同目录`MANIFEST.json`、`SHA256SUMS.txt`，原传输清单与校验记录 |
 | 导入与冲突 | `outputs/maintenance/mac-merge-20261006/`、`outputs/history/mac-import-20261006/` |

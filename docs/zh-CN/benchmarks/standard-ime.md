@@ -54,13 +54,13 @@ development可反复用于调试和选型；未审核状态只有显式草稿诊
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 scripts/benchmarks/download_standard_ime.py
 .\.venv\Scripts\python.exe -X utf8 scripts/benchmarks/prepare_standard_ime.py
-.\.venv\Scripts\python.exe -X utf8 scripts/benchmarks/standard_ime.py review-ui --output handoff/ime-standard-ja-v1-review
-.\.venv\Scripts\python.exe -X utf8 scripts/benchmarks/standard_ime.py package --output handoff/ime-standard-ja-v1-mac-draft
+.\.venv\Scripts\python.exe -X utf8 scripts/benchmarks/standard_ime.py review-ui --output handoff/benchmarks/ime-standard-ja-v1-review
+.\.venv\Scripts\python.exe -X utf8 scripts/benchmarks/standard_ime.py package --output handoff/benchmarks/ime-standard-ja-v1-mac-draft
 ```
 
 现有输入复用相同快照，完成产物不重复构建；改变采样参数使用新的output。数据根目录`artifacts/benchmarks/ime-standard-ja-v1-draft/`，原始来源`datasets/ime-standard-ja-v1/`，筛查与核验报告`outputs/benchmarks/ime-standard-ja-v1/`。
 
-当前Mac交接包为`handoff/ime-standard-ja-v1-mac-expert.zip`，包含审核后728 development / 725 blind输入、固定版本脚本与`README_CN.md`。原草案包保留追溯，本轮不再使用。旧FineWeb500条真实候选复用，无需Mac重导。候选收集不进行LM评分：只改已冻结参考时可保留候选、重算参考rank并保存原始导出；读音、左文或数量变化则重新导出。
+当前Mac交接包为`handoff/benchmarks/ime-standard-ja-v1-mac-expert.zip`，包含审核后728 development / 725 blind输入、固定版本脚本与`README_CN.md`。原草案包保留追溯，本轮不再使用。旧FineWeb500条真实候选复用，无需Mac重导。候选收集不进行LM评分：只改已冻结参考时可保留候选、重算参考rank并保存原始导出；读音、左文或数量变化则重新导出。
 
 ```bash
 bash export_azookey.sh /path/to/AzooKeyKanaKanjiConverter
@@ -70,7 +70,7 @@ zip -r azookey-results.zip azookey-results
 ```powershell
 # 当前AI专家版已冻结；freeze示例只用于记录构建方法，不覆盖已完成产物。
 .\.venv\Scripts\python.exe -X utf8 scripts/benchmarks/standard_ime.py freeze --reviews outputs/benchmarks/ime-standard-ja-v1/expert-review-r1 --output artifacts/benchmarks/ime-standard-ja-v1-ai-expert-r1 --version ime-standard-ja-v1-ai-expert-r1 --review-mode ai-expert --change-note "Pre-score AI expert review"
-.\.venv\Scripts\python.exe -X utf8 scripts/benchmarks/standard_ime.py import --prepared artifacts/benchmarks/ime-standard-ja-v1-ai-expert-r1 --archive handoff/ime-standard-ja-v1-azookey-results.zip --output artifacts/benchmarks/ime-standard-ja-v1-candidates
+.\.venv\Scripts\python.exe -X utf8 scripts/benchmarks/standard_ime.py import --prepared artifacts/benchmarks/ime-standard-ja-v1-ai-expert-r1 --archive handoff/benchmarks/ime-standard-ja-v1-azookey-results.zip --output artifacts/benchmarks/ime-standard-ja-v1-candidates
 
 # Development示例；单独选择输出，不覆盖历史成绩。
 .\.venv\Scripts\python.exe -X utf8 scripts/benchmarks/evaluate_standard_ime.py --benchmark artifacts/benchmarks/ime-standard-ja-v1-candidates/development --checkpoint artifacts/models/tiny-ja-v3-a-chat05-d320-l6/best.pt --output outputs/ime-eval/standard-v1-v3-a-development

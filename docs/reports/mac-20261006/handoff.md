@@ -6,7 +6,7 @@ V1 has 7,386,624 parameters and uses INT8 block-32 storage, FP32 CPU computation
 
 | Material | Local archive |
 | --- | --- |
-| Source/results/training input | `handoff/mac-20261006-v1/VimeML-{source,results,training-inputs}.zip` |
+| Source/results/training input | `handoff/mac-20261006-v1/VimeML-{source,results,training-inputs}.zip`; results and training inputs were removed on 2026-10-20 after byte-level verification against local files (two environment notes restored to `outputs/`) |
 | Client snapshot | `handoff/mac-20261006-v1/Vime-client.zip`, base `abc3e4d`, patch and resources |
 | Original transport records | Same directory, original manifest and checksum record |
 | Import/conflict evidence | `outputs/maintenance/mac-merge-20261006/`, `outputs/history/mac-import-20261006/` |

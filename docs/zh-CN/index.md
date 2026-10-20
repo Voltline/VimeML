@@ -2,7 +2,7 @@
 
 英文主要文档见[Documentation index](../index.md)，当前中文概览见[README.zh-CN.md](../../README.zh-CN.md)与[模型卡](model-card.md)。此目录保留对应方法和历史实验的中文记录；英文入口汇总发布与当前实验状态。
 
-V2系列实验已完成，当前部署版本为V2.1 extend5 step40000 / INT8 block32；V1保留作基线和回退。总体结果与实验取舍见[V2系列总结](reports/v2-summary.md)。
+V2系列实验已完成，当前部署版本为V2.1 extend5 step40000 / INT8 block32；V1保留作基线和回退。总体结果与实验取舍见[V2系列总结](reports/v2-summary.md)。V3 A/B、V4-B、V4.1未形成稳定替换收益；V4.2第20轮在Standard开发集领先，固定reference仅比V2.1多6条且不显著，已完成Core ML、分段KV与iPhone测试宿主测量，作为可选变体保留，未替换V2.1。
 
 ## 使用与复现
 
@@ -27,6 +27,7 @@ V2系列实验已完成，当前部署版本为V2.1 extend5 step40000 / INT8 blo
 | 转换后训练 | [C1r2 数据修订、完整结果与 Reading 消融](reports/v4-20261016/c1r2.md) |
 | V4.1 混合预训练 | [训练设置](training-v41.md)、[十六轮完整评估](reports/v41-20261016/evaluation.md) |
 | V4.2 LM／Chat 预训练 | [训练设置](training-v42.md)、[二十轮完整评估](reports/v42-20261020/evaluation.md)、[固定 reference 与退化分析](reports/v42-20261020/reference-regressions.md) |
+| V4.2 Apple 部署 | [Core ML、INT8、分段 KV、Mac 与 iPhone 测量（英文）](../reports/mac-20261020/v42-coreml.md) |
 | 外部日语模型 | [TinySwallow](reports/v4-20261016/external-1p5b.md)、[RakutenAI](reports/v4-20261016/external-rakuten-1p5b.md)、[Sarashina](reports/v4-20261016/external-sarashina-1p4b.md) |
 
 V4-a 本地工作：[Tokenizer 初始化、训练与词表对照](reports/v4-20261014/tokenizer.md)、[8K token 数据与窗口](reports/v4-20261014/token-data.md)。

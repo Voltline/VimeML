@@ -10,7 +10,7 @@ best/last 均为 step=0、epoch=0、batch_cursor=0、total_tokens=0，optimizer 
 
 ## 本地备份
 
-`handoff/vimeml-v21-rescue-20261007.tar.gz`：**93,596,818 bytes**，18 个源文件及清单。内容包括两个 checkpoint、配置/环境/计划、训练日志、TensorBoard、W&B、本轮启动脚本与来源记录。
+`handoff/vimeml-v21-rescue-20261007.tar.gz`：**93,596,818 bytes**，18 个源文件及清单（2026-10-20 删除：两个 checkpoint 与本地一致，其余日志与清单保存在 `outputs/maintenance/handoff-cleanup-20261020/preserved/`）。内容包括两个 checkpoint、配置/环境/计划、训练日志、TensorBoard、W&B、本轮启动脚本与来源记录。
 
 快照与验证位于 `outputs/autodl-v21-recovery-20261007/{rescue-manifest,verification}.json`，模型位于 `artifacts/models/tiny-ja-v2.1-e16k-d320-l6-continue/`。文件清单与大小通过，checkpoint 可加载；旧实例文件及 V1/V2.0 保持原样。SSH/W&B 凭据不在归档中，日志凭据相关行已去除。
 
@@ -22,9 +22,9 @@ best/last 均为 step=0、epoch=0、batch_cursor=0、total_tokens=0，optimizer 
 | --- | --- |
 | Token store / index / tokenizer / 原候选 | `handoff/vimeml-v2-data.tar.gz`，1,017,407,143 bytes |
 | V2.0 起始权重与结果 | `artifacts/models/tiny-ja-v2.0-e16k-d320-l6/`、`handoff/vimeml-v2-results.tar.gz` |
-| 原 V2.1 来源快照 | `handoff/vimeml-v21-code.tar.gz`、`handoff/source-provenance-v21.json` |
+| 原 V2.1 来源快照 | `handoff/autodl/vimeml-v21-code.tar.gz`、`handoff/source-provenance-v21.json` |
 | 当前代码 | Git 仓库，包含新增 expanded IME reader |
 | 新真实候选 / 复核开发集 | `artifacts/benchmarks/ime-expanded-v21-candidates-v1/`、`ime-dev-label-reviewed-v3/` |
-| 中断记录 | `handoff/vimeml-v21-rescue-20261007.tar.gz` |
+| 中断记录 | `outputs/maintenance/handoff-cleanup-20261020/preserved/vimeml-v21-rescue-20261007.tar.gz/`（原归档已删除，成员清单见同目录 `manifests/`） |
 
 实例镜像复用 Python/CUDA 环境；`/root/autodl-tmp` 数据盘需单独迁移或恢复。原实例18:54恢复4090 D后已直接启动 restart1，无需迁移；从冻结V2.0 best初始化，batch512、两轮、screen与新W&B online run。旧step0与run归档；restart1和后续extend5均已结束，当前结果见 [V2.1配置](v21-plan.md)。

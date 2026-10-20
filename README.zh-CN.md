@@ -4,34 +4,52 @@
 
 [English README](README.md)为主要入口；[英文模型卡](MODEL_CARD.md)描述模型与评测边界，[中文模型卡](docs/zh-CN/model-card.md)提供对应概览。
 
-## 模型发布
+## 模型与状态
 
-| 版本 | 参数量 | 分词器 | Context | Hugging Face |
+| 模型 | 参数量 | 分词器 | Context | 状态 |
 | --- | ---: | --- | ---: | --- |
-| V1 | 7,386,624 | 16K SentencePiece Unigram，V1词表 | 128 | [Voltline/vimeml-tiny-ja-v1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1) |
-| V2.1 | 12,537,920 | 16K SentencePiece Unigram，V2词表 | 128 | [Voltline/vimeml-tiny-ja-v2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1) |
+| V1 | 7,386,624 | 16K SentencePiece Unigram，V1词表 | 128 | 公开基线与回退：[Voltline/vimeml-tiny-ja-v1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1) |
+| V2.1 | 12,537,920 | 16K SentencePiece Unigram，V2词表 | 128 | **当前部署**，公开：[Voltline/vimeml-tiny-ja-v2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1) |
+| V4.2 | 15,070,848 | 8K SentencePiece Unigram，V4词表 | 128 | 研究候选；已完成Core ML与客户端可选变体测量，未公开发布 |
 
-当前部署版本为V2.1 extend5 step40000：INT8 block32权重压缩、FP32计算、Core ML CPU_ONLY、最低iOS18，包体14.33 MB。V1保留为基线和回退。V3 A/B训练、评测与归档已完成，尚未形成足以替换V2.1的稳定任务收益。
+当前部署版本为V2.1 extend5 step40000：INT8 block32权重压缩、FP32计算、Core ML CPU_ONLY、最低iOS18，包体14.33 MB。V3 A/B、V4-B、V4.1均已完成，未形成稳定替换收益。
+
+V4.2（2026-10-20）是V4系列最强的模型：8K词表、随机初始化、网页文本加5%对话训练20轮。它在Standard开发集领先，但在固定reference上只比V2.1多6条（p=0.56），AJIMEE落后，差异主要是假名／汉字书写选择。INT8 Core ML包17.16 MB；iPhone 16 Pro Max测试宿主中峰值内存低5.6 MB、重排长尾更快，单次调用慢0.16–0.35 ms。客户端默认仍为V2.1，V4.2仅作为可选变体，等待键盘扩展实测。
 
 公开发布包含推理权重、匹配分词器、Core ML资源和聚合评测报告。训练checkpoint、语料、凭据及私有基准文本独立保存。自定义模型格式不直接兼容Transformers AutoModel；Hugging Face推理包的运行说明以各自模型卡为准。
 
 ## 固定评测结果
 
+IME各列为固定AzooKey候选池上的精确Top-1命中数，评分为联合分词后缀logP和。Standard IME标签为冻结的AI专家审核版，不是母语人工gold。
+
+| 模型 | Standard dev /728 | 固定reference /725 | Legacy /500 | AJIMEE /200 | 历史dev /137 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| V2.1 FP32 | 505 | 535 | 374 | **144** | 122 |
+| V2.1 INT8（部署） | 506 | — | **375** | **144** | 122 |
+| V3 A | 508 | **546** | 368 | 136 | 123 |
+| V4-B | 498 | — | 377 | **144** | 120 |
+| V4.1 第16轮 | 505 | — | 376 | 137 | **124** |
+| V4.2 FP32 | **523** | 541 | 370 | 139 | 123 |
+| V4.2 INT8 | 522 | — | 371 | 139 | 123 |
+
+725条reference已在最初的V2.1/V3 A比较中消耗，之后的模型须预注册后只评一次（V3 B：533；V4.2：541）。Standard开发集被多次实验重复使用；配对p值仅作探索性描述。INT8行来自Mac Core ML同一测试环境；两种INT8模型的严格logits对齐均失败，任务命中数最多变化1条。
+
+原有V1/V2历史集合：
+
 | 模型 | 同一旧验证集BPC ↓ | AJIMEE /200 | 历史dev /137 | 草稿dev /2000 |
 | --- | ---: | ---: | ---: | ---: |
 | V1 FP32 | 3.4736559 | 124 | 122 | 1453 |
 | V2.0 FP32 | 3.2598221 | 125 | 124 | 1463 |
-| V2.1 restart1 FP32 | 3.0811788 | 137 | 121 | 1476 |
 | V2.1发布版FP32 | 3.0802686 | 144 | 122 | 1487 |
 | V2.1发布版INT8 | 未测量 | 144 | 122 | 1481 |
 
-量化后两套小集命中数不变，草稿集下降0.3个百分点。严格logits对齐仍失败，任务指标支持已记录条件下的部署取舍，不构成数值等效证明。Standard IME采用冻结AI专家审核标签，并非母语人工gold；已开启的725条集合为固定参考，不能再称新盲测。完整方法与限制见[英文评测文档](docs/evaluation.md)。
+同一验证文本上，V4-B与V4.2（8K词表）的BPC分别为3.027777和3.045152。完整方法与限制见[英文评测文档](docs/evaluation.md)；V4.2见[训练设置](docs/zh-CN/training-v42.md)、[完整评估](docs/zh-CN/reports/v42-20261020/evaluation.md)、[reference与退化分析](docs/zh-CN/reports/v42-20261020/reference-regressions.md)和[Core ML报告](docs/reports/mac-20261020/v42-coreml.md)。
 
 ## 安装与目录
 
-Python≥3.11。`pyproject.toml`提供源代码editable安装元数据，依赖读取`requirements.txt`；AutoDL和评测附加依赖分别记录在对应requirements文件。源仓库推理需要本地匹配checkpoint、tokenizer及manifest；默认CLI仍选择V1。Core ML转换与运行时评测需要macOS。
+Python≥3.11。`pyproject.toml`提供源代码editable安装元数据，依赖读取`requirements.txt`；AutoDL和评测附加依赖分别记录在对应requirements文件。源仓库推理需要本地匹配checkpoint、tokenizer及manifest；默认CLI仍选择V1，V4 checkpoint通过`vimeml.training.infer_v4.JapaneseLMV4`加载。Core ML转换与运行时评测需要macOS。
 
-`src/vimeml/`保存实现，`scripts/`保存分类命令入口，`configs/`保存配置，`docs/`保存英文主要文档，`docs/zh-CN/`保存中文参考资料。`datasets/`、`artifacts/`、`outputs/`、`runs/`、`handoff/`为忽略目录。当前iOS客户端在独立Vime仓库维护；`examples/ios/`为历史接入参考。
+`src/vimeml/`保存实现，`scripts/`保存分类命令入口，`configs/`保存配置，`docs/`保存英文主要文档，`docs/zh-CN/`保存中文文档与详细实验报告。`datasets/`、`artifacts/`、`outputs/`、`runs/`、`handoff/`为忽略目录。当前iOS客户端在独立Vime仓库维护；`examples/ios/`为历史接入参考。
 
 [英文文档索引](docs/index.md) · [中文文档索引](docs/zh-CN/index.md) · [贡献约定](CONTRIBUTING.md) · [许可与归属](NOTICE.md)
 

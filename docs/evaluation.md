@@ -33,8 +33,11 @@ NLL is measured over valid prediction targets, including EOS. BPC is total NLL d
 | V2.1 release FP32 | 144 | 122 | 505 | 535 | 374 |
 | V3 A final | 136 | 123 | 508 | 546 | 368 |
 | V3 B selected epoch 2 | 134 | 120 | 507 | 533 | 364 |
+| V4-B best | 144 | 120 | 498 | Not measured | 377 |
+| V4.1 epoch 16 (ordinary LM) | 137 | 124 | 505 | Not measured | 376 |
+| V4.2 epoch 20 FP32 | 139 | 123 | 523 | 541 | 370 |
 
-V2.1 quantized scores are 144/200, 122/137, and 1,481/2,000 on the historical sets; Standard scores above are FP32. V3 results do not establish a stable deployment advantage. [V2 summary](reports/v2-summary.md) and [V3 B evaluation](reports/v3-20261008/b-evaluation.md) retain detailed measurements.
+V2.1 quantized scores are 144/200, 122/137, and 1,481/2,000 on the historical sets; on the Mac Core ML harness V2.1 INT8 scores 506 Standard and 375 Legacy, and V4.2 INT8 scores 139/123/522/371 in table order. Other Standard scores above are FP32. Neither V3 nor V4.2 establishes a stable deployment advantage; V4.2 differences against V2.1 are dominated by notation variants ([analysis, Chinese](zh-CN/reports/v42-20261020/reference-regressions.md)). [V2 summary](reports/v2-summary.md) and [V3 B evaluation](reports/v3-20261008/b-evaluation.md) retain detailed measurements.
 
 ## Statistical and deployment interpretation
 

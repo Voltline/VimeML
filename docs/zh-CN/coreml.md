@@ -4,11 +4,13 @@
 
 V2未压缩对齐通过，INT8严格logits对齐失败；AJIMEE144/200、原dev122/137保持命中数，扩大草稿1487→1481/2000。INT8包14.33MB，真实扩展内核footprint峰值34.72MiB、私有驻留采样峰值73.78MiB；UI发布最大约1.93秒，原因未定位。代码合并和本次候选验证不等于正式发布或长期设备验收。
 
+V4.2第20轮已完成FP32/INT8的stateless、单token KV与分段KV转换，并在Vime中作为可选变体通过模拟器与iPhone 16 Pro Max功能测试；默认部署仍为V2.1。V4.2 INT8包17.16 MB，严格对齐失败（T=128最大0.477、平均0.0495，约为V2.1 INT8的一半），四组Top-1为522/371/139/123（V2.1 INT8同环境506/375/144/122）。iPhone测试宿主中predict每次慢0.16–0.35 ms，重排p95 120.9对136.8 ms，峰值footprint 44.35对49.95 MB；键盘扩展未测。详见[V4.2 Core ML报告（英文）](../reports/mac-20261020/v42-coreml.md)。
+
 V2系列实验完成，当前INT8质量损失和UI长尾可接受；数值对齐失败仍按原阈值记录。量化机制、同池分差与配对统计见[量化分析](reports/mac-20261008/v21-quantization-review.md)。
 
 ## 接口与环境
 
-目标接口：INT32 `input_ids [1,T]`，1≤T≤128；FLOAT32 `logits [1,T,16384]`，完整词表、无softmax。batch1、绝对位置、causal mask、右PAD、无KV cache；SentencePiece、联合分词评分和搜索在客户端。
+目标接口：INT32 `input_ids [1,T]`，1≤T≤128；FLOAT32 `logits [1,T,16384]`（V2.1）或`[1,T,8192]`（V4.2），完整词表、无softmax。batch1、绝对位置、causal mask、右PAD；客户端使用stateless模型，KV cache图（V2.1分段、V4.2单token与分段）为已验证的研究导出，调用方持有FP32快照。SentencePiece、联合分词评分和搜索在客户端；V4词表的ID 4–6为保留标记，输入须拒绝、生成须排除。
 
 Mac沿用独立Python3.11环境与`requirements.txt`的Darwin配置：torch2.7.1、coremltools9.0、numpy2.3.5。已有环境可复用，Windows不执行Apple运行时操作。
 
@@ -25,6 +27,9 @@ source venv/coreml/bin/activate
 | `scripts/deployment/prepare_mac.py` | 当前Git与V2 FP32输入交接ZIP，不转换模型 |
 | `scripts/deployment/coreml.py` | 推理bundle、reference、转换、对齐、候选/联想/计时；当前bundle仅支持V1 |
 | `scripts/deployment/coreml_v2.py` / `package_v2_ios.py` | 独立V2推理bundle、FP32转换、门控INT8及客户端资源 |
+| `scripts/deployment/prepare_mac_v42.py` | V4.2 Git bundle、推理权重、PyTorch fixtures与冻结评分交接包 |
+| `scripts/deployment/coreml_v4.py` / `package_v4_ios.py` | V4 bundle、stateless／单token KV／分段KV转换、门控INT8、四组评分及客户端资源 |
+| `scripts/deployment/measure_v42.py` / `summarize_v42.py` | V4.2与V2.1同一Mac测试环境的大小、加载、延迟与内存测量及汇总 |
 | `scripts/deployment/coreml_conservative.py` | V1混合权重存储、FP32计算和INT8 block32 |
 | `scripts/deployment/package_ios.py` | 附带iOS参考的资源包，不是客户端构建或设备认证 |
 

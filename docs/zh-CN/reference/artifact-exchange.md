@@ -4,7 +4,7 @@
 
 ## 推理输入包
 
-`scripts/deployment/prepare_mac.py`从干净且已提交的工作区生成Git bundle与推理输入。2026-10-08输入包为`handoff/vimeml-v21-mac-20261008.zip`，基点由包内`handoff-manifest.json`记录。
+`scripts/deployment/prepare_mac.py`从干净且已提交的工作区生成Git bundle与推理输入。2026-10-08输入包摘要为`handoff/mac-20261008-v21/vimeml-v21-mac-20261008-input.json`；V4.2输入由`prepare_mac_v42.py`生成，摘要为`handoff/mac-20261020-v42/vimeml-v42-mac-20261020-input.json`。已消费的输入ZIP于2026-10-20在本地核实内容后删除。
 
 ```bash
 python3 setup_mac.py
@@ -36,7 +36,11 @@ python3 setup_mac.py
 
 `scripts/deployment/package_mac_results.py`打包新增模型、报告和必要compiled资源。顶层`handoff.json`记录格式版本、环境、两个仓库的base/head、PR、相对路径／大小及通过和失败项。历史模型、训练输入和客户端源码不纳入结果包。
 
-2026-10-08结果包归档于`handoff/mac-20261008-v21/vimeml-v21-mac-results.zip`，306份产物恢复到原`artifacts/`与`outputs/`路径；导入记录为`outputs/maintenance/mac-return-20261008/import-report.json`。来源核对使用Git ancestry、路径、数量、大小与ZIP CRC。同名产物冲突另存版本，原模型manifest和报告保持原始字节。
+2026-10-08结果包的306份产物恢复到原`artifacts/`与`outputs/`路径；导入记录为`outputs/maintenance/mac-return-20261008/import-report.json`。来源核对使用Git ancestry、路径、数量、大小与ZIP CRC。同名产物冲突另存版本，原模型manifest和报告保持原始字节。
+
+2026-10-20 V4.2结果包（PR #3）的250个文件无冲突恢复到`artifacts/deployment/tiny-ja-v4.2-*`与`outputs/deployment/v42-*`，导入记录在`outputs/maintenance/mac-return-20261020/`，逐题分数已与四组冻结候选池核对。
+
+导入核实后，`handoff/`只保留清单与小型源码快照：传输包的每个成员都与本地文件逐字节一致、存在于Git历史或已另行保存时才删除，本地缺失的成员先恢复到原路径。2026-10-20清理删除9个包（约3.48 GB），逐成员SHA256清单与保留文件在`outputs/maintenance/handoff-cleanup-20261020/`，剩余内容见`handoff/README.md`。
 
 依赖由`requirements.txt`和`requirements-autodl.txt`重建。身份记录在首次导出或资源变化时建立，后续复用冻结manifest；W&B账号、run链接和凭据只保存在忽略目录。
 

@@ -1,6 +1,6 @@
 # Documentation index
 
-V2.1 `extend5` step 40,000 / INT8 block-32 is the current deployment release. V1 remains a baseline and fallback. V3 A and V3 B training, evaluation, and archival are complete; their results do not establish a stable replacement advantage. V4.2 epoch 20 leads on Standard development but is only +6 (not significant) over V2.1 on the fixed reference. Primary documents are English. [Chinese documentation](zh-CN/index.md) retains the corresponding reference material.
+V2.1 `extend5` step 40,000 / INT8 block-32 is the current deployment release. V1 remains a baseline and fallback. V3 A and V3 B training, evaluation, and archival are complete; their results do not establish a stable replacement advantage. V4.2 epoch 20 leads on Standard development but is only +6 (not significant) over V2.1 on the fixed reference; its Core ML packages and an opt-in iOS variant are validated and measured, without replacing V2.1. Primary documents are English. [Chinese documentation](zh-CN/index.md) retains the corresponding reference material.
 
 ## Model, data, and runtime
 
@@ -17,7 +17,7 @@ V2.1 `extend5` step 40,000 / INT8 block-32 is the current deployment release. V1
 | [V4.2 LM/chat pretraining](training-v42.md) | Completed twenty-epoch LM/chat experiment without conversion, and local evaluation |
 | [Evaluation](evaluation.md) | Fixed-pool scoring, statistics, and benchmark roles |
 | [Standard IME](benchmarks/standard-ime.md) / [initial comparison](benchmarks/standard-ime-results-20261008.md) | Source splits, AI review, candidate export, and reference-set consumption |
-| [Core ML](coreml.md) | Conversion, quantization, and client contract |
+| [Core ML](coreml.md) | Conversion, quantization, client contract, and V2.1/V4.2 measurements |
 | [Artifact layout](artifacts.md) / [cross-platform exchange](reference/artifact-exchange.md) | Local assets, Git collaboration, and ZIP transfer |
 
 ## Experiment records

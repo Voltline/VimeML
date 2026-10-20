@@ -39,6 +39,6 @@ FP32、冻结候选与原始标签、联合分词suffix logP sum，无EOS或截�
 - 停止时完整验证：`outputs/model-checks/v21-extend5-closeout/full-validation.json`。
 - 最佳模型原IME：`outputs/ime-eval/tiny-ja-v2.1-extend5-best-{ajimee,development}/`。
 - 扩大集与配对：`outputs/ime-eval/expanded-v21-dev-draft-extend5-best/`、`outputs/ime-eval/tiny-ja-v2.1-extend5-comparison/comparison.json`。
-- 推理：`outputs/model-checks/tiny-ja-v2.1-extend5-best/samples.json`；报告归档：`handoff/vimeml-v21-extend5-reports.tar.gz`。
+- 推理：`outputs/model-checks/tiny-ja-v2.1-extend5-best/samples.json`；报告归档：`handoff/autodl/vimeml-v21-extend5-reports.tar.gz`。
 
 优化器衔接记录与模型评测独立保存；远端IME和推理共用模型加载，归档复用checkpoint来源身份。

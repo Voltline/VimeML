@@ -23,10 +23,13 @@ Git保存源码、配置、测试、文档和许可证。`datasets/`、`artifact
 
 | 归档 | 内容 |
 | --- | --- |
-| `handoff/vimeml-v21-mac-20261008.zip` | V2推理输入、Git bundle、冻结评分和V1对照 |
-| `handoff/mac-20261008-v21/vimeml-v21-mac-results.zip` | Mac结果包与原`handoff.json`；306份产物已恢复 |
-| `handoff/mac-20261006-v1/` | V1源码、客户端与结果快照 |
-| `handoff/vimeml-v2-*.tar.gz`、`vimeml-v21-*.tar.gz` | AutoDL代码、输入、恢复、模型和评测快照 |
+| `handoff/mac-20261020-v42/` | V4.2 Core ML输入摘要与回传`handoff.json`；250份产物已恢复 |
+| `handoff/mac-20261008-v21/` | V2.1输入摘要与回传`handoff.json`；306份产物已恢复 |
+| `handoff/mac-20261006-v1/` | V1清单、源码与客户端快照 |
+| `handoff/autodl/` | AutoDL代码、报告快照与V4传输清单 |
+| `handoff/benchmarks/` | Standard IME审核、Mac交接与候选回传包 |
+
+已验证可复现的大型传输包于2026-10-20删除，记录见`outputs/maintenance/handoff-cleanup-20261020/`与`handoff/README.md`。
 
 源码通过两个仓库各自的Git分支／PR合并，产物通过ZIP恢复。客户端当前实现位于独立Vime仓库；`examples/ios/`及旧ZIP仅为历史参考。流程见[跨平台管理](reference/artifact-exchange.md)，V2导入记录位于`outputs/maintenance/mac-return-20261008/import-report.json`。
 
