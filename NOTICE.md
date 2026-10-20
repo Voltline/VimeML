@@ -2,7 +2,7 @@
 
 ## Project and models
 
-Original VimeML code and published V1/V2.1 weights use GPL-2.0; the full license is preserved in [LICENSE](LICENSE). A dataset's source license is independent of the project license. This repository does not redistribute the private training corpora or benchmark text.
+Original VimeML code and published V1/V2.1/V4.2 weights use GPL-2.0; the full license is preserved in [LICENSE](LICENSE). V4.2 was trained in part on RealPersonaChat and Multi-Relational Multi-Party Chat Corpus dialogue text (CC BY-SA 4.0, nu-dialogue); its model card attributes both sources and states that their terms are independent of the project license. A dataset's source license is independent of the project license. This repository does not redistribute the private training corpora or benchmark text.
 
 ## Third-party software
 

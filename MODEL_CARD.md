@@ -2,7 +2,7 @@
 
 ## Model identity and availability
 
-VimeML is a family of compact Japanese decoder-only language models for input-method candidate reranking. Public releases are [V1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1) and [V2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1). V2.0, V3 A, V3 B, and the V4 family (V4-B, V4.1, V4.2) are experiment checkpoints rather than additional public releases. V2.1 is the deployed model; V4.2 is a measured research candidate.
+VimeML is a family of compact Japanese decoder-only language models for input-method candidate reranking. Public releases are [V1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1), [V2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1) and the research release [V4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2). V2.0, V3 A, V3 B, V4-B and V4.1 are experiment checkpoints. V2.1 is the deployed model; V4.2 is a measured opt-in candidate.
 
 | Architecture | V1 | V2 / V2.1 / V3 experiments | V4 family (V4-B / V4.1 / V4.2) |
 | --- | --- | --- | --- |

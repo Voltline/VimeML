@@ -1,6 +1,6 @@
 # VimeML模型卡
 
-主要模型卡为[MODEL_CARD.md](../../MODEL_CARD.md)。公开版本为[V1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1)和[V2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1)；V2.0、V3 A/B与V4系列（V4-B、V4.1、V4.2）为实验checkpoint；V2.1为部署版本，V4.2为已完成测量的研究候选。
+主要模型卡为[MODEL_CARD.md](../../MODEL_CARD.md)。公开版本为[V1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1)、[V2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1)与研究发布[V4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2)；V2.0、V3 A/B、V4-B、V4.1为实验checkpoint。V2.1为部署版本，V4.2为已完成测量的可选候选。
 
 ## 架构与用途
 

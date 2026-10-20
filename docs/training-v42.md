@@ -58,6 +58,7 @@ Clearing left context lowers Standard from 523 to 510 and AJIMEE from 139 to 130
 | Cluster launcher | `scripts/training/cluster_v42.sh`; set `VIMEML_PYTHON` for the training environment |
 | Local comparison | `scripts/benchmarks/evaluate_v42.py`; requires a separate empty output directory |
 | Download receipt, records and `best-lm.pt` | `outputs/training-v42-20261020/` |
+| Public release | [Voltline/vimeml-tiny-ja-v4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2), Hub commit `c83c6179f6ebac1af61088ee7e7f833dd9e03d58`, source `7f4e87f`; receipt `outputs/publishing/v42-hf-v1/upload.json` |
 | Frozen local evaluation and acceptance | `outputs/evaluation-v42-20261020/` |
 
 The trainer, entry point and configuration are byte-identical to the archived run source and match its recorded `code_sha256`. Only the launcher's site-specific interpreter default was replaced by `VIMEML_PYTHON`. The evaluation entry preserves the archived local script's scoring logic and adds an explicit output argument; the completed evaluation retains its original script hash. Other epoch checkpoints and `last.pt` remain in the private training-output repository.

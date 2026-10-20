@@ -10,7 +10,7 @@
 | --- | ---: | --- | ---: | --- |
 | V1 | 7,386,624 | 16K SentencePiece Unigram，V1词表 | 128 | 公开基线与回退：[Voltline/vimeml-tiny-ja-v1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1) |
 | V2.1 | 12,537,920 | 16K SentencePiece Unigram，V2词表 | 128 | **当前部署**，公开：[Voltline/vimeml-tiny-ja-v2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1) |
-| V4.2 | 15,070,848 | 8K SentencePiece Unigram，V4词表 | 128 | 研究候选；已完成Core ML与客户端可选变体测量，未公开发布 |
+| V4.2 | 15,070,848 | 8K SentencePiece Unigram，V4词表 | 128 | 研究发布，客户端可选变体：[Voltline/vimeml-tiny-ja-v4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2) |
 
 当前部署版本为V2.1 extend5 step40000：INT8 block32权重压缩、FP32计算、Core ML CPU_ONLY、最低iOS18，包体14.33 MB。V3 A/B、V4-B、V4.1均已完成，未形成稳定替换收益。
 

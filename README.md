@@ -10,7 +10,7 @@ AzooKey supplies dictionary candidates. The language model reranks the fixed can
 | --- | ---: | --- | ---: | --- |
 | V1 | 7,386,624 | 16K SentencePiece Unigram, V1 vocabulary | 128 | Public baseline and fallback: [Voltline/vimeml-tiny-ja-v1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1) |
 | V2.1 | 12,537,920 | 16K SentencePiece Unigram, V2 vocabulary | 128 | **Deployed**, public: [Voltline/vimeml-tiny-ja-v2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1) |
-| V4.2 | 15,070,848 | 8K SentencePiece Unigram, V4 vocabulary | 128 | Research candidate; Core ML and opt-in client variant measured, not published |
+| V4.2 | 15,070,848 | 8K SentencePiece Unigram, V4 vocabulary | 128 | Research release, opt-in client variant: [Voltline/vimeml-tiny-ja-v4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2) |
 
 V2.1 is the deployed model: `extend5` checkpoint step 40,000, symmetric INT8 block-32 weight compression, FP32 computation, and CPU-only Core ML on iOS 18 or later (14.33 MB package). V3 A/B, V4-B and V4.1 are completed experiments without a stable replacement advantage.
 

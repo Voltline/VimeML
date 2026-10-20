@@ -47,6 +47,7 @@ seed 沿用 V4.1 的 **1219827974**，用于权重初始化、训练顺序、pre
 | `artifacts/models/tiny-ja-v42-e8k-d384-l7/` | 训练端权重、optimizer/RNG/游标与验证记录 |
 | `outputs/training-v42-20261020/` | 固定 revision 下载凭据、训练记录、实际源码与 `best-lm.pt` |
 | `outputs/evaluation-v42-20261020/` | 本地四组 FP32 重排、配对与验收 |
+| [Voltline/vimeml-tiny-ja-v4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2) | 公开发布：FP32 推理包、INT8 stateless 与分段 KV Core ML、源码快照与聚合评测；Hub commit `c83c6179f6ebac1af61088ee7e7f833dd9e03d58` |
 
 正式入口在读取数据前校验配置、源码、tokenizer、数据与全部映射身份；恢复保留游标、AdamW、RNG 与验证历史。`cluster_v42.sh` 在存在 `last.pt` 时自动续训，训练解释器通过 `VIMEML_PYTHON` 指定。
 
