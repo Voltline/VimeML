@@ -1,6 +1,6 @@
 # Documentation index
 
-V2.1 `extend5` step 40,000 / INT8 block-32 is the current deployment release. V1 remains a baseline and fallback. V3 A and V3 B training, evaluation, and archival are complete; their results do not establish a stable replacement advantage. Primary documents are English. [Chinese documentation](zh-CN/index.md) retains the corresponding reference material.
+V2.1 `extend5` step 40,000 / INT8 block-32 is the current deployment release. V1 remains a baseline and fallback. V3 A and V3 B training, evaluation, and archival are complete; their results do not establish a stable replacement advantage. V4.2 epoch 20 is the current strongest ordinary-LM candidate on Standard development and awaits independent validation. Primary documents are English. [Chinese documentation](zh-CN/index.md) retains the corresponding reference material.
 
 ## Model, data, and runtime
 
@@ -14,6 +14,7 @@ V2.1 `extend5` step 40,000 / INT8 block-32 is the current deployment release. V1
 | [V4 training](training-v4.md) | Fixed 8K architecture, completed A/B schedules, results, and recovery |
 | [V4 post-training](posttraining-v4.md) / [conversion data](data-v4-c1.md) | Completed C1/C1r2 experiments, frozen data, conditional scoring, and first-run settings |
 | [V4.1 joint pretraining](training-v41.md) | Completed sixteen-epoch LM/chat/conversion experiment and local evaluation |
+| [V4.2 LM/chat pretraining](training-v42.md) | Completed twenty-epoch LM/chat experiment without conversion, and local evaluation |
 | [Evaluation](evaluation.md) | Fixed-pool scoring, statistics, and benchmark roles |
 | [Standard IME](benchmarks/standard-ime.md) / [initial comparison](benchmarks/standard-ime-results-20261008.md) | Source splits, AI review, candidate export, and reference-set consumption |
 | [Core ML](coreml.md) | Conversion, quantization, and client contract |
@@ -37,6 +38,7 @@ V2.1 `extend5` step 40,000 / INT8 block-32 is the current deployment release. V1
 | V4 base LM | [A continuation experiment](reports/v4-20261015/evaluation.md), [B twelve-epoch cosine comparison](reports/v4-20261015/b12cosine-evaluation.md) |
 | V4 conversion post-training | [C1r2 data revision and diagnostics (Chinese)](zh-CN/reports/v4-20261016/c1r2.md) |
 | V4.1 joint pretraining | [Results summary](training-v41.md), [complete evaluation (Chinese)](zh-CN/reports/v41-20261016/evaluation.md) |
+| V4.2 LM/chat pretraining | [Results summary](training-v42.md), [complete evaluation (Chinese)](zh-CN/reports/v42-20261020/evaluation.md) |
 | External Japanese LMs | [TinySwallow](zh-CN/reports/v4-20261016/external-1p5b.md), [RakutenAI](zh-CN/reports/v4-20261016/external-rakuten-1p5b.md), [Sarashina](zh-CN/reports/v4-20261016/external-sarashina-1p4b.md) |
 
 ## Historical V1 references

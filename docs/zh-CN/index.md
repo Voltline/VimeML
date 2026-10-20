@@ -26,6 +26,7 @@ V2系列实验已完成，当前部署版本为V2.1 extend5 step40000 / INT8 blo
 | 基础 LM | [A 续训实验](reports/v4-20261015/evaluation.md)、[B 完整十二轮对照](reports/v4-20261015/b12cosine-evaluation.md) |
 | 转换后训练 | [C1r2 数据修订、完整结果与 Reading 消融](reports/v4-20261016/c1r2.md) |
 | V4.1 混合预训练 | [训练设置](training-v41.md)、[十六轮完整评估](reports/v41-20261016/evaluation.md) |
+| V4.2 LM／Chat 预训练 | [训练设置](training-v42.md)、[二十轮完整评估](reports/v42-20261020/evaluation.md) |
 | 外部日语模型 | [TinySwallow](reports/v4-20261016/external-1p5b.md)、[RakutenAI](reports/v4-20261016/external-rakuten-1p5b.md)、[Sarashina](reports/v4-20261016/external-sarashina-1p4b.md) |
 
 V4-a 本地工作：[Tokenizer 初始化、训练与词表对照](reports/v4-20261014/tokenizer.md)、[8K token 数据与窗口](reports/v4-20261014/token-data.md)。
