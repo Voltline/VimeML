@@ -1,0 +1,61 @@
+# V4.3: random-initialized LM/chat pretraining on the expanded web pool, 30 epochs.
+# Reconstructed from the run record records/config.json (values identical).
+stage = "v4.3"
+architecture = "tiny_gpt_v4"
+token_dir = "artifacts/token-data/corpus-v4-8k"
+index_dir = "artifacts/training-data/corpus-v4-c128"
+tokenizer_dir = "artifacts/tokenizers/v4-a/ja-unigram-8192"
+output_dir = "artifacts/models/tiny-ja-v43-e8k-d384-l7"
+log_dir = "runs/training/tiny-ja-v43-e8k-d384-l7"
+dataset_sha256 = "81d7e610f7f3a59680abc0b5be55ea713ba376ca7b55147db72a318da4ababcc"
+
+[initialization]
+mode = "random"
+
+[data_mixture]
+directory = "artifacts/training-data/corpus-v43-mixed-c128"
+
+[model]
+vocab_size = 8192
+context_length = 128
+d_model = 384
+n_heads = 6
+n_layers = 7
+d_ff = 960
+dropout = 0.0
+norm = "rmsnorm"
+norm_eps = 1e-05
+activation = "swiglu"
+bias = false
+tie_embeddings = true
+position_embedding = "learned"
+
+[runtime]
+compile_backbone = true
+
+[training]
+device = "cuda"
+precision = "bf16"
+seed = 1219827974
+cpu_threads = 4
+num_workers = 4
+bucket_multiplier = 64
+lm_batch = 512
+lm_microbatch = 512
+epochs = 30
+smoke_updates = 0
+learning_rate = 0.0006
+min_learning_rate = 6e-05
+warmup_steps = 1000
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+prefix_crop_probability = 0.3
+log_every = 100
+eval_every = 2000
+checkpoint_every = 5000
+validation_batch = 256
+
+[tracking]
+enabled = false
