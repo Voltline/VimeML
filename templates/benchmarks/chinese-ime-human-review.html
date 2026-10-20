@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>中文输入盲评 · 100 条</title>
+<style>
+:root{color-scheme:light;--ink:#202d28;--muted:#65716b;--accent:#245d4b;--line:#d7ded7;--paper:#faf9f5;--soft:#eaf1eb;--error:#a03828}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.65 system-ui,"Microsoft YaHei",sans-serif}main{max-width:1120px;margin:auto;padding:34px 28px 60px}header{display:flex;gap:20px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:24px}h1{font-size:27px;letter-spacing:-.5px;margin:0}h2{font-size:18px;margin:0 0 12px}p{margin:8px 0}.muted{color:var(--muted)}.small{font-size:13px}.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}button,select,textarea{font:inherit}button,select{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:8px;min-height:42px;padding:8px 13px}button{cursor:pointer}button:hover:not(:disabled){background:var(--soft)}button:disabled{opacity:.4;cursor:default}button.primary{background:var(--accent);border-color:var(--accent);color:white}button.primary:hover:not(:disabled){background:#174b3b}button:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #a5c9b8;outline-offset:3px}progress{appearance:none;width:100%;height:5px;border:0;border-radius:4px;display:block;background:#e3e7e1;margin:10px 0 6px}progress::-webkit-progress-bar{background:#e3e7e1;border-radius:4px}progress::-webkit-progress-value{background:var(--accent);border-radius:4px}.intro{max-width:900px;margin-bottom:25px}.layout{display:grid;grid-template-columns:194px minmax(0,1fr);gap:36px;align-items:start}.nav{padding-top:3px}summary{cursor:pointer}.grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;margin:12px 0}.grid button{padding:3px 0;min-height:33px;border-radius:5px;font-size:12px;position:relative}.grid button.done{background:var(--soft);border-color:#c0d5c6}.grid button.draft:after{content:"•";position:absolute;right:3px;top:-3px;color:#93612c}.grid button.current{border:2px solid var(--accent);font-weight:700}.workspace{min-width:0;background:white;border:1px solid var(--line);border-radius:14px;padding:25px 28px}.position{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:18px}.eyebrow{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.07em}.context{white-space:pre-wrap;margin:5px 0 18px;overflow-wrap:anywhere;font-size:18px}.keys{font:21px/1.6 ui-monospace,Consolas,monospace;overflow-wrap:anywhere;margin:5px 0 6px;padding:12px 15px;background:#f3f5f0;border-radius:8px;user-select:all}label{display:block;font-weight:600;margin-top:20px}label .hint{display:block;font-weight:400;color:var(--muted);font-size:13px;margin:2px 0 8px}textarea{display:block;width:100%;resize:vertical;border:1px solid #c8d2c9;border-radius:8px;background:#fff;color:var(--ink);padding:12px 14px;line-height:1.6;font-size:18px}#answers{min-height:128px}#notes{min-height:72px;font-size:15px}select{max-width:100%;width:100%;margin-top:8px}.formfoot{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:23px;padding-top:18px;border-top:1px solid var(--line)}#message{min-height:25px;font-size:14px;margin:12px 0 0}.error{color:var(--error)}.save-line{min-height:24px}.legend{margin-top:14px;line-height:1.8}.hidden{display:none!important}#completion{margin-top:20px;padding:14px 0;border-top:1px solid var(--line)}
+@media(max-width:800px){main{padding:22px 16px 40px}.layout{grid-template-columns:1fr;gap:18px}.grid{grid-template-columns:repeat(auto-fit,minmax(34px,1fr))}.nav{order:2}.workspace{padding:20px}.intro{font-size:14px}h1{font-size:24px}.toolbar button{font-size:14px}.grid button{min-height:38px}.keys{font-size:19px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div><p class="eyebrow">中文输入 · 人工复核</p><h1>先看拼音，再写你的答案。</h1></div>
+  <div class="toolbar"><button id="importBtn" type="button">导入标注</button><button id="exportBtn" type="button">导出标注</button><input type="file" id="importFile" accept=".json,application/json" hidden></div>
+</header>
+<div class="intro">
+  <p>共 100 条：60 条复核此前结果，40 条为新编诊断样例，顺序已打乱。页面不显示模型输出或原有答案。</p>
+  <p class="muted">只转写拼音对应的片段，不必重复上文。多种写法都自然时，请每行写一种；无法判断就如实标记。简拼、混合输入和异常拼写也可能出现。</p>
+  <progress id="progress" max="100" value="0" aria-label="标注完成进度"></progress>
+  <div class="toolbar small"><span id="counts">已确认 0 / 100</span><span class="muted" id="saveStatus" role="status">正在读取本机存档…</span></div>
+</div>
+<div class="layout">
+  <aside class="nav" aria-label="题目导航"><details id="navDetails" open><summary>题目导航 <span id="navCount" class="muted small"></span></summary><div class="grid" id="navGrid"></div></details><button type="button" id="pendingBtn">下一条未完成</button><p class="legend muted small">浅绿：已确认<br>圆点：有未确认草稿<br>可随时返回修改。</p></aside>
+  <section class="workspace" aria-label="标注题目">
+    <div class="position"><strong id="position">第 1 / 100 条</strong><div class="toolbar"><button type="button" id="prevBtn" aria-label="上一条">上一条</button><button type="button" id="nextBtn" aria-label="下一条">下一条</button></div></div>
+    <div class="eyebrow">上文（已输入的中文）</div><div class="context" id="context"></div>
+    <div class="eyebrow">本次输入</div><div class="keys" id="keys"></div>
+    <form id="reviewForm">
+      <label for="answers">你接受的中文写法<span class="hint">每行一种完整写法，第一行放你最倾向的答案。不要为了凑唯一答案而排除其他自然写法。</span></label>
+      <textarea id="answers" placeholder="在这里填写；没有可判断的答案时可以留空" autocomplete="off" spellcheck="false"></textarea>
+      <label for="decision">判定</label>
+      <select id="decision"><option value="pending">根据答案行数自动判定</option><option value="single">有一种明确的自然写法</option><option value="multiple">有多种自然写法</option><option value="uncertain">信息不足，无法可靠判断</option><option value="invalid">输入异常或难以转写</option></select>
+      <label for="notes">备注（可留空）<span class="hint">例如：他／她都可；缺少上下文；可能漏打字母；口语中不自然。</span></label>
+      <textarea id="notes" placeholder="写下你认为需要保留的问题" spellcheck="false"></textarea>
+      <div class="formfoot"><button type="submit" class="primary" id="confirmBtn">确认并下一条</button><span class="muted small">Ctrl + Enter 确认 · Alt + ← / → 翻页</span></div>
+    </form>
+    <div id="message" role="status" aria-live="polite"></div>
+    <div id="completion" class="hidden"><strong>100 条均已确认。</strong><p>请导出标注文件，发回聊天后再按你的答案评测。你仍可以回到任意一条修改。</p></div>
+  </section>
+</div>
+<p class="muted small" style="margin-top:25px">草稿自动保存在当前浏览器。建议中途也导出一份备份；换浏览器或设备时可导入继续。原始样例已冻结，你的标注会单独保存。</p>
+</main>
+<script type="application/json" id="payload">__PAYLOAD__</script>
+<script>
+'use strict';
+const payload=JSON.parse(document.getElementById('payload').textContent);
+const $=id=>document.getElementById(id), decisions=new Set(['pending','single','multiple','uncertain','invalid']);
+const qa=new URLSearchParams(location.search).has('qa');
+const storageKey='chinese-human-review:'+payload.dataset_id+(qa?':qa':'');
+const blank=c=>({id:c.id,answers:[],decision:'pending',notes:'',reviewed_at:null});
+let rows=payload.cases.map(blank),index=0,timer=null,storageWorks=true;
+function normalizeRows(data){
+  if(!data||data.schema_version!==1||data.dataset_id!==payload.dataset_id||!Array.isArray(data.annotations)||data.annotations.length!==payload.cases.length)throw Error('文件不属于这组 100 条样例。');
+  const seen=new Map();
+  for(const r of data.annotations){
+    if(!r||seen.has(r.id)||!payload.cases.some(c=>c.id===r.id)||!Array.isArray(r.answers)||!r.answers.every(a=>typeof a==='string'&&a.length<=5000)||!decisions.has(r.decision)||typeof r.notes!=='string'||r.notes.length>10000||!(r.reviewed_at===null||(typeof r.reviewed_at==='string'&&!Number.isNaN(Date.parse(r.reviewed_at)))))throw Error('标注文件字段不完整或格式不正确。');
+    const answers=[...new Set(r.answers.map(a=>a.trim()).filter(Boolean))];
+    if(r.reviewed_at&&((r.decision==='single'&&answers.length!==1)||(r.decision==='multiple'&&answers.length<2)||r.decision==='pending'))throw Error('文件中有已确认但未完整填写的标注。');
+    seen.set(r.id,{id:r.id,answers,decision:r.decision,notes:r.notes,reviewed_at:r.reviewed_at});
+  }
+  return payload.cases.map(c=>seen.get(c.id));
+}
+function snapshot(){return{schema_version:1,dataset_id:payload.dataset_id,exported_at:new Date().toISOString(),annotation_method:'human_independent_transcription_no_model_outputs',cases:payload.cases,annotations:rows,current_index:index};}
+function persist(){
+  clearTimeout(timer);timer=null;
+  try{localStorage.setItem(storageKey,JSON.stringify(snapshot()));storageWorks=true;$('saveStatus').textContent='草稿已自动保存到当前浏览器';$('saveStatus').className='muted';}
+  catch(e){storageWorks=false;$('saveStatus').textContent='此浏览器无法自动保存，请及时导出备份';$('saveStatus').className='error';}
+}
+function isDraft(r){return!r.reviewed_at&&(r.answers.length>0||r.notes.trim()||r.decision!=='pending');}
+function updateProgress(){
+  const done=rows.filter(r=>r.reviewed_at).length,drafts=rows.filter(isDraft).length;
+  $('progress').value=done;$('counts').textContent=`已确认 ${done} / ${rows.length}${drafts?' · 草稿 '+drafts:''}`;$('navCount').textContent=`${done}/${rows.length}`;
+  $('completion').classList.toggle('hidden',done!==rows.length);
+  for(let j=0;j<rows.length;j++){
+    const b=$('navGrid').children[j],r=rows[j];b.className=[r.reviewed_at?'done':'',isDraft(r)?'draft':'',j===index?'current':''].filter(Boolean).join(' ');
+    b.setAttribute('aria-label',`第 ${j+1} 条，${r.reviewed_at?'已确认':isDraft(r)?'草稿':'未填写'}`);b.setAttribute('aria-current',j===index?'step':'false');
+  }
+}
+function capture(markDirty=false){
+  const r=rows[index],answers=[...new Set($('answers').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean))],decision=$('decision').value,notes=$('notes').value;
+  const changed=JSON.stringify(answers)!==JSON.stringify(r.answers)||decision!==r.decision||notes!==r.notes;
+  r.answers=answers;r.decision=decision;r.notes=notes;
+  if(markDirty&&changed)r.reviewed_at=null;
+  updateProgress();
+}
+function render(){
+  const c=payload.cases[index],r=rows[index];$('position').textContent=`第 ${index+1} / ${rows.length} 条`;$('context').textContent=c.context||'（无上文）';$('keys').textContent=c.input;
+  $('answers').value=r.answers.join('\n');$('decision').value=r.decision;$('notes').value=r.notes;$('prevBtn').disabled=index===0;$('nextBtn').disabled=index===rows.length-1;
+  $('message').textContent=r.reviewed_at?'本条已确认，可继续修改。':'';$('message').className='';updateProgress();
+}
+function moveTo(next){capture(true);persist();index=Math.max(0,Math.min(rows.length-1,next));render();persist();}
+function findPending(){for(let n=1;n<=rows.length;n++){const j=(index+n)%rows.length;if(!rows[j].reviewed_at)return j;}return index;}
+function confirmCurrent(event){
+  event.preventDefault();capture(true);const r=rows[index];
+  if(r.decision==='pending')r.decision=r.answers.length>1?'multiple':r.answers.length===1?'single':'pending';
+  let error='';if(r.decision==='single'&&r.answers.length!==1)error='单一写法请填一行答案；若有多种，请选择“多种自然写法”。';
+  else if(r.decision==='multiple'&&r.answers.length<2)error='多种写法请至少填两行；无法列出时可以选择“信息不足”。';
+  else if(r.decision==='pending')error='请填写答案，或将判定设为“信息不足”／“输入异常”。';
+  if(error){$('decision').value=r.decision;$('message').textContent=error;$('message').className='error';persist();return;}
+  r.reviewed_at=new Date().toISOString();persist();updateProgress();
+  if(rows.every(r=>r.reviewed_at)){render();$('message').textContent='已完成，请导出标注文件。';return;}
+  index=findPending();render();persist();$('answers').focus();
+}
+function download(){capture(true);persist();const blob=new Blob([JSON.stringify(snapshot(),null,2)+'\n'],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download='chinese-human-review-100-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);$('message').textContent='已请求导出。请保留下载的 JSON 文件，之后可导入继续。';}
+async function importFile(event){
+  const f=event.target.files[0];if(!f)return;
+  try{
+    if(f.size>3000000)throw Error('文件过大，请选择本页导出的 JSON。');
+    const data=JSON.parse((await f.text()).replace(/^\uFEFF/,'')),incoming=normalizeRows(data);
+    if(rows.some(r=>r.reviewed_at||isDraft(r))&&!window.confirm('导入会替换当前浏览器的标注。建议先导出备份。继续导入？'))return;
+    rows=incoming;index=Number.isInteger(data.current_index)?Math.max(0,Math.min(rows.length-1,data.current_index)):0;persist();render();$('message').textContent='标注已导入，可继续填写。';
+  }catch(e){$('message').textContent='未导入：'+e.message;$('message').className='error';}
+  finally{event.target.value='';}
+}
+for(let j=0;j<rows.length;j++){const b=document.createElement('button');b.type='button';b.textContent=String(j+1).padStart(2,'0');b.addEventListener('click',()=>moveTo(j));$('navGrid').appendChild(b);}
+try{const saved=localStorage.getItem(storageKey);if(saved){const data=JSON.parse(saved);rows=normalizeRows(data);index=Number.isInteger(data.current_index)?Math.max(0,Math.min(rows.length-1,data.current_index)):0;}$('saveStatus').textContent=saved?'已恢复本机存档':'填写后自动保存到当前浏览器';}
+catch(e){storageWorks=false;$('saveStatus').textContent='存档未能读取，请导入备份或及时导出';$('saveStatus').className='error';}
+for(const name of ['answers','notes','decision'])$(name).addEventListener('input',()=>{capture(true);clearTimeout(timer);$('saveStatus').textContent='正在保存草稿…';timer=setTimeout(persist,250);});
+$('reviewForm').addEventListener('submit',confirmCurrent);$('prevBtn').addEventListener('click',()=>moveTo(index-1));$('nextBtn').addEventListener('click',()=>moveTo(index+1));$('pendingBtn').addEventListener('click',()=>{capture(true);moveTo(findPending());});
+$('exportBtn').addEventListener('click',download);$('importBtn').addEventListener('click',()=>{$('importFile').click();});$('importFile').addEventListener('change',importFile);
+document.addEventListener('keydown',e=>{if(e.isComposing)return;if(e.ctrlKey&&e.key==='Enter'){confirmCurrent(e);}else if(e.altKey&&e.key==='ArrowRight'){e.preventDefault();moveTo(index+1);}else if(e.altKey&&e.key==='ArrowLeft'){e.preventDefault();moveTo(index-1);}});
+window.addEventListener('pagehide',()=>{capture(true);persist();});
+if(innerWidth<800)$('navDetails').open=false;
+if(qa)document.title='QA · '+document.title;
+render();
+</script>
+</body>
+</html>
