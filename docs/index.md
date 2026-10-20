@@ -39,6 +39,7 @@ V2.1 `extend5` step 40,000 / INT8 block-32 is the current deployment release. V1
 | V4 conversion post-training | [C1r2 data revision and diagnostics (Chinese)](zh-CN/reports/v4-20261016/c1r2.md) |
 | V4.1 joint pretraining | [Results summary](training-v41.md), [complete evaluation (Chinese)](zh-CN/reports/v41-20261016/evaluation.md) |
 | V4.2 LM/chat pretraining | [Results summary](training-v42.md), [complete evaluation (Chinese)](zh-CN/reports/v42-20261020/evaluation.md), [fixed reference and regression analysis (Chinese)](zh-CN/reports/v42-20261020/reference-regressions.md) |
+| V4.2 Apple deployment | [Core ML, INT8 and Mac measurements](reports/mac-20261020/v42-coreml.md) |
 | External Japanese LMs | [TinySwallow](zh-CN/reports/v4-20261016/external-1p5b.md), [RakutenAI](zh-CN/reports/v4-20261016/external-rakuten-1p5b.md), [Sarashina](zh-CN/reports/v4-20261016/external-sarashina-1p4b.md) |
 
 ## Historical V1 references
