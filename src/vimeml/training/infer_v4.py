@@ -13,11 +13,14 @@ from vimeml.tokenizer.v4 import read_json
 
 
 class JapaneseLMV4(JapaneseLM):
+    FORMAT = FORMAT
+    ARCHITECTURE = "tiny_gpt_v4"
+
     def __init__(self, checkpoint, tokenizer_dir, device="cpu"):
         self.device = torch.device(device)
         saved = torch.load(checkpoint, map_location="cpu", weights_only=True)
-        if saved.get("format") != FORMAT or saved.get("architecture") != "tiny_gpt_v4":
-            raise ValueError("Explicit V4 checkpoint required")
+        if saved.get("format") != self.FORMAT or saved.get("architecture") != self.ARCHITECTURE:
+            raise ValueError(f"Explicit {self.ARCHITECTURE} checkpoint required")
         token_manifest = ROOT / saved["config"]["token_dir"] / "manifest.json"
         if file_sha(token_manifest) != saved["signatures"]["tokens"]:
             raise ValueError("Token data identity changed")
@@ -34,7 +37,7 @@ class JapaneseLMV4(JapaneseLM):
             raise ValueError("Checkpoint tokenizer contract mismatch")
         self.model = model_from_checkpoint(saved).to(self.device).eval()
         self.forbidden = (0, 1, 2, 4, 5, 6)
-        self.metadata = {"architecture": "tiny_gpt_v4", "checkpoint_sha256": file_sha(Path(checkpoint)),
+        self.metadata = {"architecture": self.ARCHITECTURE, "checkpoint_sha256": file_sha(Path(checkpoint)),
                          "checkpoint_step": saved["step"], "tokenizer_sha256": digest,
                          "model": self.model.configuration(), "precision": "fp32",
                          "random_initialization_test_only": saved.get("random_initialization_test_only", False)}

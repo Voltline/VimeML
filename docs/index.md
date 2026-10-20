@@ -15,6 +15,7 @@ V2.1 `extend5` step 40,000 / INT8 block-32 is the current deployment release. V1
 | [V4 post-training](posttraining-v4.md) / [conversion data](data-v4-c1.md) | Completed C1/C1r2 experiments, frozen data, conditional scoring, and first-run settings |
 | [V4.1 joint pretraining](training-v41.md) | Completed sixteen-epoch LM/chat/conversion experiment and local evaluation |
 | [V4.2 LM/chat pretraining](training-v42.md) | Completed twenty-epoch LM/chat experiment without conversion, and local evaluation |
+| [V5 scale-up pretraining (Chinese, planned)](zh-CN/training-v5.md) | d512/L8 (28.4M) size-only comparison against V4.3 controlled-10ep; V4.3 saturation evidence |
 | [Evaluation](evaluation.md) | Fixed-pool scoring, statistics, and benchmark roles |
 | [Standard IME](benchmarks/standard-ime.md) / [initial comparison](benchmarks/standard-ime-results-20261008.md) | Source splits, AI review, candidate export, and reference-set consumption |
 | [Core ML](coreml.md) | Conversion, quantization, client contract, and V2.1/V4.2 measurements |

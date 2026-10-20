@@ -27,6 +27,7 @@ V2系列实验已完成，当前部署版本为V2.1 extend5 step40000 / INT8 blo
 | 转换后训练 | [C1r2 数据修订、完整结果与 Reading 消融](reports/v4-20261016/c1r2.md) |
 | V4.1 混合预训练 | [训练设置](training-v41.md)、[十六轮完整评估](reports/v41-20261016/evaluation.md) |
 | V4.2 LM／Chat 预训练 | [训练设置](training-v42.md)、[二十轮完整评估](reports/v42-20261020/evaluation.md)、[固定 reference 与退化分析](reports/v42-20261020/reference-regressions.md) |
+| V5 规模扩展预训练（计划） | [设计、V4.3 饱和证据与集群操作](training-v5.md) |
 | V4.2 Apple 部署 | [Core ML、INT8、分段 KV、Mac 与 iPhone 测量（英文）](../reports/mac-20261020/v42-coreml.md) |
 | 外部日语模型 | [TinySwallow](reports/v4-20261016/external-1p5b.md)、[RakutenAI](reports/v4-20261016/external-rakuten-1p5b.md)、[Sarashina](reports/v4-20261016/external-sarashina-1p4b.md) |
 
