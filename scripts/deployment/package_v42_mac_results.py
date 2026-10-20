@@ -6,7 +6,8 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-MODELS = [f"tiny-ja-v4.2-epoch20-{name}-v1" for name in ("bundle", "fp32", "int8-b32", "kv-fp32", "kv-int8-b32")]
+MODELS = [f"tiny-ja-v4.2-epoch20-{name}-v1" for name in ("bundle", "fp32", "int8-b32", "kv-fp32", "kv-int8-b32",
+                                                                "kvchunk-fp32", "kvchunk-int8-b32")]
 MEASUREMENT_ONLY = [f"tiny-ja-v2.1-extend5-kv-{name}-mac-v42-measure-v1" for name in ("fp32", "int8-b32")]
 
 
@@ -14,12 +15,11 @@ def git(*args):
     return subprocess.check_output(["git", "-C", str(ROOT), *args], text=True).strip()
 
 
-def package(status, resources, pr, output):
+def package(status, resources, pr, output, client=None):
     if output.exists():
         raise ValueError("Results ZIP already exists; use a new version.")
     directories = [ROOT / "artifacts/deployment" / name for name in [*MODELS, *MEASUREMENT_ONLY]]
-    if resources:
-        directories.append(Path(resources).resolve())
+    directories += [Path(path).resolve() for path in resources or []]
     directories += sorted(p for p in (ROOT / "outputs/deployment").glob("v42-*") if p.is_dir())
     directories += [ROOT / "outputs/deployment/v21-kv-mac-v42-measure-gate-v1", ROOT / "outputs/deployment/logs"]
     files = []
@@ -29,8 +29,9 @@ def package(status, resources, pr, output):
         for path in sorted(directory.rglob("*")):
             if path.is_symlink():
                 raise ValueError(f"Unexpected symlink in transfer: {path}")
-            # Compiled measurement copies are reproducible from the packages.
-            if path.is_file() and "compiled" not in path.relative_to(directory).parts:
+            # Compiled measurement copies and Xcode result bundles stay local.
+            parts = path.relative_to(directory).parts
+            if path.is_file() and "compiled" not in parts and not any(p.endswith(".xcresult") for p in parts):
                 files.append(path)
     paths = {p.relative_to(ROOT).as_posix(): p.stat().st_size for p in files}
     if len(paths) != len(files):
@@ -38,7 +39,10 @@ def package(status, resources, pr, output):
     acceptance = json.loads(status.read_text())
     record = {"format": "vimeml_v42_mac_results_v1", "date": "2026-10-20",
         "repositories": {"VimeML": {"base_commit": git("merge-base", "HEAD", "origin/main"),
-            "head_commit": git("rev-parse", "HEAD"), "branch": git("branch", "--show-current"), "pr": pr}},
+            "head_commit": git("rev-parse", "HEAD"), "branch": git("branch", "--show-current"), "pr": pr},
+            **({"Vime": {"base_commit": git("-C", str(client), "merge-base", "HEAD", "origin/main"),
+                         "head_commit": git("-C", str(client), "rev-parse", "HEAD"),
+                         "branch": git("-C", str(client), "branch", "--show-current"), "pr": pr}} if client else {})},
         "environment": json.loads((ROOT / "artifacts/deployment" / MODELS[1] / "manifest.json").read_text())["environment"],
         "acceptance": acceptance, "files": paths,
         "measurement_only": MEASUREMENT_ONLY,
@@ -61,11 +65,12 @@ def package(status, resources, pr, output):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--status", type=Path, required=True)
-    parser.add_argument("--resources", type=Path)
+    parser.add_argument("--resources", type=Path, nargs="*")
+    parser.add_argument("--client", type=Path, help="Vime worktree with the opt-in V4.2 branch")
     parser.add_argument("--pr", default="not opened")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    package(args.status, args.resources, args.pr, args.output)
+    package(args.status, args.resources, args.pr, args.output, args.client)
 
 
 if __name__ == "__main__":

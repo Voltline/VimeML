@@ -9,7 +9,7 @@ import torch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from vimeml.deployment import v4_coreml as v4
+from vimeml.deployment import v4_chunk, v4_coreml as v4
 from vimeml.deployment.bundle import read_json, write_json
 from vimeml.deployment.v4 import CACHE_SHAPE, KVStepGraphV4
 from vimeml.training.data import file_sha
@@ -34,6 +34,25 @@ class EagerKVRuntime:
             logits, key, value = self.graph(torch.tensor([[int(token)]], dtype=torch.int32),
                                             torch.tensor([start + offset], dtype=torch.int32), key, value)
             parts.append(logits.numpy())
+            self.calls += 1
+        return np.concatenate(parts, axis=1), (key.numpy(), value.numpy())
+
+
+class EagerChunkRuntime:
+    """Same run() contract as KVChunkRuntimeV4 (one call per chunk), eager graph."""
+    def __init__(self, model):
+        self.graph, self.config, self.calls = v4_chunk.KVChunkGraphV4(model).eval(), model.config, 0
+
+    @torch.inference_mode()
+    def run(self, ids, state=None, start=0, chunks=None):
+        state = v4.empty_cache() if state is None else state
+        key, value = (torch.from_numpy(a.copy()) for a in state)
+        parts, offset = [], 0
+        for size in chunks or [len(ids)]:
+            logits, key, value = self.graph(torch.tensor([list(ids[offset:offset + size])], dtype=torch.int32),
+                                            torch.tensor([start + offset], dtype=torch.int32), key, value)
+            parts.append(logits.numpy())
+            offset += size
             self.calls += 1
         return np.concatenate(parts, axis=1), (key.numpy(), value.numpy())
 
@@ -111,6 +130,33 @@ class V4DeploymentTests(unittest.TestCase):
         self.assertTrue(torch.equal(logits[0, 4:], torch.zeros(2, 8192)))
         with torch.no_grad():
             torch.testing.assert_close(logits[1], self.model(inputs[1:])[0], atol=3e-4, rtol=3e-4)
+
+    def test_chunk_graph_trace_matches_full_and_forward_cached_and_masks_dirty_tail(self):
+        v4_chunk.trace_kv_chunk_graph(self.model)
+        runtime = EagerChunkRuntime(self.model)
+        ids = [2, *range(100, 130)]
+        with torch.no_grad():
+            full = self.model(torch.tensor([ids])).numpy()
+        for chunks in ([31], [1] * 31, [3, 28], [15, 16]):
+            actual, _ = runtime.run(ids, chunks=chunks)
+            np.testing.assert_allclose(actual, full, atol=3e-4, rtol=3e-4)
+        _, state = runtime.run(ids[:7])
+        dirty = tuple(a.copy() for a in state)
+        for a in dirty:
+            a[:, :, :, 7:, :] = 999
+        clean, _ = runtime.run(ids[7:10], state, 7)
+        polluted, _ = runtime.run(ids[7:10], dirty, 7)
+        np.testing.assert_array_equal(clean, polluted)
+
+    def test_chunk_adapter_uses_one_call_per_prefix_and_suffix(self):
+        runtime = EagerChunkRuntime(self.model)
+        forward = v4_chunk.CachedChunkForwardV4(runtime, 0)
+        inputs = torch.tensor([[2, 10, 11, 12, 0, 0], [2, 10, 11, 13, 14, 15]])
+        logits = forward(inputs)
+        self.assertEqual(runtime.calls, 1 + 1 + 1)
+        with torch.no_grad():
+            torch.testing.assert_close(logits[1], self.model(inputs[1:])[0], atol=3e-4, rtol=3e-4)
+            torch.testing.assert_close(logits[0, :4], self.model(inputs[:1, :4])[0], atol=3e-4, rtol=3e-4)
 
     def test_error_distribution_reports_quantiles_and_argmax(self):
         expected = np.zeros((1, 2, 4), dtype=np.float32)

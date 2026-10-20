@@ -6,6 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
+from vimeml.benchmarks.comparison import paired
 from vimeml.training.data import file_sha
 
 OUT = ROOT / "outputs/deployment"
@@ -19,6 +20,10 @@ RUNS = {
     "coreml_int8": OUT / "v42-coreml-int8-tracks-v1",
     "kv_fp32": OUT / "v42-coreml-kv-fp32-tracks-v1",
     "kv_int8": OUT / "v42-coreml-kv-int8-tracks-v1",
+    "kvchunk_fp32": OUT / "v42-coreml-kvchunk-fp32-tracks-v1",
+    "kvchunk_int8": OUT / "v42-coreml-kvchunk-int8-tracks-v1",
+    "v21_coreml_fp32": OUT / "v42-v21-coreml-fp32-tracks-v1",
+    "v21_coreml_int8": OUT / "v42-v21-coreml-int8-tracks-v1",
 }
 METHODS = ("lm_context_sum", "lm_context_mean_secondary", "lm_no_context_sum")
 
@@ -67,10 +72,13 @@ def main():
     fixtures = read(OUT / "v42-mac-pytorch-baseline-v1/fixtures.json")
     gates = {name: read(OUT / f"{name}/alignment.json") for name in (
         "v42-fp32-alignment-v1", "v42-kv-fp32-alignment-v1", "v42-int8-alignment-v1",
-        "v42-kv-int8-vs-stateless-int8-v1", "v42-kv-int8-vs-fp32-fixtures-v1")}
+        "v42-kv-int8-vs-stateless-int8-v1", "v42-kv-int8-vs-fp32-fixtures-v1",
+        "v42-kvchunk-fp32-alignment-v1", "v42-kvchunk-int8-vs-stateless-int8-v1",
+        "v42-kvchunk-int8-vs-fp32-fixtures-v1")}
     orders = {f"{a}_vs_{b}": all_method_orders(a, b) for a, b in (
         ("cuda", "mac_pytorch"), ("mac_pytorch", "coreml_fp32"), ("mac_pytorch", "kv_fp32"),
-        ("coreml_fp32", "coreml_int8"), ("coreml_int8", "kv_int8"))}
+        ("coreml_fp32", "coreml_int8"), ("coreml_int8", "kv_int8"),
+        ("coreml_fp32", "kvchunk_fp32"), ("coreml_int8", "kvchunk_int8"))}
     no_changes = lambda key: all(not ids for track in orders[key].values() for ids in track.values())
     int8 = track_comparison("coreml_int8")
     measured = read(args.measurements)
@@ -89,6 +97,14 @@ def main():
         "4_int8_kv_vs_same_weight_stateless_int8_passed": gates["v42-kv-int8-vs-stateless-int8-v1"]["passed"],
         "4_kv_int8_top1_equals_stateless_int8": counts["kv_int8"] == counts["coreml_int8"],
         "4_kv_int8_orders_equal_stateless_int8_all_methods": no_changes("coreml_int8_vs_kv_int8"),
+        "7_kvchunk_fp32_alignment_passed": gates["v42-kvchunk-fp32-alignment-v1"]["passed"],
+        "7_kvchunk_int8_vs_same_weight_stateless_int8_passed": gates["v42-kvchunk-int8-vs-stateless-int8-v1"]["passed"],
+        "7_kvchunk_int8_strict_vs_fp32_fixtures_passed (expected false)": gates["v42-kvchunk-int8-vs-fp32-fixtures-v1"]["passed"],
+        "7_kvchunk_fp32_top1_equals_stateless_fp32": counts["kvchunk_fp32"] == counts["coreml_fp32"],
+        "7_kvchunk_fp32_orders_equal_stateless_fp32_all_methods": no_changes("coreml_fp32_vs_kvchunk_fp32"),
+        "7_kvchunk_int8_top1_equals_stateless_int8": counts["kvchunk_int8"] == counts["coreml_int8"],
+        "7_kvchunk_int8_orders_equal_stateless_int8_all_methods": no_changes("coreml_int8_vs_kvchunk_int8"),
+        "8_v21_coreml_fp32_top1_equals_recorded": counts["v21_coreml_fp32"] == V21_TOP1,
         "5_measurements_recorded": set(measured["models"]) >= {"v42-fp32", "v42-int8", "v21-fp32", "v21-int8"},
         "6_ios_resources_prepared": bool(args.resources and (args.resources / "manifest.json").is_file()),
     }
@@ -99,6 +115,13 @@ def main():
             "order_changed_cases": int8[track]["order_changed_cases"], "top1_changed_cases": int8[track]["top1_changed_cases"],
             "max_score_sum_abs": int8[track]["max_score_sum_abs"], "mean_score_sum_abs": int8[track]["mean_score_sum_abs"]}
             for track in TRACKS},
+        "v21_int8_vs_v42_int8": {track: {k: v for k, v in paired(rows("v21_coreml_int8", track),
+                                         rows("coreml_int8", track))["paired"].items() if k != "significant_at_0_05"}
+                                 for track in TRACKS},
+        "v21_fp32_vs_v42_fp32": {track: {k: v for k, v in paired(rows("v21_coreml_fp32", track),
+                                         rows("coreml_fp32", track))["paired"].items() if k != "significant_at_0_05"}
+                                 for track in TRACKS},
+        "v21_int8_vs_v21_fp32": {track: track_comparison("v21_coreml_int8")[track]["paired"] for track in TRACKS},
         "all_method_order_differences": orders,
         "alignment_summaries": {name: {"passed": g["passed"], **g["summary"]} for name, g in gates.items()},
         "inputs_sha256": {"measurements": file_sha(args.measurements)},

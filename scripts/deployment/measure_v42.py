@@ -33,6 +33,8 @@ MODELS = [
     ("v21-int8", "V2.1", "stateless", DEPLOY / "tiny-ja-v2.1-extend5-int8-b32-v1", 16384, None),
     ("v42-kv-fp32", "V4.2", "kv_single_token", DEPLOY / "tiny-ja-v4.2-epoch20-kv-fp32-v1", 8192, (7, 1, 6, 128, 64)),
     ("v42-kv-int8", "V4.2", "kv_single_token", DEPLOY / "tiny-ja-v4.2-epoch20-kv-int8-b32-v1", 8192, (7, 1, 6, 128, 64)),
+    ("v42-kvchunk-fp32", "V4.2", "kv_chunk_v4", DEPLOY / "tiny-ja-v4.2-epoch20-kvchunk-fp32-v1", 8192, (7, 1, 6, 128, 64)),
+    ("v42-kvchunk-int8", "V4.2", "kv_chunk_v4", DEPLOY / "tiny-ja-v4.2-epoch20-kvchunk-int8-b32-v1", 8192, (7, 1, 6, 128, 64)),
     ("v21-kv-fp32", "V2.1", "kv_chunk", V21_KV["fp32"], 16384, (6, 1, 5, 128, 64)),
     ("v21-kv-int8", "V2.1", "kv_chunk", V21_KV["int8"], 16384, (6, 1, 5, 128, 64)),
 ]
@@ -102,14 +104,12 @@ def worker(name, graph, compiled, vocab, cache_shape, repeats, warmup, seed):
             warm[f"T{length}"] = stats([timed(work) for _ in range(repeats)])
     else:
         zeros = np.zeros(cache_shape, dtype=np.float32)
+        # V4 graphs name the cache length `position`; the V2.1 chunk graph `cache_length`.
+        length_name = "cache_length" if graph == "kv_chunk" else "position"
 
         def step(token, position, key, value):
-            if graph == "kv_single_token":
-                out = model.predict({"input_ids": np.array([[token]], np.int32), "position": np.array([position], np.int32),
-                                     "key_cache": key, "value_cache": value})
-            else:
-                out = model.predict({"input_ids": np.array([[token]], np.int32), "cache_length": np.array([position], np.int32),
-                                     "key_cache": key, "value_cache": value})
+            out = model.predict({"input_ids": np.array([[token]], np.int32), length_name: np.array([position], np.int32),
+                                 "key_cache": key, "value_cache": value})
             return out["new_key_cache"], out["new_value_cache"]
 
         def prefill(ids):
@@ -118,12 +118,19 @@ def worker(name, graph, compiled, vocab, cache_shape, repeats, warmup, seed):
                 for position, token in enumerate(ids):
                     key, value = step(int(token), position, key, value)
                 return key, value
-            out = model.predict({"input_ids": np.asarray([ids], np.int32), "cache_length": np.array([0], np.int32),
+            # Chunk graphs: the whole prefix in one call.
+            out = model.predict({"input_ids": np.asarray([ids], np.int32), length_name: np.array([0], np.int32),
                                  "key_cache": zeros, "value_cache": zeros})
             return out["new_key_cache"], out["new_value_cache"]
 
         cold = {"first_call_decode_position0_ms": timed(lambda: step(2, 0, zeros, zeros))}
         after_cold = memory()
+        if graph != "kv_single_token":
+            # Isolate the largest chunk: one T=128 prefill before any other workload.
+            full = rng.integers(7, vocab, 128).astype(np.int32)
+            full[0] = 2
+            cold["first_prefill_T128_ms"] = timed(lambda: prefill(full))
+            result["after_t128_chunk"] = memory()
         warm = {}
         for prefix in PREFIXES:
             ids = rng.integers(7, vocab, prefix).astype(np.int32)
@@ -138,7 +145,10 @@ def worker(name, graph, compiled, vocab, cache_shape, repeats, warmup, seed):
             fill()
             warm[f"prefill_{prefix}"] = stats([timed(fill) for _ in range(max(5, repeats // 5))])
     after_workload = memory()
+    t128 = result.pop("after_t128_chunk", None)
     result.update(cold=cold, warm=warm, memory={"before_import": before_import, "after_import": after_import,
+        **({"after_t128_chunk": t128, "t128_chunk_peak_delta_footprint_mib":
+            t128["lifetime_peak_footprint_mib"] - after_import["phys_footprint_mib"]} if t128 else {}),
         "after_load": after_load, "after_cold_calls": after_cold, "after_workload": after_workload,
         "load_delta_footprint_mib": after_load["phys_footprint_mib"] - after_import["phys_footprint_mib"],
         "peak_delta_footprint_mib": after_workload["lifetime_peak_footprint_mib"] - after_import["phys_footprint_mib"]})
@@ -259,7 +269,8 @@ def run(output, rounds, repeats, warmup):
                 "warm_p50_of_process_p50_ms": {k: float(np.median([r["warm"][k]["p50_ms"] for r in items])) for k in warm_keys},
                 "warm_p50_of_process_p95_ms": {k: float(np.median([r["warm"][k]["p95_ms"] for r in items])) for k in warm_keys},
                 "memory_mib_p50": {key: float(np.median([r["memory"][key] for r in items]))
-                                   for key in ("load_delta_footprint_mib", "peak_delta_footprint_mib")},
+                                   for key in ("load_delta_footprint_mib", "peak_delta_footprint_mib",
+                                               "t128_chunk_peak_delta_footprint_mib") if key in first["memory"]},
                 "footprint_after_load_mib_p50": float(np.median([r["memory"]["after_load"]["phys_footprint_mib"] for r in items])),
                 "lifetime_peak_footprint_mib_p50": float(np.median([r["memory"]["after_workload"]["lifetime_peak_footprint_mib"] for r in items])),
                 "footprint_after_import_mib_p50": float(np.median([r["memory"]["after_import"]["phys_footprint_mib"] for r in items]))}

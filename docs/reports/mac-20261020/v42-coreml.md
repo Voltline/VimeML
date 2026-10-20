@@ -13,7 +13,9 @@ Environment: Apple M3, 16 GiB, macOS 27.2 (26B5112a), Xcode 27.1, Python 3.11.17
 | 3. FP32 gates | Passed: stateless max 5.2e-5, KV max 5.0e-5, all invariants exact; stateless and KV Top-1 and full orders equal Mac PyTorch on all four tracks |
 | 4. INT8 block32 | Strict logits gate failed as expected (max 0.477); task-level Top-1 522/371/139/123 vs FP32 523/370/139/123; KV INT8 equals stateless INT8 within 4.0e-5 and on all Top-1 (one diagnostic-method tie swap) |
 | 5. Measurements | V4.2 and V2.1 FP32/INT8, stateless and KV, same Mac harness; INT8 changes size, not CPU latency; V4.2 single-token KV prefill is ~30× V2.1 chunk prefill at 119 tokens |
-| 6. iOS resources | Prepared; no device run |
+| 6. iOS resources | v1 (single-token KV) and v2 (chunk KV) prepared |
+| 7. Chunked KV graph | FP32 gate passed (max 5.2e-5), INT8 equals stateless INT8 within 4.0e-5; Top-1 and primary orders equal stateless on all tracks; P=119 prefill 6.6 ms vs 170 ms single-token |
+| 8. iOS | Vime opt-in V4.2 variant; simulator functional tests and benchmark done; iPhone 16 Pro Max run deferred |
 
 ## 1. Mac PyTorch baseline
 
@@ -94,6 +96,19 @@ Improved: `ajimee:ime-standard-v1-development-wrime-0389`, `ajimee:ime-standard-
 
 INT8 KV reproduces stateless INT8 on all four tracks: Top-1 522/371/139/123, 0 per-case order differences in the primary `lm_context_sum` and in `lm_context_mean_secondary`, maximum suffix-score delta 5.4e-5. The only difference is one AJIMEE case (`ajimee:1763`) in the diagnostic `lm_no_context_sum`. Its candidates at ranks 11 and 12 are tied at −67.4044114 in stateless INT8 and separated by about 2e-5 in KV, so the stable-tie order swaps; Top-1 is unchanged. The acceptance check "KV INT8 orders equal stateless INT8 in all methods" is therefore recorded as false. Apart from this tie, cache reuse adds no error beyond the shared weight quantization.
 
+### V2.1 under the same Mac harness
+
+The deployed V2.1 packages were scored with the same frozen pools, scorer and Mac Core ML CPU_ONLY harness (`coreml_v4.py evaluate-v21`). V2.1 Core ML FP32 reproduces its recorded PyTorch FP32 run exactly: 505/374/144/122 with 0 per-case order differences. Earlier records had V2.1 INT8 only for AJIMEE (144) and Historical (122); Standard and Legacy are new here.
+
+| Track | V2.1 FP32 | V2.1 INT8 | V2.1 INT8 vs FP32, improved / regressed | V4.2 INT8 | V2.1 INT8 → V4.2 INT8, improved / regressed | Net | Exact McNemar p |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Standard development | 505 | 506 | 4 / 3 | 522 | 44 / 28 | +16 | 0.076 |
+| Legacy regression | 374 | 375 | 3 / 2 | 371 | 13 / 17 | −4 | 0.585 |
+| AJIMEE | 144 | 144 | 3 / 3 | 139 | 9 / 14 | −5 | 0.405 |
+| Historical development | 122 | 122 | 0 / 0 | 123 | 4 / 3 | +1 | 1.0 |
+
+For reference, the FP32 pairing V2.1 → V4.2 under this harness is 46/28 (p=0.047), 15/19, 8/13 and 4/3, identical to the recorded CUDA comparison for Standard. Quantization leaves the direction of the V2.1/V4.2 differences unchanged: V4.2 is ahead on Standard and behind on Legacy and AJIMEE, and none of the INT8 differences reaches p<0.05. These are exploratory development comparisons, not a replacement decision.
+
 ## 5. Measurements
 
 `scripts/deployment/measure_v42.py` compiles each package with `xcrun coremlcompiler`, then loads the `.mlmodelc` through `coremltools.models.CompiledMLModel` with CPU_ONLY in a fresh Python process per model per round. Eight models are interleaved over five rounds, with 5 warm-up and 50 timed calls per shape and seeded random token IDs. Memory is the macOS `phys_footprint` from `proc_pid_rusage`; deltas are measured from the point after `coremltools` import (about 282 MiB of Python/coremltools/PyTorch runtime).
@@ -148,6 +163,91 @@ Cold first calls are bimodal, at roughly 4–12 ms or 40–120 ms, and every mod
 
 `scripts/deployment/package_v4_ios.py` writes `artifacts/deployment/tiny-ja-v4.2-epoch20-client-resources-v1`: `TinyJapaneseV42INT8.mlmodelc`, `TinyJapaneseV42KVINT8.mlmodelc` (compiled with `coremlcompiler`), `VimeJapaneseTokenizerV4.model`, `VimeLMManifestV42.json` (format `vime_ios_lm_v4`, forbidden generation IDs 0/1/2/4/5/6, compiled-file hashes) and `VimeLMFixturesV42.json`. The fixtures reuse the Vime V2.1 template inputs read-only: 6,755 tokenization texts, 4 scoring sets with INT8 sums, 20 beam phrase results, and 12 single-token KV step sequences whose suffix sums equal the stateless sums within 1e-5. Resource names are new, so V1/V2 client resources are unaffected. Device runs in the Vime repository remain a later step.
 
+## 7. Chunked KV graph
+
+The single-token graph makes prefill cost one call per token (§5). `vimeml.deployment.v4_chunk.KVChunkGraphV4` exports the same weights for T new tokens per call; `KVStepGraphV4`, its packages and records are unchanged. Interface: `input_ids int32[1,T]` (1≤T≤128, dynamic), `position int32[1]` (current cache length; caller guarantees position+T≤128), `key_cache`/`value_cache float32(7,1,6,128,64)` → `logits float32[1,T,8192]`, `new_key_cache`, `new_value_cache`. Format `vimeml_coreml_v4_kv_chunk_v1`; iOS 18, FP32 compute, CPU_ONLY.
+
+Cache writes use the `index_put` pattern of the V2.1 `kv_cache.CacheGraph` (14 `scatter_nd` ops after conversion). Conversion and every gate passed with it, so the one-hot matmul fallback was not needed. A static 128×128 causal mask gathered by absolute query position lets query p+i see only slots ≤ p+i, which also hides unused tail slots. Before export, the traced graph matches `model(ids)` and `forward_cached` (logits and both caches, 3e-4) for the schedules [1,3,124], [128], [3,1,124], [124,3,1] and [127,1], covering start 0, nonzero starts and the last slot.
+
+| Package | Logical bytes |
+| --- | ---: |
+| `tiny-ja-v4.2-epoch20-kvchunk-fp32-v1` | 60,496,928 |
+| `tiny-ja-v4.2-epoch20-kvchunk-int8-b32-v1` | 17,193,424 |
+
+INT8 uses the same recipe and selection: 37 matrices; the causal mask and lm_head bias constant stay FP32.
+
+| Check (atol=rtol=3e-4) | FP32 vs PyTorch fixtures | INT8 vs stateless INT8 | INT8 vs FP32 fixtures |
+| --- | --- | --- | --- |
+| One-shot prefill, five cases | max 5.2e-5 | 0 (bit-identical) | 0.477 (expected fail) |
+| Chunks [1]×T, [3,T−3], half/half | max 5.2e-5; ≤3.8e-5 from one-shot | max 4.0e-5; ≤4.0e-5 from one-shot | 0.477 |
+| [1]×T vs `long_kv_step_logits` | 2.9e-5 | — | 0.477 |
+| T=1 decode vs single-token KV package | 0 (bit-identical) | 0 (bit-identical) | — |
+| Shared-prefix branches [9], [47,81,102], [9] | max 2.3e-5 | max 2.9e-5 | 0.708 |
+| `right_pad`/`changed_future` prefix, A/B/A rollback, dirty tail (999, T=1 and T=3), snapshot immutability | exact / unchanged | exact / unchanged | exact / unchanged |
+| Gate | Passed (27 checks) | Passed (26 checks) | Failed (22/22), as for the other INT8 graphs |
+
+Different chunkings of the same tokens are equal within tolerance, not bit-identical (up to 4.0e-5), because chunk size changes the matmul shapes.
+
+Four-track scoring makes one chunk call for the exact joint-tokenized common prefix, then one chunk call per candidate suffix from that immutable snapshot.
+
+| Track | Stateless FP32 / chunk FP32 | Stateless INT8 / chunk INT8 | Order differences FP32 / INT8 (all LM methods) | Max suffix-score delta FP32 / INT8 |
+| --- | ---: | ---: | ---: | ---: |
+| Standard development | 523 / 523 | 522 / 522 | 0 / 0 | 4.8e-5 / 4.1e-5 |
+| Legacy regression | 370 / 370 | 371 / 371 | 0 / 0 | 3.9e-5 / 2.9e-5 |
+| AJIMEE | 139 / 139 | 139 / 139 | 0 / 1 | 4.3e-5 / 4.2e-5 |
+| Historical development | 123 / 123 | 123 / 123 | 0 / 0 | 2.3e-5 / 3.1e-5 |
+
+The single INT8 difference is the same diagnostic `lm_no_context_sum` tie in `ajimee:1763` seen for the single-token INT8 graph (ranks 11/12, tied in stateless INT8, separated by about 2e-5); Top-1 is unchanged. The corresponding acceptance check is recorded as false.
+
+Measurements rerun all ten packages with the unchanged harness (`measure_v42.py run`, now including the two chunk packages) into `v42-mac-measurements-v2`: five interleaved rounds, a fresh process per model per round, 5 warm-up and 50 timed calls (prefill: 10). Conditions: AC power (98–99%, charging), Low Power Mode off, no thermal or performance warning at any of six `pmset -g therm` checkpoints, 1-minute load average 3.8–4.8 (decaying after the evaluations; nothing else running). For chunk graphs the worker also makes one T=128 prefill right after load, before any other workload, to isolate its footprint. In this rerun, stateless calls and single-token decode are within about 0.35 ms of §5, and single-token prefill is about 5% lower (171 vs 181 ms at P=119).
+
+| Model (warm p50 / p95, ms) | Prefill P=7 | P=31 | P=63 | P=119 | Decode after P=7 | P=31 | P=63 | P=119 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| V4.2 KV single-token FP32 (P calls) | 10.2 / 10.3 | 44.2 / 45.7 | 90.2 / 92.0 | 171.5 / 183.1 | 1.43 / 1.57 | 1.41 / 1.66 | 1.40 / 1.55 | 1.42 / 1.60 |
+| V4.2 KV single-token INT8 (P calls) | 10.1 / 10.5 | 45.1 / 47.2 | 89.6 / 91.5 | 169.5 / 171.3 | 1.43 / 1.56 | 1.42 / 1.60 | 1.42 / 1.55 | 1.41 / 1.56 |
+| V4.2 KV chunk FP32 (1 call) | 2.47 / 2.64 | 3.40 / 3.57 | 4.54 / 4.65 | 6.63 / 6.73 | 1.94 / 2.06 | 1.92 / 2.07 | 1.91 / 2.05 | 1.92 / 2.06 |
+| V4.2 KV chunk INT8 (1 call) | 2.49 / 2.59 | 3.52 / 3.79 | 4.55 / 4.80 | 6.56 / 6.66 | 1.94 / 2.13 | 1.93 / 2.10 | 1.94 / 2.16 | 1.93 / 2.04 |
+| V2.1 KV FP32 (1 call) | 2.20 / 2.28 | 3.01 / 3.10 | 4.14 / 4.21 | 6.02 / 6.13 | 1.56 / 1.75 | 1.53 / 1.70 | 1.52 / 1.70 | 1.51 / 1.62 |
+| V2.1 KV INT8 (1 call) | 2.19 / 2.33 | 3.03 / 3.17 | 4.13 / 4.30 | 6.11 / 6.23 | 1.53 / 1.67 | 1.52 / 1.68 | 1.51 / 1.65 | 1.51 / 1.59 |
+
+| Model | Package / compiled MB | Load, first process / p50 (ms) | Cold first T=128 prefill (ms) | Footprint Δ after T=128 chunk (MiB) | Peak footprint Δ (MiB) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| V4.2 KV chunk FP32 | 60.50 / 60.50 | 218.0 / 26.3 | 7.4 | 13.2 | 21.6 |
+| V4.2 KV chunk INT8 | 17.19 / 17.20 | 224.0 / 25.8 | 7.4 | 13.2 | 21.4 |
+| V4.2 KV single-token FP32 / INT8 | 60.42 / 17.12 | 206.1 / 21.5 · 145.3 / 21.3 | — | — | 16.4 / 17.9 |
+| V2.1 KV FP32 | 50.38 / 50.39 | 239.5 / 25.5 | 7.4 | 19.7 | 29.2 |
+| V2.1 KV INT8 | 14.36 / 14.36 | 165.2 / 26.3 | 7.4 | 19.7 | 29.6 |
+
+One chunk call cuts V4.2 prefill at P=119 from about 170 ms to 6.6 ms (26×), within 1.1× of V2.1 chunk prefill. A T=1 call through the chunk graph costs about 1.9 ms, roughly 0.5 ms more than the single-token graph (1.4 ms) and 0.4 ms more than V2.1, although its outputs are bit-identical to the single-token package. A client can therefore prefill with the chunk graph and decode with either graph; switching graphs mid-request reuses caches that agree within 4e-5, not bit-exactly. The T=128 chunk raises footprint by 13.2 MiB over the post-import baseline, against 19.7 MiB for V2.1 with its 16K logits. Cold first decode calls show the same bimodal spread as §5 (first process 3.6–5.0 ms; medians 37–81 ms). Mac host-process numbers only.
+
+Client resources v2 (`tiny-ja-v4.2-epoch20-client-resources-v2`; v1 unchanged) contain `TinyJapaneseV42INT8.mlmodelc`, `TinyJapaneseV42KVChunkINT8.mlmodelc`, the V4 tokenizer and manifest (`kv_graph: chunk`). The fixtures add 12 `kv_chunk_steps`: one chunk call for the common prefix, then single-token decode of each candidate suffix. Their suffix sums equal the stateless INT8 sums within 9.7e-6, inside the required 1e-5 but with little margin.
+
+## 8. iOS simulator and iPhone measurements
+
+Client integration lives on Vime branch `claude/v42-lm-measure` (separate worktree from `origin/main` `7e8bccc`; local commits only). `VimeLanguageModel` gains an explicit `Variant` (`.v21` default, `.v42` opt-in) that selects resource names, manifest format (`vime_ios_lm_v4`), vocabulary 8,192, and the V4 reserved conversion markers 4–6. Those markers are rejected in scoring/beam input and excluded from next-word and beam output, matching the Python V4 contract. Every production call site still constructs the default V2.1 model; only tests and the benchmark pass `.v42`. The client loads only the INT8 stateless model; the KV graphs are not integrated.
+
+The first V4.2 simulator run failed in all five V4.2 tests: the native SentencePiece bridge hard-coded a 16,384-piece check, so `vime_sp_load` rejected the 8,192-piece V4 tokenizer. Both tokenizers otherwise share the same normalizer settings (identity, byte fallback). The bridge now takes the expected piece count per variant, and the check stays exact. `Scripts/install_v42_resources.py` installs the hash-verified V4.2 resources from `client-resources-v1`; `validate_model_resources.py` additionally verifies them when their manifest is present.
+
+Functional checks (iPhone 18 Pro Max simulator, iOS 27.2, Debug): 5/5 new V4.2 tests pass. Native tokenization matches all 6,755 fixtures, joint suffix scores match Mac Core ML INT8 within 0.002 (with and without the conversion cache), and the first beam result matches all 20 Mac prefixes in token IDs and text (sums within 0.005). Literal `<CTX>` input is rejected and reserved IDs never appear in output. The 24 existing V2.1 model tests pass unchanged. The full `VimeKeyboardTests` suite on the branch executes 381 tests: 13 skipped (opt-in benchmark/memory scenarios) and 4 failed with 9 assertion failures (an intelligent-candidate profile assertion, a personal-recall latency budget, a settings-layout width and one segmented-conversion orthography expectation). The same four tests fail with the same nine assertions on a clean `origin/main` `7e8bccc` worktree, so they predate this change; they were not modified.
+
+Simulator benchmark: `VimeLanguageModelBenchmarkTests` (unchanged workload: fixed-length `predict`, 20 dictionary rerank cases × 5, 10 prompts × 3 beam and next-word requests), optimized `-O` build, `CPU_ONLY`, one variant per test process, variants alternating over four rounds (`Scripts/benchmark_lm_variants.py`). The simulator reported thermal state `nominal` and Low Power Mode off at the start and end of every run; the Mac was on AC power with no thermal warning; the 1-minute host load average fell from 8.8 (just after the build) to 5.9. Medians over the four processes of each process's p50 / p95:
+
+| Metric (ms unless noted) | V2.1 INT8 | V4.2 INT8 |
+| --- | ---: | ---: |
+| First load in process / reload | 243.6 / 73.3 | 267.8 / 33.0 |
+| First predict | 11.7 | 12.7 |
+| `predict` T=1 / 8 / 32 / 128 | 1.91 / 6.21 / 12.66 / 35.83 | 2.33 / 6.73 / 14.24 / 40.76 |
+| `predict` T=128 p95 | 36.3 | 41.0 |
+| Rerank scoring (`scores`, 90 calls) p50 / p95 / max | 54.1 / 438.7 / 454.7 | 61.5 / 478.2 / 489.9 |
+| Beam suggestions p50 / p95 | 427.6 / 469.6 | 452.4 / 495.0 |
+| Next words p50 / p95 | 56.8 / 78.7 | 59.8 / 77.1 |
+| Log-softmax row | 0.10 | 0.06 |
+| Footprint before / after load / peak (MB) | 29.8 / 31.9 / 35.5 | 30.0 / 31.4 / 35.7 |
+
+The rerank workload includes pools of up to 93 candidates; 10 of 90 direct `scores` calls exceed 250 ms for both variants. The keyboard's `rerank` path applies its own 250 ms soft budget, which this direct call does not. In this simulator workload V4.2 runs about 5–14% slower than V2.1 for T≥8 and end-to-end requests (22% at T=1), while its smaller vocabulary halves the log-softmax row cost; footprint is within 0.5 MB. An earlier three-round simulator run (`sim-benchmark`, before the thermal-state fields were added) gave the same picture. Simulator numbers run on the Mac CPU and are not iPhone measurements.
+
+iPhone 16 Pro Max: an optimized signed build-for-testing is ready (iOS 27.2 device, Developer Mode on), but the device run is deferred at the user's request; no physical-device numbers are reported here.
+
 ## Records
 
-Reports are under ignored `outputs/deployment/v42-*` (baseline, alignments, four-track scores with per-case comparisons, measurements, and `v42-mac-acceptance-v1/status.json` with every pass/fail check, including the expected INT8 strict failure and the KV INT8 tie) and logs under `outputs/deployment/logs/`. Packages are under `artifacts/deployment/tiny-ja-v4.2-epoch20-*-v1`. The results ZIP carries these with `handoff.json`; source changes stay on the branch.
+Reports are under ignored `outputs/deployment/v42-*` (baseline, alignments, four-track scores with per-case comparisons, measurements, and `v42-mac-acceptance-v1/status.json` and the superseding `v42-mac-acceptance-v2/status.json` with every pass/fail check, including the expected INT8 strict failures and the INT8 KV ties) and logs under `outputs/deployment/logs/`. Packages are under `artifacts/deployment/tiny-ja-v4.2-epoch20-*-v1`. The results ZIP carries these with `handoff.json`; source changes stay on the branch.

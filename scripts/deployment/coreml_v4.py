@@ -9,7 +9,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import numpy as np
 import torch
-from vimeml.deployment import v4_coreml as v4
+from vimeml.deployment import v4_chunk, v4_coreml as v4
 from vimeml.deployment.bundle import environment, fresh_directory, write_json
 from vimeml.training.data import file_sha
 
@@ -57,21 +57,27 @@ def main():
     stages = parser.add_subparsers(dest="stage", required=True)
     commands = {name: stages.add_parser(name) for name in (
         "baseline", "export", "convert", "convert-kv", "align", "align-kv", "compress", "compress-kv",
-        "evaluate", "evaluate-kv")}
+        "evaluate", "evaluate-kv", "evaluate-v21",
+        "convert-kvchunk", "align-kvchunk", "compress-kvchunk", "evaluate-kvchunk")}
     for name, command in commands.items():
         command.add_argument("--output", type=Path, required=True)
-        if name not in ("baseline", "export", "compress", "compress-kv"):
+        if name not in ("baseline", "export", "compress", "compress-kv", "evaluate-v21", "compress-kvchunk"):
             command.add_argument("--bundle", type=Path, required=True)
-        if name in ("align", "align-kv", "evaluate", "evaluate-kv"):
-            command.add_argument("--model", type=Path, required=name.endswith("-kv"))
-        if name in ("compress", "compress-kv"):
+        if name in ("align", "align-kv", "evaluate", "evaluate-kv", "align-kvchunk", "evaluate-kvchunk"):
+            command.add_argument("--model", type=Path, required=name.endswith(("-kv", "-kvchunk")))
+        if name in ("compress", "compress-kv", "compress-kvchunk"):
             command.add_argument("--source", type=Path, required=True)
             command.add_argument("--alignment", type=Path, required=True)
-        if name in ("evaluate", "evaluate-kv"):
+        if name == "evaluate-v21":
+            command.add_argument("--model", type=Path, required=True, help="Deployed V2.1 stateless package")
+        if name in ("evaluate", "evaluate-kv", "evaluate-v21", "evaluate-kvchunk"):
             command.add_argument("--reference", type=Path)
             command.add_argument("--reference-label")
     commands["align-kv"].add_argument("--stateless", type=Path,
                                       help="Same-precision stateless package; default compares with PyTorch fixtures")
+    commands["align-kvchunk"].add_argument("--stateless", type=Path,
+                                           help="Same-precision stateless package; default compares with PyTorch fixtures")
+    commands["align-kvchunk"].add_argument("--single", type=Path, help="Same-precision single-token KV package")
     args = parser.parse_args()
     if args.threads < 1 or args.output.exists():
         parser.error("Positive threads and a fresh output path are required.")
@@ -100,6 +106,24 @@ def main():
         print(json.dumps({"passed": report["passed"], "comparison": report["comparison"], **report["summary"]}, indent=2))
         if not report["passed"]:
             raise SystemExit("KV alignment failed; evidence preserved.")
+    elif args.stage == "convert-kvchunk":
+        v4_chunk.convert(args.bundle, args.output)
+    elif args.stage == "compress-kvchunk":
+        v4_chunk.compress(args.source, args.output, args.alignment)
+    elif args.stage == "align-kvchunk":
+        runtime = v4_chunk.KVChunkRuntimeV4(args.bundle, args.model)
+        report = v4_chunk.align(runtime, args.bundle, REFERENCE, args.output, args.stateless, args.single)
+        print(json.dumps({"passed": report["passed"], "comparison": report["comparison"], **report["summary"]}, indent=2))
+        if not report["passed"]:
+            raise SystemExit("KV chunk alignment failed; evidence preserved.")
+    elif args.stage == "evaluate-kvchunk":
+        v4.evaluate_tracks(v4_chunk.CachedChunkLMV4(args.bundle, args.model), args.output, args.reference,
+                           args.reference_label)
+    elif args.stage == "evaluate-v21":
+        # Same frozen pools and scorer for the deployed V2.1 packages (same Mac harness).
+        from vimeml.deployment import v2
+        lm = v2.CoreMLLM(ROOT / "artifacts/deployment/tiny-ja-v2.1-extend5-bundle-v1", args.model)
+        v4.evaluate_tracks(lm, args.output, args.reference, args.reference_label)
     else:
         if args.stage == "evaluate-kv":
             lm = v4.CachedLMV4(args.bundle, args.model)
