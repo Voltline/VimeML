@@ -67,7 +67,9 @@ def package(args):
         tracks[track] = {'release': release.name, 'release_id': manifest.get('release_id'), 'split': split,
                          'n_best': list(n_best), 'cases': len(read(out / track / 'case-map.json')),
                          'input_sha256': hashlib.sha256((out / track / 'ajimee-input.json').read_bytes()).hexdigest()}
-    (out / 'tracks.tsv').write_text(''.join(f'{t}\t{n}\n' for t, v in tracks.items() for n in v['n_best']), encoding='utf-8')
+    # LF: the Mac shell reads this line by line (CRLF made n_best "20\r").
+    (out / 'tracks.tsv').write_text(''.join(f'{t}\t{n}\n' for t, v in tracks.items() for n in v['n_best']),
+                                    encoding='utf-8', newline='\n')
     write_json(out / 'manifest.json', {'version': VERSION, 'created_utc': datetime.now(timezone.utc).isoformat(),
                                        'converter': CONVERTER, 'flags': 'typo off, Zenzai disabled, stable off',
                                        'tracks': tracks, 'lm_scoring': False})
@@ -78,7 +80,7 @@ def package(args):
         shutil.copyfile(ROOT / f'datasets/ime-standard-ja-v1/{source}/LICENSE', out / f'LICENSE-{source}.txt')
     (out / 'NOTICE.md').write_text(
         (BENCH / 'ime-standard-ja-v2-blind-ai-expert/NOTICE.md').read_text(encoding='utf-8') + '\n' +
-        (BENCH / 'ime-homophone-ja-v1-ai-expert/NOTICE.md').read_text(encoding='utf-8'), encoding='utf-8')
+        (BENCH / 'ime-homophone-ja-v1-ai-expert/NOTICE.md').read_text(encoding='utf-8'), encoding='utf-8', newline='\n')
     with zipfile.ZipFile(out.with_suffix('.zip'), 'x', zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(out.rglob('*')):
             if path.is_file():

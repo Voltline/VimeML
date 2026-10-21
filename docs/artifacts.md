@@ -31,7 +31,7 @@ Git contains source code, configurations, review annotations, tests, documentati
 | V4.3 | `outputs/training-v43-20261020/remote/checkpoints/epoch-{27,30}.pt`; controlled run `remote/controlled-10ep/checkpoints/epoch-10.pt` |
 | V5 | `outputs/training-v5-20261021/remote/checkpoints/epoch-{29,30}.pt` (epoch 30 primary); controlled run `remote/controlled-10ep/checkpoints/epoch-10.pt` |
 
-Frozen IME benchmark releases live in `artifacts/benchmarks/`: `ime-standard-ja-v1-ai-expert-r1` (Standard v1), `ime-standard-ja-v2-blind-ai-expert`, `ime-homophone-ja-v1-ai-expert` and `ime-incremental-ja-proto1`; the matching `-draft` and `-review` directories hold their construction and review records. `ime-candidates-v2-handoff{,.zip}` is the pending Mac candidate package.
+Frozen IME benchmark releases live in `artifacts/benchmarks/`: `ime-standard-ja-v1-ai-expert-r1` (Standard v1), `ime-standard-ja-v2-blind-ai-expert`, `ime-homophone-ja-v1-ai-expert` and `ime-incremental-ja-proto1`; the matching `-draft` and `-review` directories hold their construction and review records. `ime-candidates-v2-handoff{,.zip}` is the Mac candidate package; its returned exports are imported per track and n-best into `ime-candidates-v2-imported/<track>-n<k>/`, and the return archive is kept in `handoff/benchmarks/`.
 
 V4.2 Core ML packages are `artifacts/deployment/tiny-ja-v4.2-epoch20-{fp32,int8-b32,kv-*,kvchunk-*}-v1` with bundle `-bundle-v1` and client resources `-client-resources-v1` (single-token KV) and `-v2` (chunked KV). The `tiny-ja-v2.1-extend5-kv-*-mac-v42-measure-v1` packages are measurement-only rebuilds of the V2.1 KV export.
 

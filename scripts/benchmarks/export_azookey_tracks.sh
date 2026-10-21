@@ -23,6 +23,7 @@ mkdir -p -- "$results_dir"
 results_dir="$(cd -- "$results_dir" && pwd)"
 cd -- "$converter_dir"
 while IFS=$'\t' read -r track n_best; do
+  n_best="${n_best%$'\r'}"
   [[ -z "$track" ]] && continue
   result="$results_dir/$track/n$n_best"
   if [[ -e "$result/azookey-candidates.json" ]]; then
@@ -43,9 +44,10 @@ while IFS=$'\t' read -r track n_best; do
   swift --version > "$result/swift-version.txt"
   printf '%s\n' "n_best=$n_best" 'typo_mode=off' 'Zenzai=disabled (no model)' 'stable=off' > "$result/export-flags.txt"
   echo "Exporting $track n$n_best ..."
+  # Log only: CliTool output may summarize accuracy, and blind coverage opens with scoring.
   .build/release/CliTool evaluate "$result/ajimee-input.json" \
     --config_n_best "$n_best" --config_typo_mode off \
-    --output "$result/azookey-candidates.json" 2>&1 | tee "$result/export.log"
+    --output "$result/azookey-candidates.json" > "$result/export.log" 2>&1
   printf '%s\n' 'cli_exit=0' > "$result/completed.txt"
 done < "$package_dir/tracks.tsv"
 echo "Done. Return this complete directory: $results_dir"
