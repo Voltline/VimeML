@@ -1,0 +1,42 @@
+{
+  "version": "ime-metrics-v2",
+  "registered": "2026-10-21",
+  "applies_to": "Every IME comparison reported after registration, including the first scoring of any new blind release; earlier frozen results keep their original primary metric",
+  "primary_metric": "Exact Top-1 against the frozen acceptable forms, full denominator including pool misses (unchanged from v1)",
+  "secondary_metrics": {
+    "notation_lenient_top1": "Exact Top-1 plus wrong choices that are a conservative notation variant (equal UniDic lemma sequence AND nested kanji sets) of a reachable acceptable form; vimeml.benchmarks.notation",
+    "pool_conditional_top1": "Exact Top-1 over the cases whose frozen candidate pool contains an acceptable form"
+  },
+  "diagnostic_only": [
+    "notation_lenient_top1_upper (either notation rule)",
+    "error classes: pool_miss / notation / semantic"
+  ],
+  "statistics": {
+    "per_item": "Exact two-sided McNemar on discordant cases (kept for comparability with v1 reports)",
+    "cluster_primary": "Two-sided paired sign-flip permutation over author clusters (WRIME UserID, JMultiWOZ user, Legacy source document; homophone group on the challenge track; otherwise each case); exact enumeration up to 20 discordant clusters, else 20000 seeded draws",
+    "cluster_interval": "95% percentile interval of the net paired difference, 10000 cluster bootstrap draws, seed 0",
+    "sensitivity": [
+      "template clusters: NFKC targets with digits masked, character-trigram Jaccard >= 0.5",
+      "union of author and template clusters"
+    ],
+    "design_effect": "Clustered over independent variance of the paired total"
+  },
+  "decision_rule": "A claimed Top-1 improvement needs exact Top-1 net > 0 on the primary track with cluster_primary p < 0.05, and no notation-lenient loss with cluster_primary p < 0.05 on any reported track. Per-item McNemar alone is not sufficient",
+  "track_roles": {
+    "standard": "Primary: conversational writing (WRIME, JMultiWOZ)",
+    "legacy-regression": "Notation regression alert for old web text (draft references); not a capability metric",
+    "ajimee": "Public encyclopedic/written check; semantic errors reported; contamination not excluded",
+    "historical-development": "Smoke test only: flagged when exact Top-1 drops by more than 3 cases; not used for comparisons",
+    "homophone-challenge": "Written-text semantic challenge (ime-homophone-ja-v1, frozen before candidate export): exact Top-1 and notation-lenient Top-1; diagnostics: accuracy when the reference is the more frequent vs the second lemma of its group, and pairs with both items correct. Items are paired by homophone group, so homophone-group clusters are the cluster unit",
+    "standard-v2-blind": "Primary confirmation track (ime-standard-ja-v2-blind): consumed once, after a committed model plan; coverage statistics are opened together with that scoring, not before",
+    "incremental-prototype": "Protocol prototype on exposed development messages (dictionary-draft labels); segment Top-1, message exact match teacher-forced and free-running; never a capability claim"
+  },
+  "code": {
+    "notation": "src/vimeml/benchmarks/notation.py",
+    "statistics": "src/vimeml/benchmarks/statistics.py"
+  },
+  "candidate_pools": {
+    "primary": "AzooKey n-best 20 (converter d59a28e4, typo off, Zenzai off), unchanged for comparability",
+    "secondary": "n-best 50 from the same converter and flags, reported beside n20 for the v2 blind and homophone tracks; switching the primary pool requires a new metric version"
+  }
+}

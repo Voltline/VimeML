@@ -32,6 +32,7 @@ def load_expanded_export(directory, manifest=None):
         or stats != manifest["stats"]
     ):
         raise ValueError("Expanded source/input/mapping mismatch.")
+    n_best = manifest.get("n_best", 20)
     exported = directory / "ajimee-results"
     if inputs != read(exported / "ajimee-input.json") or mapping != read(
         exported / "case-map.json"
@@ -57,13 +58,13 @@ def load_expanded_export(directory, manifest=None):
         actual[path] = revision
     if (
         actual != DICTIONARIES
-        or provenance["export-flags.txt"].splitlines() != FLAGS
+        or provenance["export-flags.txt"].splitlines() != [f"n_best={n_best}", *FLAGS[1:]]
         or provenance["completed.txt"].strip() != "cli_exit=0"
     ):
         raise ValueError("Dictionary versions, export flags or completion marker mismatch.")
     raw = read(exported / "azookey-candidates.json")
     items = raw.get("items")
-    if raw.get("n_best") != 20 or not isinstance(items, list) or len(items) != len(inputs):
+    if raw.get("n_best") != n_best or not isinstance(items, list) or len(items) != len(inputs):
         raise ValueError("Candidate n-best/count mismatch.")
     rows = []
     ranks = collections.Counter()
@@ -80,7 +81,7 @@ def load_expanded_export(directory, manifest=None):
         if item.get("right_context") not in ("", None):
             raise ValueError(f"Row {position}: unexpected right context.")
         candidates = item.get("outputs")
-        if not isinstance(candidates, list) or len(candidates) > 20:
+        if not isinstance(candidates, list) or len(candidates) > n_best:
             raise ValueError(f"Row {position}: invalid candidate count.")
         texts = []
         for candidate in candidates:
@@ -108,7 +109,7 @@ def load_expanded_export(directory, manifest=None):
         raise ValueError("CLI aggregate statistics differ from actual rows.")
     provenance.update(
         {
-            "n_best": 20,
+            "n_best": n_best,
             "cli_execution_seconds": raw.get("execution_time"),
             "validation": "Exact decoded JSON identity, versions, flags, candidate shape/rank; no repeated SHA256.",
             "flag_provenance": "Recorded exporter arguments; CLI JSON does not independently embed every flag.",

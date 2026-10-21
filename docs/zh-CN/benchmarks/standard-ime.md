@@ -2,6 +2,8 @@
 
 2026-10-08。清洗、分组、重叠筛查、1,500条新来源的逐条AI专家审核、Mac真实候选导入与首次固定模型评分已完成，冻结版本为`ime-standard-ja-v1-ai-expert-r1`。新来源保留1,453条；[首次比较](standard-ime-results-20261008.md)包含V2.1与V3 A的development、blind及旧网页回归。标签等级为`ai_expert_reviewed`，不宣称母语人工gold。代码与协议可以进入Git，受限制的文本、候选和审核文件保存在本地忽略目录。
 
+v1 blind 已消耗。2026-10-21 起的比较按 [IME 指标 v2](metrics-v2.md) 报告，新确认集合为 [Standard v2 blind](standard-ime-v2-blind.md)。
+
 ## 数据组成与角色
 
 | 来源 | Development | Blind | Legacy regression | 用途 |
