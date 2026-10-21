@@ -1,0 +1,197 @@
+{
+  "version": "ime-confirmation-v2",
+  "created_utc": "2026-10-21T08:37:16.308723+00:00",
+  "metric_policy": "configs/ime-metrics-v2.json",
+  "tracks": {
+    "standard-v2-blind": {
+      "release_id": "5bd7c49057f24dc5a96cb1a3c0dc2f88",
+      "cases": 729,
+      "pools": {
+        "n20": {
+          "directory": "artifacts/benchmarks/ime-candidates-v2-imported/standard-v2-blind-n20",
+          "sha256": {
+            "manifest.json": "935245c1a92f75d41482abdb1654d69f5c706214806df313a5dbf8601cd3c917",
+            "case-map.json": "01cb675a4d3f1c8260ebb90e4994409f11104d971018de7a2ecb3e225d356b59",
+            "ajimee-results/ajimee-input.json": "8adab08438c53767a27efc7f257258599a5440472dc2f4c8b9493a78f5ddfeb2",
+            "ajimee-results/azookey-candidates.json": "0715e34870601cdf97d421de3ccfb441849b2c0a9a7ababfa9a643c1bf56ff86"
+          }
+        },
+        "n50": {
+          "directory": "artifacts/benchmarks/ime-candidates-v2-imported/standard-v2-blind-n50",
+          "sha256": {
+            "manifest.json": "bebd4aa7e1ce430eaa8fbabaab97e7bb90d761a76964da04bd52309d9bab7c43",
+            "case-map.json": "01cb675a4d3f1c8260ebb90e4994409f11104d971018de7a2ecb3e225d356b59",
+            "ajimee-results/ajimee-input.json": "8adab08438c53767a27efc7f257258599a5440472dc2f4c8b9493a78f5ddfeb2",
+            "ajimee-results/azookey-candidates.json": "7168ed282950d21e1edb80c3f7a45a0cd98d85b81cfb95d1b6f879dc8516b532"
+          }
+        }
+      }
+    },
+    "homophone-v1": {
+      "release_id": "b0dd116118a24f429960ae0920096e7f",
+      "cases": 619,
+      "pools": {
+        "n20": {
+          "directory": "artifacts/benchmarks/ime-candidates-v2-imported/homophone-v1-n20",
+          "sha256": {
+            "manifest.json": "d3f27cb92592caaca547b4734b311451f551574543f320658d29c0919b35f979",
+            "case-map.json": "7a2aa10168720785b9664a6be66512f84e3fd1b46758a7310a4308fbe285911a",
+            "ajimee-results/ajimee-input.json": "67482659700f01d4a4615f3ec0364e0acb99794bbb1e2657598cf255478bcef2",
+            "ajimee-results/azookey-candidates.json": "92466b7d06028258b23c9ddb921613d8ec3732c9e815531af17fbd36191b1e31"
+          }
+        },
+        "n50": {
+          "directory": "artifacts/benchmarks/ime-candidates-v2-imported/homophone-v1-n50",
+          "sha256": {
+            "manifest.json": "91292ef43dcb362a9163c9579135eb50999ef74020c420b35552ad0f8387f104",
+            "case-map.json": "7a2aa10168720785b9664a6be66512f84e3fd1b46758a7310a4308fbe285911a",
+            "ajimee-results/ajimee-input.json": "67482659700f01d4a4615f3ec0364e0acb99794bbb1e2657598cf255478bcef2",
+            "ajimee-results/azookey-candidates.json": "6972d2fc5dbe5498308a54d734f812da97836b4a3ec783a308526f468949e7b1"
+          }
+        }
+      }
+    }
+  },
+  "preflight": {
+    "pool": "artifacts/benchmarks/ime-candidates-v2-imported/standard-v1-development-n20",
+    "sha256": {
+      "manifest.json": "a3697e1263bd65b7050532462eb8f9fb7803406ad3b9e461b3c7f96dbdae06db",
+      "case-map.json": "6499a063c793fd4dca0652d353ae1cab8a43842402af28fc816a89a1aee37f88",
+      "ajimee-results/ajimee-input.json": "157614e7daffbc5ab25ed62c1155779f4f424d626c7fcc7be486b5f7c07331da",
+      "ajimee-results/azookey-candidates.json": "c5b1e839d542be5f3eea0f039fe809bf8a051481bbaa67445fde29654067b069"
+    },
+    "requirement": "Every model reproduces its recorded development lm_context_sum order on all 728 cases before any blind or homophone file is read"
+  },
+  "models": {
+    "v21": {
+      "checkpoint": "artifacts/models/tiny-ja-v2.1-e16k-d320-l6-extend5/best.pt",
+      "tokenizer": "artifacts/tokenizers/ja-unigram-16k-v2",
+      "loader": "v2",
+      "role": "Deployed model (FP32 weights of the INT8 deployment)",
+      "recorded_development": "outputs/evaluation-v4-20261015/v21/standard-development/scores.jsonl",
+      "sha256": "fa202f18d00cf5e77469bd3be5b8b264117fb73233ec9966fa3213257a470104",
+      "bytes": 150536659,
+      "step": 40000
+    },
+    "v42-e20": {
+      "checkpoint": "outputs/training-v42-20261020/remote/checkpoints/best-lm.pt",
+      "tokenizer": "artifacts/tokenizers/v4-a/ja-unigram-8192",
+      "loader": "v4",
+      "role": "Optional replacement; device-measured; selected by LM BPC before IME evaluation",
+      "recorded_development": "outputs/evaluation-v42-20261020/standard-development/scores.jsonl",
+      "sha256": "0e83ea7417b9816b37183044468343b151f4e610da0764c31f1f780c5fa5796d",
+      "bytes": 180934755,
+      "step": 1081942
+    },
+    "v43-e30": {
+      "checkpoint": "outputs/training-v43-20261020/remote/checkpoints/epoch-30.pt",
+      "tokenizer": "artifacts/tokenizers/v4-a/ja-unigram-8192",
+      "loader": "v4",
+      "role": "V4.2 recipe plus web data; best LM BPC checkpoint",
+      "recorded_development": "outputs/evaluation-v43-20261020/epoch30/standard-development/scores.jsonl",
+      "sha256": "b0b4ebfe59f92dd025c1d47e86b45c7e32394d95d5f49917b791252b14bc0da4",
+      "bytes": 180940603,
+      "step": 3225888
+    },
+    "v5-e30": {
+      "checkpoint": "outputs/training-v5-20261021/remote/checkpoints/epoch-30.pt",
+      "tokenizer": "artifacts/tokenizers/v4-a/ja-unigram-8192",
+      "loader": "v5",
+      "role": "V4.3 data and budget at d512/L8; best LM BPC checkpoint",
+      "recorded_development": "outputs/evaluation-v5-20261021/epoch30/standard-development/scores.jsonl",
+      "sha256": "82a3c3987494892bd6b2617aed81d1a825a3e9741608e39e1492633f3ef02b05",
+      "bytes": 340728883,
+      "step": 3225888
+    }
+  },
+  "scoring": {
+    "semantics": "FP32 full-vocabulary suffix logP sum; joint context+candidate tokenization; no final EOS, truncation or tuning; stable ties",
+    "precision": "FP32 on CUDA; TF32 disabled",
+    "packages": {
+      "torch": "2.10.0+cu128",
+      "fugashi": "1.5.2",
+      "unidic-lite": "1.0.8",
+      "sentencepiece": "0.2.1"
+    }
+  },
+  "baseline": "AzooKey first candidate (no language model), descriptive only",
+  "primary": {
+    "id": "H1",
+    "before": "v21",
+    "after": "v42-e20",
+    "track": "standard-v2-blind",
+    "pool": "n20",
+    "question": "Does V4.2 epoch 20 improve exact Top-1 over the deployed V2.1?",
+    "metric": "exact Top-1",
+    "claim_rule": "net > 0 and author-cluster sign-flip p < 0.05; and no notation-lenient loss with cluster p < 0.05 for the same pair on either n20 track",
+    "if_confirmed": "V4.2 is a confirmed exact Top-1 improvement over the deployed V2.1",
+    "if_not_confirmed": "No confirmed difference; V2.1 stays deployed and V4.2 stays an optional variant"
+  },
+  "secondary": {
+    "tests": [
+      {
+        "id": "S1",
+        "before": "v21",
+        "after": "v42-e20",
+        "track": "homophone-v1",
+        "pool": "n20",
+        "question": "V2.1 -> V4.2 on written-text homophones"
+      },
+      {
+        "id": "S2",
+        "before": "v43-e30",
+        "after": "v5-e30",
+        "track": "standard-v2-blind",
+        "pool": "n20",
+        "question": "Model size only (same data and budget), conversational"
+      },
+      {
+        "id": "S3",
+        "before": "v43-e30",
+        "after": "v5-e30",
+        "track": "homophone-v1",
+        "pool": "n20",
+        "question": "Model size only (same data and budget), written-text homophones"
+      },
+      {
+        "id": "S4",
+        "before": "v42-e20",
+        "after": "v43-e30",
+        "track": "standard-v2-blind",
+        "pool": "n20",
+        "question": "Added web data, conversational"
+      }
+    ],
+    "metric": "exact Top-1",
+    "multiplicity": "Holm over the four cluster sign-flip p-values at 0.05",
+    "claim_rule": "Holm-adjusted p < 0.05 (two-sided; direction from net) and the same notation-lenient guard as H1"
+  },
+  "descriptive": [
+    "notation-lenient and pool-conditional Top-1 for every model and track",
+    "pool coverage at n20 and n50, opened with scoring",
+    "n50 pools: every metric and pair, descriptive only (metrics v2 keeps n20 primary)",
+    "every model pair on both tracks, unadjusted, descriptive only",
+    "template and union cluster sensitivity",
+    "Standard by source (WRIME, JMultiWOZ)",
+    "homophone: exact Top-1 when the reference is the more frequent vs the second lemma of its group; groups with both items correct (complete groups only)",
+    "error classes"
+  ],
+  "clusters": "Author (WRIME user, JMultiWOZ user) on Standard; homophone group on the challenge track",
+  "execution": "One run. A run that stops for a technical failure before writing summary.json may be repeated into a new directory under the same plan, recorded in the receipt. Results are never rerun to change an outcome",
+  "deviations": "Any change after the first run (bug fix, metric correction) is reported as a deviation next to the original output, which is kept",
+  "publication": "Aggregates and case IDs only; no benchmark text, candidates or homophone group lists",
+  "code_sha256": {
+    "configs/ime-metrics-v2.json": "aae918689d85ae2a74434953baf9e5cd7ca76cbd8492eb261ebbb3ac85846bd2",
+    "scripts/benchmarks/confirm_ime_v2.py": "cccaae44be36cf5a6f9a2298c40c224a692c991302daadfff5af89baf3ce3a57",
+    "src/vimeml/benchmarks/notation.py": "af5150abfcfcc3efca51e1213e42114d54a1d59255ebcb2853c7838e68028900",
+    "src/vimeml/benchmarks/statistics.py": "6c9ff9880d36c89ac27f0815c221923a434e34a299b53ce06c8b99613189014f",
+    "src/vimeml/benchmarks/evaluate_ajimee.py": "72c3b78cc54220cd8c9b81faad53bb35b5e9c4641e194692a0977e008f72fc10",
+    "src/vimeml/benchmarks/standard_ime.py": "2e5262feb989fedfeee8af585b63de3dcd1b0264100838f97f2b54f2ba70b7cf",
+    "src/vimeml/benchmarks/expanded_ime.py": "96275849c28c53e879587b90585816f94d22448cea78ef82b05bf9cbcde15796",
+    "src/vimeml/benchmarks/comparison.py": "b7bc15c672bbf7f09212a2764e9f92bfab4f56daeea8ae94097371d26028afd3",
+    "src/vimeml/training/evaluate_ime.py": "9a36b75893f58f61228ad7a6bbb2a34b52aaf312ca6675383580964500d639cd",
+    "src/vimeml/training/infer.py": "12dfae274902ac7d3be36829385d41b73004e4653d57df89e24f8613e62ad8f4",
+    "src/vimeml/training/infer_v4.py": "552d93c35bf4d1e420404e41a44278ae2689876eb681c46136b92be7f94f85fe",
+    "src/vimeml/training/infer_v5.py": "71ee7b2a2699ae1f42ea0ff1959c0b81097e8812a2e492b3485a5e50ce2cae99"
+  }
+}

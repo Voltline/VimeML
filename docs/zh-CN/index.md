@@ -18,6 +18,7 @@ V2系列实验已完成，当前部署版本为V2.1 extend5 step40000 / INT8 blo
 | [Standard IME基准](benchmarks/standard-ime.md) / [首次结果](benchmarks/standard-ime-results-20261008.md) | WRIME/JMultiWOZ独立来源、旧网页回归、审核与版本协议；V2.1/V3 A固定比较 |
 | [IME 指标 v2](benchmarks/metrics-v2.md) | 书写宽松与池条件 Top-1、作者簇检验、判定规则与轨道角色 |
 | [Standard v2 blind](benchmarks/standard-ime-v2-blind.md) / [同音词挑战](benchmarks/homophone-ime.md) / [分段输入原型](benchmarks/incremental-ime.md) | 新确认集合、书面语同音词集合与分段协议原型；均已冻结，尚未评分 |
+| [确认评分计划 v2](benchmarks/confirmation-v2-plan.md) | Standard v2 blind 与同音词集合首次评分的预注册假设、模型、判定规则与功效 |
 | [候选导出 v2](benchmarks/candidates-v2-handoff.md) | n-best 20/50、确定性与左文依赖对照的 Mac 交接 |
 | [Core ML](coreml.md) | 导出、量化、客户端接口与设备范围 |
 | [本地产物](artifacts.md) / [跨平台管理](reference/artifact-exchange.md) | 路径、归档、Git与ZIP协作 |
