@@ -25,7 +25,9 @@ from vimeml.benchmarks.comparison import paired, rows as read_rows
 
 OUT = None
 DOWNLOAD = ROOT / 'outputs/training-v43-20261020'
-STEPS = {27: 2903298, 30: 3225888}
+STEPS = {10: 1075287, 27: 2903298, 30: 3225888}
+# The controlled 10-epoch run stores its checkpoints under controlled-10ep/.
+RUNS = {10: 'controlled-10ep/'}
 BASELINES = {
     'v21': ROOT / 'outputs/evaluation-v4-20261015/v21',
     'v4b': ROOT / 'outputs/evaluation-v4-b12cosine-20261015/best',
@@ -46,7 +48,8 @@ def main():
                         help='Separate empty output directory; completed results are never overwritten')
     parser.add_argument('--epoch', type=int, choices=sorted(STEPS), required=True)
     args = parser.parse_args()
-    checkpoint = DOWNLOAD / f'remote/checkpoints/epoch-{args.epoch}.pt'
+    relative = f"{RUNS.get(args.epoch, '')}checkpoints/epoch-{args.epoch}.pt"
+    checkpoint = DOWNLOAD / 'remote' / relative
     step = STEPS[args.epoch]
     OUT = args.output.resolve()
     if OUT.exists() and any(OUT.iterdir()):
@@ -56,7 +59,7 @@ def main():
     receipt = read(DOWNLOAD / 'download-receipt.json')
     assert receipt['status'] == 'verified'
     digest = file_sha(checkpoint)
-    assert digest == next(r['sha256'] for r in receipt['files'] if r['path'] == f'checkpoints/epoch-{args.epoch}.pt')
+    assert digest == next(r['sha256'] for r in receipt['files'] if r['path'] == relative)
     frozen = {track: read_snapshot(track) for track in TRACKS}
     torch.set_num_threads(4)
     torch.backends.cuda.matmul.allow_tf32 = False
@@ -71,7 +74,7 @@ def main():
         'created_utc': datetime.datetime.now(datetime.timezone.utc).isoformat(),
         'repo': receipt['repo_id'], 'revision': receipt['revision'],
         'checkpoint_sha256': digest, 'checkpoint_step': step, 'checkpoint_epoch': args.epoch,
-        'selection': 'epoch30 = best complete LM validation BPC; epoch27 = requested comparison; both named before local IME evaluation',
+        'selection': 'epoch30 = best complete LM validation BPC; epoch27 = requested comparison; epoch10 = controlled-10ep best-lm (size-only V5 baseline); all named before local IME evaluation',
         'tracks': {k: {'cases': len(v), 'sha256': TRACKS[k][1]} for k, v in frozen.items()},
         'semantics': 'full-vocabulary suffix logP sum; joint context+candidate tokenization; no final EOS, truncation, or tuning; stable ties',
         'precision': 'FP32; TF32 disabled', 'blind_read': False, 'test_read': False,
