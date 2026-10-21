@@ -31,7 +31,7 @@ TinyGPTV2：12,537,920 参数，d_model=320、6 layers、5 heads、head_dim=64�
 
 每5,000 updates保存checkpoint并做固定子集验证，每轮完整BPC/IME。退化停止规则及其启用范围以各版本配置为准；extend5配置为连续两轮BPC比历史最佳高超过.01时停止。Checkpoint保存模型、优化器、调度器、RNG、epoch/cursor、训练与裁剪计数、配置和来源身份。
 
-代码入口：`model.py` 为 V1；`model_v2.py`、`data_v2.py`、`runtime_v2.py` 为 V2；`model_factory.py` 统一训练与推理的架构选择。正式训练使用 AutoDL、screen、W&B online，版本目录独立。
+代码入口：`model.py` 为 V1；`model_v2.py`、`data_v2.py`、`runtime_v2.py` 为 V2；`model_factory.py` 统一训练与推理的架构选择。正式训练使用云 GPU 实例、screen、W&B online，版本目录独立。
 
 ## 固定评分语义
 

@@ -1,4 +1,4 @@
-# Checkpoint-bound V4 continuation on AutoDL RTX 4090; at most eight epochs.
+# Checkpoint-bound V4 continuation on RTX 4090; at most eight epochs.
 architecture = "tiny_gpt_v4"
 token_dir = "artifacts/token-data/corpus-v4-8k"
 index_dir = "artifacts/training-data/corpus-v4-c128"

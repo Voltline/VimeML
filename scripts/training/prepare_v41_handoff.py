@@ -1,4 +1,4 @@
-"""Freeze V4.1 code and dependency identities; rebuild epoch maps on AutoDL."""
+"""Freeze V4.1 code and dependency identities; rebuild epoch maps on the training host."""
 import json
 from pathlib import Path
 import sys
@@ -20,7 +20,7 @@ def main():
     code = sorted((ROOT / 'src/vimeml').rglob('*.py'))
     code += [ROOT / name for name in ('scripts/training/train_v41.py',
         'scripts/training/prepare_v41_handoff.py', 'scripts/corpus/prepare_v41.py',
-        'configs/train-v41.toml', 'requirements.txt', 'requirements-autodl.txt', 'pyproject.toml')]
+        'configs/train-v41.toml', 'requirements.txt', 'requirements-cuda.txt', 'pyproject.toml')]
     archive = destination / 'v41-code.tar.gz'
     def clean(info):
         info.uid = info.gid = info.mtime = 0

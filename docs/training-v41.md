@@ -39,7 +39,7 @@ On the same epoch-16 weights, clearing READ improves structured Standard scores 
 | --- | --- |
 | Data preparation | `scripts/corpus/prepare_v41.py`, `src/vimeml/training/v41_data.py` |
 | Formal trainer | `scripts/training/train_v41.py`, `src/vimeml/training/joint_v41.py` |
-| AutoDL handoff | `scripts/training/prepare_v41_handoff.py` |
+| Training-host handoff | `scripts/training/prepare_v41_handoff.py` |
 | Local comparison | `scripts/benchmarks/evaluate_v41.py`; requires a separate empty output directory |
 | Weights | `artifacts/models/tiny-ja-v41-e8k-d384-l7/` |
 | Download receipt and actual training source | `outputs/training-v41-20261016/` |

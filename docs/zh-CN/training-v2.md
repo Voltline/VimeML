@@ -1,6 +1,6 @@
 # V2 训练
 
-2026-10-07在AutoDL RTX4090 D完成V2.0、V2.1 restart1及extend5训练。最终选用extend5 best step40000：FP32 BPC3.0802686、AJIMEE144/200、扩大草稿1487/2000；2026-10-08完成INT8部署。总体结论见[V2总结](reports/v2-summary.md)。首次中断的step0仅作恢复记录。
+2026-10-07在RTX 4090 D完成V2.0、V2.1 restart1及extend5训练。最终选用extend5 best step40000：FP32 BPC3.0802686、AJIMEE144/200、扩大草稿1487/2000；2026-10-08完成INT8部署。总体结论见[V2总结](reports/v2-summary.md)。首次中断的step0仅作恢复记录。
 
 restart1于18:54–19:56完成两轮。extend5于20:15–21:54运行3.273轮，在step161095结束；后续完整BPC未优于早期best，SIGINT保存last与优化器状态。配置和模型选择见[追加训练](reports/v2-20261007/v21-extend.md)。
 
@@ -22,18 +22,18 @@ extend5配置为[train-v21-extend.toml](../../configs/train-v21-extend.toml)：�
 
 每轮包含 25,196,843 个训练窗口。每 5,000 updates 做固定 validation 子集评测并保存 checkpoint；每个 epoch 做完整 validation BPC 与两套现有 IME 评测。连续两轮 BPC 比历史最佳高超过 0.01 时提前停止。best 按固定子集最低 NLL 选择，last 与 epoch checkpoint 分别保留。
 
-## AutoDL 运行
+## 云 GPU 运行
 
-项目和大文件目录为 `/root/autodl-tmp/vimeml`。镜像记录：Python 3.12.3、PyTorch 2.7.0+cu128、NumPy 2.2.6、TensorBoard 2.19.0；其余依赖见 [requirements-autodl.txt](../../requirements-autodl.txt)。实例镜像用于环境复用，数据盘文件需单独确认迁移。
+项目和大文件放在实例数据盘上（下文记为 `$VIMEML_HOME`）。镜像记录：Python 3.12.3、PyTorch 2.7.0+cu128、NumPy 2.2.6、TensorBoard 2.19.0；其余依赖见 [requirements-cuda.txt](../../requirements-cuda.txt)。实例镜像用于环境复用，数据盘文件需单独确认迁移。
 
 ```bash
-cd /root/autodl-tmp/vimeml
-screen -dmS vimeml-v21-r1 bash -c 'bash scripts/training/autodl_v21.sh --config configs/train-v21-restart.toml > /root/autodl-tmp/vimeml-v21-restart1.log 2>&1'
+cd "$VIMEML_HOME"
+screen -dmS vimeml-v21-r1 bash -c 'bash scripts/training/launch_v21.sh --config configs/train-v21-restart.toml > vimeml-v21-restart1.log 2>&1'
 ```
 
 restart1 使用独立 output/log 路径，保留原 `continue` 的 step0。`--resume` 适用于配置、数据和训练代码一致的 checkpoint；本次从 V2.0 best 重新初始化。
 
-启动器读取 `/root/autodl-tmp/vimeml-wandb.env`，启用 W&B online（项目 `vimeml`）和编译缓存。run URL 写入 `artifacts/tracking/<模型名>-live.json`；日志包括 loss、BPC、IME、有效 tokens/s、数据等待、裁剪率和显存。W&B 仅同步指标。恢复入口会创建同组新 run。
+启动器从 `VIMEML_WANDB_ENV` 指向的私有环境文件读取 W&B 设置，启用 W&B online（项目 `vimeml`）和编译缓存。run URL 写入 `artifacts/tracking/<模型名>-live.json`；日志包括 loss、BPC、IME、有效 tokens/s、数据等待、裁剪率和显存。W&B 仅同步指标。恢复入口会创建同组新 run。
 
 V2的`verification.mode="metadata"`复用冻结数据指纹，检查计数、文件大小和小型manifest。V1模型、配置和产物保持冻结。
 

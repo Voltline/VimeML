@@ -54,4 +54,4 @@ Codex AI 抽看 200 条分层样例，发现并隔离了“家”标成「や／
 
 ## 训练配置
 
-本地容量记录与已准备的 AutoDL 训练配置见[后训练设计](posttraining-v4.md)。
+本地容量记录与已准备的云 GPU 训练配置见[后训练设计](posttraining-v4.md)。

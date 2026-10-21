@@ -1,6 +1,6 @@
 # V4 基础语言模型训练
 
-V4 使用 8K 词表，将 embedding 参数预算转移给 Transformer 主干。固定 15,070,848 参数架构及 tokenizer 准备见[模型验收](reports/v4-20261014/model.md)和[分词报告](reports/v4-20261014/tokenizer.md)。两次基础 LM 实验于 2026-10-15 在 AutoDL RTX 4090 完成。[英文文档](../training-v4.md)。
+V4 使用 8K 词表，将 embedding 参数预算转移给 Transformer 主干。固定 15,070,848 参数架构及 tokenizer 准备见[模型验收](reports/v4-20261014/model.md)和[分词报告](reports/v4-20261014/tokenizer.md)。两次基础 LM 实验于 2026-10-15 在 RTX 4090 完成。[英文文档](../training-v4.md)。
 
 ## 数据与共同设置
 
@@ -8,7 +8,7 @@ V4 使用 8K 词表，将 embedding 参数预算转移给 Transformer 主干。�
 
 | 项目 | 设置 |
 | --- | --- |
-| 环境 | AutoDL Linux、RTX 4090 24 GiB；固定 CUDA 12.8 / PyTorch 2.7 环境 |
+| 环境 | Linux、RTX 4090 24 GiB；固定 CUDA 12.8 / PyTorch 2.7 环境 |
 | 初始化 | 随机权重，seed 42 |
 | 词表 / context | 8,192 / 128 |
 | 架构 | d384、7 层、6 头、SwiGLU 960；15,070,848 参数 |
@@ -49,7 +49,7 @@ Plateau 策略要求相对停止参考值累计改善超过 0.01 完整 BPC；�
 
 运行路径复用 V2.1/V3 的 BF16 SDPA、fused AdamW、pinned memory 非阻塞传输及长度分桶。词表投影和 cross entropy 只处理有效目标。`torch.compile(fullgraph=True, dynamic=True)` 保留参数名称和 checkpoint 格式；prefix crop 与轮次顺序支持确定性恢复。
 
-A 在 443,095 个计时更新、11,732.5 秒更新时段内记录 441,043.7 有效 tokens/s；B 为 439,458.1 有效 tokens/s。计时排除验证、保存及开头 warmup。[V2.1 RTX 4090 D 结果](reports/v2-20261007/v21-performance.md)的模型与 tokenizer 不同，不能据此作受控吞吐对比。Linux 固定依赖见 [requirements-autodl.txt](../../requirements-autodl.txt)，启动封装保留持久化 TorchInductor/Triton cache。
+A 在 443,095 个计时更新、11,732.5 秒更新时段内记录 441,043.7 有效 tokens/s；B 为 439,458.1 有效 tokens/s。计时排除验证、保存及开头 warmup。[V2.1 RTX 4090 D 结果](reports/v2-20261007/v21-performance.md)的模型与 tokenizer 不同，不能据此作受控吞吐对比。Linux 固定依赖见 [requirements-cuda.txt](../../requirements-cuda.txt)，启动封装保留持久化 TorchInductor/Triton cache。
 
 | 路径 | 用途 |
 | --- | --- |

@@ -1,6 +1,6 @@
 # V2.1 restart1 最终评测
 
-2026-10-07，AutoDL RTX4090 D。18:54—19:56完成两轮、98,426 updates。选择**best.pt / step98426**作为追加训练起点，第一轮checkpoint保留作对照。
+2026-10-07，RTX 4090 D。18:54—19:56完成两轮、98,426 updates。选择**best.pt / step98426**作为追加训练起点，第一轮checkpoint保留作对照。
 
 | 模型 | 完整 validation BPC ↓ | AJIMEE /200 | 原 development /137 | 扩大 development 草稿 /2000 |
 | --- | ---: | ---: | ---: | ---: |
@@ -41,6 +41,6 @@ AJIMEE 有明确的同集增益；扩大集相对 V1 为 81 改善 / 58 退化�
 - 扩大集评分：`outputs/ime-eval/expanded-v21-dev-draft-restart1-{epoch1,epoch2}/`。
 - 配对与全部分歧：`outputs/ime-eval/tiny-ja-v2.1-restart1-comparison/comparison.json`。
 - 推理：`outputs/model-checks/tiny-ja-v2.1-e16k-d320-l6-restart1/samples.json`。
-- 报告归档：`handoff/autodl/vimeml-v21-restart1-reports.tar.gz`；启动源码快照与旧step0产物保留。
+- 报告归档：`handoff/remote/vimeml-v21-restart1-reports.tar.gz`；启动源码快照与旧step0产物保留。
 
 后续extend5追加3.27轮后停止，保留早期step40000；结果见[追加训练](v21-extend.md)。本报告的restart1结果保持冻结。

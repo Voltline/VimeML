@@ -41,7 +41,7 @@ LM 逻辑 batch 为 512；转换配额按当轮 LM 更新数均匀分配，每�
 | 项目 | 设置 |
 | --- | --- |
 | 配置 | [train-v41.toml](../../configs/train-v41.toml) |
-| 环境 | AutoDL RTX 4090；BF16 AMP；FP32 权重和 optimizer state |
+| 环境 | RTX 4090；BF16 AMP；FP32 权重和 optimizer state |
 | 优化器 | CUDA fused AdamW，betas (0.9, 0.95)、weight decay 0.1、clip 1.0 |
 | 学习率 | 1,000 次更新 warmup；完整 16 轮 cosine，6e-4 至 6e-5 |
 | 数据加载 | 四个 workers、长度分桶、pinned memory、persistent workers |

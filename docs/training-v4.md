@@ -1,6 +1,6 @@
 # V4 base language-model training
 
-V4 uses an 8K vocabulary to reallocate embedding capacity to the Transformer backbone. The fixed 15,070,848-parameter architecture and tokenizer preparation are documented in [model acceptance](reports/v4-20261014/model.md) and [tokenization](reports/v4-20261014/tokenizer.md). Two base-LM experiments completed on AutoDL RTX 4090 on 2026-10-15. [Chinese document](zh-CN/training-v4.md).
+V4 uses an 8K vocabulary to reallocate embedding capacity to the Transformer backbone. The fixed 15,070,848-parameter architecture and tokenizer preparation are documented in [model acceptance](reports/v4-20261014/model.md) and [tokenization](reports/v4-20261014/tokenizer.md). Two base-LM experiments completed on RTX 4090 on 2026-10-15. [Chinese document](zh-CN/training-v4.md).
 
 ## Data and shared settings
 
@@ -8,7 +8,7 @@ Both experiments use the same original FineWeb/Tatoeba train/validation text as 
 
 | Setting | Value |
 | --- | --- |
-| Environment | AutoDL Linux, RTX 4090 24 GiB; pinned CUDA 12.8 / PyTorch 2.7 environment |
+| Environment | Linux, RTX 4090 24 GiB; pinned CUDA 12.8 / PyTorch 2.7 environment |
 | Initialization | Fresh random weights, seed 42 |
 | Vocabulary / context | 8,192 / 128 |
 | Architecture | d384, 7 layers, 6 heads, SwiGLU 960; 15,070,848 parameters |
@@ -49,7 +49,7 @@ Training `best.pt` uses fixed-subset loss; `best-epoch.pt` uses full epoch BPC. 
 
 The runtime reuses V2.1/V3 BF16 SDPA, fused AdamW, nonblocking pinned-memory transfers, and length buckets. Only valid target positions enter vocabulary projection and cross entropy. `torch.compile(fullgraph=True, dynamic=True)` preserves parameter names and checkpoint format. Prefix crops and epoch ordering support deterministic recovery.
 
-A recorded 441,043.7 effective tokens/s across 443,095 timed updates and 11,732.5 update seconds; B recorded 439,458.1 effective tokens/s. These measurements exclude validation, saving, and initial warmup timing. The [V2.1 RTX 4090 D results](reports/v2-20261007/v21-performance.md) used a different model/tokenizer and do not form a controlled cross-model throughput comparison. The pinned Linux dependencies remain in [requirements-autodl.txt](../requirements-autodl.txt); launcher wrappers retain persistent TorchInductor/Triton caches.
+A recorded 441,043.7 effective tokens/s across 443,095 timed updates and 11,732.5 update seconds; B recorded 439,458.1 effective tokens/s. These measurements exclude validation, saving, and initial warmup timing. The [V2.1 RTX 4090 D results](reports/v2-20261007/v21-performance.md) used a different model/tokenizer and do not form a controlled cross-model throughput comparison. The pinned Linux dependencies remain in [requirements-cuda.txt](../requirements-cuda.txt); launcher wrappers retain persistent TorchInductor/Triton caches.
 
 | Path | Role |
 | --- | --- |

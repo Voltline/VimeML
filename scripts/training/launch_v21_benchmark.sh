@@ -3,9 +3,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 export OMP_NUM_THREADS=4 MKL_NUM_THREADS=4 PYTHONUNBUFFERED=1
-export TORCHINDUCTOR_CACHE_DIR=/root/autodl-tmp/torchinductor-cache
-export TRITON_CACHE_DIR=/root/autodl-tmp/triton-cache
-python_bin="${VIMEML_PYTHON:-/root/miniconda3/bin/python}"
+export TORCHINDUCTOR_CACHE_DIR="${TORCHINDUCTOR_CACHE_DIR:-/tmp/torchinductor-cache}"
+export TRITON_CACHE_DIR="${TRITON_CACHE_DIR:-/tmp/triton-cache}"
+python_bin="${VIMEML_PYTHON:-python3}"
 output_dir="${1:-$PWD/outputs/model-checks/v21-real-data-performance-$(date +%Y%m%d-%H%M%S)}"
 if [[ -e "$output_dir" ]]; then
   echo "Use a fresh output directory: $output_dir" >&2

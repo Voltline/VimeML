@@ -22,7 +22,7 @@ Joint tokenization remains necessary despite the dummy-prefix change. Context ex
 2. Architecture implementation and training-entry integration.
 3. V2 token-store encoding and window indexing.
 4. Deterministic prefix-crop integration.
-5. AutoDL training and same-pool FP32 evaluation.
+5. Cloud GPU training and same-pool FP32 evaluation.
 6. Batch/compilation throughput comparison and V2.1 continuation.
 7. Core ML conversion, quantization analysis, and device measurements.
 

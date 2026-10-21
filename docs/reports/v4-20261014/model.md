@@ -1,6 +1,6 @@
 # V4-a model implementation and completed local checks
 
-2026-10-14. [Chinese report](../../zh-CN/reports/v4-20261014/model.md). Local V4-a preparation is complete. The full base-LM experiment targets AutoDL RTX4090 D; its configuration and runtime design are described in [V4 training design](../../training-v4.md).
+2026-10-14. [Chinese report](../../zh-CN/reports/v4-20261014/model.md). Local V4-a preparation is complete. The full base-LM experiment targets RTX 4090 D; its configuration and runtime design are described in [V4 training design](../../training-v4.md).
 
 ## Fixed architecture
 
@@ -36,12 +36,12 @@ Windows environment: PyTorch2.10.0+cu128, NVIDIA RTX5060 Laptop GPU, BF16 suppor
 | 256 × 128 | 6.820 GiB | 7.424 GiB |
 | 128 × 128 | 3.457 GiB | 3.772 GiB |
 
-These are local eager synthetic measurements, separate from the AutoDL batch512 configuration. The V4 interruption/resume fixture produced bit-identical final weights and matching committed cursors. Checkpoint format: `vimeml_tiny_gpt_v4`.
+These are local eager synthetic measurements, separate from the cloud GPU batch512 configuration. The V4 interruption/resume fixture produced bit-identical final weights and matching committed cursors. Checkpoint format: `vimeml_tiny_gpt_v4`.
 
 Evidence is retained locally under `outputs/model-checks/`, including `v4-a-20261014-b128/report.json`, random-initialization and synthetic-update fixtures, and regression logs. Test fixtures are not formal training initializers. No formal V4 corpus training started on 2026-10-14.
 
-## AutoDL training configuration
+## Cloud GPU training configuration
 
-[train-v4-b.toml](../../../configs/train-v4-b.toml) specifies fresh random weights, BF16, batch512, accumulation1, four epochs, fused AdamW, LR6e-4 with1000-step LR warmup and cosine decay. The compiled hidden stack, data loader and tracking integration reuse the V2.1/V3 AutoDL path. Validation retains4096 sampled windows expanded to complete sentences. Actual V4 throughput and memory on the target device remain unmeasured.
+[train-v4-b.toml](../../../configs/train-v4-b.toml) specifies fresh random weights, BF16, batch512, accumulation1, four epochs, fused AdamW, LR6e-4 with1000-step LR warmup and cosine decay. The compiled hidden stack, data loader and tracking integration reuse the V2.1/V3 cloud GPU path. Validation retains4096 sampled windows expanded to complete sentences. Actual V4 throughput and memory on the target device remain unmeasured.
 
-The AutoDL entry update passed three tracking-entry regression tests, including V4 registration in a fresh process without network initialization. Configuration checks confirm196,940 planned updates. CPU Dynamo fullgraph/dynamic capture with an eager backend matched masked loss and all parameter gradients at two input shapes, preserving tied weights and state-dict names. This checks graph capture, not Linux CUDA Inductor kernels or target-device throughput.
+The training entry update passed three tracking-entry regression tests, including V4 registration in a fresh process without network initialization. Configuration checks confirm196,940 planned updates. CPU Dynamo fullgraph/dynamic capture with an eager backend matched masked loss and all parameter gradients at two input shapes, preserving tied weights and state-dict names. This checks graph capture, not Linux CUDA Inductor kernels or target-device throughput.

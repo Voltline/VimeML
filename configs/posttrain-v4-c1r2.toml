@@ -1,4 +1,4 @@
-# Fixed C1 conversion + ordinary LM replay, prepared for AutoDL RTX4090.
+# Fixed C1 conversion + ordinary LM replay, prepared for RTX 4090.
 stage = "v4-c1"
 architecture = "tiny_gpt_v4"
 conversion_dir = "artifacts/posttrain-data/v4-c1r2"

@@ -44,7 +44,7 @@ The [C1 configuration](../configs/posttrain-v4-c1.toml) freezes these initial ex
 
 | Setting | Value |
 | --- | --- |
-| Environment | AutoDL Linux, RTX 4090 |
+| Environment | Linux, RTX 4090 |
 | Precision and runtime | BF16, fused AdamW, compiled backbone, eager valid-token head |
 | Batch / microbatch | 256 conversion + 256 LM; one microbatch per task |
 | AdamW | Betas (0.9, 0.95), weight decay 0.01, gradient clipping 1.0 |
@@ -100,7 +100,7 @@ The handoff archive and SHA256 inventory under `outputs/handoff-v4-c1/` contain 
 
 ## Local capacity measurement
 
-A BF16 eager forward/backward check on RTX 5060 Laptop 8 GB used microbatch 32, length 128, both task masks, and two reserved FP32 AdamW moment buffers. Peak allocated/reserved memory was 1,150.78/1,340 MiB, with zero optimizer updates. This supports further local feasibility work but does not measure full-trainer or compiled memory and speed. Raw record: `outputs/posttraining-v4-c1-local-memory.json`. The prepared formal configuration targets AutoDL RTX 4090.
+A BF16 eager forward/backward check on RTX 5060 Laptop 8 GB used microbatch 32, length 128, both task masks, and two reserved FP32 AdamW moment buffers. Peak allocated/reserved memory was 1,150.78/1,340 MiB, with zero optimizer updates. This supports further local feasibility work but does not measure full-trainer or compiled memory and speed. Raw record: `outputs/posttraining-v4-c1-local-memory.json`. The prepared formal configuration targets RTX 4090.
 
 ## Conditional C2 ranking stage
 

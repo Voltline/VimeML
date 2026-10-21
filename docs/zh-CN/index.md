@@ -39,7 +39,7 @@ V4-a 本地工作：[Tokenizer 初始化、训练与词表对照](reports/v4-202
 | 阶段 | 报告 |
 | --- | --- |
 | 数据与模型设计 | [Tokenizer](reports/v2-20261007/tokenizer.md)、[模型](reports/v2-20261007/model.md)、[Token store](reports/v2-20261007/token-data.md)、[Prefix crop](reports/v2-20261007/prefix-crop.md) |
-| V2.0 | [运行环境](reports/v2-20261007/autodl.md)、[完整评测](reports/v2-20261007/evaluation.md) |
+| V2.0 | [运行环境](reports/v2-20261007/environment.md)、[完整评测](reports/v2-20261007/evaluation.md) |
 | V2.1 restart1 | [配置](reports/v2-20261007/v21-plan.md)、[性能对照](reports/v2-20261007/v21-performance.md)、[中断恢复](reports/v2-20261007/v21-recovery.md)、[评测](reports/v2-20261007/v21-evaluation.md) |
 | V2.1 extend5 | [追加训练与模型选择](reports/v2-20261007/v21-extend.md) |
 | 扩大IME数据集 | [候选构建](reports/v2-20261007/ime-3000-handoff.md)、[初评](reports/v2-20261007/expanded-ime-evaluation.md)、[标签与错误分析](reports/v2-20261007/label-error-audit.md) |

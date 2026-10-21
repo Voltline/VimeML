@@ -14,7 +14,7 @@ The mixture targets 95% web and 5% chat effective tokens after the deterministic
 
 [train-v3-b.toml](../../../configs/train-v3-b.toml) sets 12.54M V2 architecture, matching 16K tokenizer, context 128, batch 512, BF16 compiled backbone, four epochs/265,841 updates, AdamW, learning rate 1e-3 cosine decay to 1e-4, and 2,000 warmup updates. The reported device is RTX 4080 SUPER with 32,760 MiB, running PyTorch 2.7.0+cu128; it is not recorded as a 4090 D.
 
-Large assets reside in `/root/autodl-tmp/vimeml`; detached screen and optional online tracking preserve run visibility. Public source does not contain access credentials or run URLs. The completed run takes 13,428.8 seconds with 307,681 effective update tokens/s under the report's timing definition.
+Large assets reside on the instance data disk; detached screen and optional online tracking preserve run visibility. Public source does not contain access credentials or run URLs. The completed run takes 13,428.8 seconds with 307,681 effective update tokens/s under the report's timing definition.
 
 ## Evaluation and selection boundary
 

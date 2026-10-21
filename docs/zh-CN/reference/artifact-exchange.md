@@ -42,6 +42,6 @@ python3 setup_mac.py
 
 导入核实后，`handoff/`只保留清单与小型源码快照：传输包的每个成员都与本地文件逐字节一致、存在于Git历史或已另行保存时才删除，本地缺失的成员先恢复到原路径。2026-10-20清理删除9个包（约3.48 GB），逐成员SHA256清单与保留文件在`outputs/maintenance/handoff-cleanup-20261020/`，剩余内容见`handoff/README.md`。
 
-依赖由`requirements.txt`和`requirements-autodl.txt`重建。身份记录在首次导出或资源变化时建立，后续复用冻结manifest；W&B账号、run链接和凭据只保存在忽略目录。
+依赖由`requirements.txt`和`requirements-cuda.txt`重建。身份记录在首次导出或资源变化时建立，后续复用冻结manifest；W&B账号、run链接和凭据只保存在忽略目录。
 
 相关记录：[V2总结](../reports/v2-summary.md)、[量化](../reports/mac-20261008/v21-coreml.md)、[本地产物](../artifacts.md)、[V1快照导入](../reports/mac-20261006/handoff.md)。

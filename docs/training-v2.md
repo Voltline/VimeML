@@ -20,7 +20,7 @@ Runs use BF16, AdamW betas 0.9/0.95, weight decay 0.1, and gradient clipping 1. 
 
 ## Runtime and measurement
 
-Linux training uses the recorded CUDA environment in `requirements-autodl.txt`, with large assets under `/root/autodl-tmp/vimeml`. Detached `screen` sessions preserve jobs across SSH disconnects. Launch wrappers reside in `scripts/training/`.
+Linux training uses the recorded CUDA environment in `requirements-cuda.txt`, with large assets on the instance data disk. Detached `screen` sessions preserve jobs across SSH disconnects. Launch wrappers reside in `scripts/training/`.
 
 Progress and completion state are recorded in `progress.json` and `summary.json`. Fixed-subset validation runs every 5,000 updates; full BPC and IME evaluations run at epoch boundaries. Checkpoint state preserves committed batch position. The recorded degradation rule stops after two full epochs more than 0.01 BPC above the historical best; the extension was interrupted before its maximum budget.
 

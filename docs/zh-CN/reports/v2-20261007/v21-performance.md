@@ -1,6 +1,6 @@
 # V2.1 真实数据性能对照
 
-2026-10-07，原AutoDL 4090 D。真实数据对照后，restart1采用batch512与compiled hidden stack；两轮已完成，完整结果见 [最终评测](v21-evaluation.md)。
+2026-10-07，原 RTX 4090 D 实例。真实数据对照后，restart1采用batch512与compiled hidden stack；两轮已完成，完整结果见 [最终评测](v21-evaluation.md)。
 
 ## 测量
 
@@ -27,10 +27,10 @@ compiled 在 batch256/512 分别提升 35%/29%；compiled512 比 compiled256 快
 
 ## 入口与原始记录
 
-性能工具为 `scripts/training/benchmark_v21.py`，入口为 `scripts/training/autodl_v21_benchmark.sh`，仅更新内存中的模型副本，不保存 checkpoint 或创建正式 W&B run。
+性能工具为 `scripts/training/benchmark_v21.py`，入口为 `scripts/training/launch_v21_benchmark.sh`，仅更新内存中的模型副本，不保存 checkpoint 或创建正式 W&B run。
 
 - GPU 对照：`outputs/model-checks/v21-real-data-performance-restart1/{report.json,gpu.csv,benchmark.log}`。
-- 正式启动与快照：`outputs/autodl-v21-restart1-{launch,status}.json`。
+- 正式启动与快照：`outputs/remote-v21-restart1-{launch,status}.json`。
 - 本地 CPU 输入检查：`outputs/model-checks/v21-real-data-plan-20261007/report.json`，仅验证数据形状，不用于 GPU 吞吐比较。
 
 原固定形状性能调查见 [V2.1 实验配置](v21-plan.md)。

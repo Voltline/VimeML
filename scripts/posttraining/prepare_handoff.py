@@ -1,4 +1,4 @@
-"""Freeze a small code archive and explicit, checksummed AutoDL payload list.
+"""Freeze a small code archive and explicit, checksummed remote-training payload list.
 
 No SSH, uploads, credential reads, model execution or training. Existing server
 files with matching SHA256 can be reused when a later upload is authorized.
@@ -27,8 +27,8 @@ def main():
     plan = build_plan(config, verify_files=True)
     code = sorted((ROOT / "src/vimeml").rglob("*.py"))
     code += sorted((ROOT / "scripts/posttraining").glob("*.py"))
-    code += [ROOT / "scripts/posttraining/autodl_v4_c1.sh", config_path]
-    code += [ROOT / name for name in ("requirements.txt", "requirements-autodl.txt", "pyproject.toml", "README.md", "LICENSE")]
+    code += [ROOT / "scripts/posttraining/launch_v4_c1.sh", config_path]
+    code += [ROOT / name for name in ("requirements.txt", "requirements-cuda.txt", "pyproject.toml", "README.md", "LICENSE")]
     code += [ROOT / name for name in ("docs/zh-CN/posttraining-v4.md", "docs/zh-CN/data-v4-c1.md",
                                     "docs/posttraining-v4.md", "docs/data-v4-c1.md")]
     data = [ROOT / p for p in plan["required_files"]]

@@ -13,7 +13,7 @@
 | 裁剪 / 随机性 | prefix crop .30、最少 8 对；epoch offset=4（轮次 4/5） |
 | 编译 | full hidden-state stack；变长 token head / CE eager |
 | 评测 | 每 5,000 updates 子集验证，每轮完整 BPC 与原两套 IME |
-| 运行 | AutoDL、screen、W&B online，独立输出目录 |
+| 运行 | 云 GPU 实例、screen、W&B online，独立输出目录 |
 
 运行配置：[train-v21-restart.toml](../../../../configs/train-v21-restart.toml)；原 batch256 配置 [train-v21.toml](../../../../configs/train-v21.toml)保留。best 位于第四轮结束前，因此这是“从 best 额外扫描两轮”，不是从 last 接到第六轮。原优化器、调度器与数据游标不继承。
 

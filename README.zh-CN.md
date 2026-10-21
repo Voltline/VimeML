@@ -47,7 +47,7 @@ IME各列为固定AzooKey候选池上的精确Top-1命中数，评分为联合�
 
 ## 安装与目录
 
-Python≥3.11。`pyproject.toml`提供源代码editable安装元数据，依赖读取`requirements.txt`；AutoDL和评测附加依赖分别记录在对应requirements文件。源仓库推理需要本地匹配checkpoint、tokenizer及manifest；默认CLI仍选择V1，V4 checkpoint通过`vimeml.training.infer_v4.JapaneseLMV4`加载。Core ML转换与运行时评测需要macOS。
+Python≥3.11。`pyproject.toml`提供源代码editable安装元数据，依赖读取`requirements.txt`；Linux CUDA 训练和评测的附加依赖分别记录在对应requirements文件。源仓库推理需要本地匹配checkpoint、tokenizer及manifest；默认CLI仍选择V1，V4 checkpoint通过`vimeml.training.infer_v4.JapaneseLMV4`加载。Core ML转换与运行时评测需要macOS。
 
 `src/vimeml/`保存实现，`scripts/`保存分类命令入口，`configs/`保存配置，`docs/`保存英文主要文档，`docs/zh-CN/`保存中文文档与详细实验报告。`datasets/`、`artifacts/`、`outputs/`、`runs/`、`handoff/`为忽略目录。当前iOS客户端在独立Vime仓库维护；`examples/ios/`为历史接入参考。
 

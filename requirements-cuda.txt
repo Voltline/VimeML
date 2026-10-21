@@ -1,4 +1,4 @@
-# Recorded AutoDL training image: Python 3.12.3, CUDA 12.8, Linux.
+# Recorded Linux CUDA training environment: Python 3.12.3, CUDA 12.8.
 # Install torch from https://download.pytorch.org/whl/cu128 if recreating the image.
 # Existing migrated images can retain their installed CUDA/PyTorch environment.
 torch==2.7.0

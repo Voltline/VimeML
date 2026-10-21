@@ -1,4 +1,4 @@
-# V2.0 Architecture E. Formal training runs on AutoDL with online W&B.
+# V2.0 Architecture E. Formal training runs on a CUDA GPU with online W&B.
 # Deterministic prefix cropping applies only to V2 training first windows.
 architecture = "tiny_gpt_v2"
 token_dir = "artifacts/token-data/corpus-v2-16k"

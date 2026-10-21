@@ -47,7 +47,7 @@ On the same validation text, V4-B and V4.2 reach 3.027777 and 3.045152 BPC with 
 
 ## Source installation and inference
 
-Python 3.11 or later is required. Platform-specific versions are pinned in `requirements.txt`; the recorded Linux/CUDA training environment uses `requirements-autodl.txt`. Optional benchmark preparation dependencies are listed in `requirements-evaluation.txt`.
+Python 3.11 or later is required. Platform-specific versions are pinned in `requirements.txt`; the recorded Linux/CUDA training environment uses `requirements-cuda.txt`. Optional benchmark preparation dependencies are listed in `requirements-evaluation.txt`.
 
 ```bash
 python -m venv .venv

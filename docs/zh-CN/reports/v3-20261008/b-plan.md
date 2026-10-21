@@ -1,6 +1,6 @@
 # V3 B：旧语料与新增语料联合重训
 
-2026-10-08。北京时间17:01在新AutoDL启动联合重训：沿用V2架构、随机权重初始化，合并旧V2训练池、当前8个JpnMix分片的已清洗抽样池与两套真人聊天。A及V1/V2产物保持冻结。原先仅用新语料跑两轮的B预备配置未执行，已被本方案替代。
+2026-10-08。北京时间17:01在新的云 GPU 实例启动联合重训：沿用V2架构、随机权重初始化，合并旧V2训练池、当前8个JpnMix分片的已清洗抽样池与两套真人聊天。A及V1/V2产物保持冻结。原先仅用新语料跑两轮的B预备配置未执行，已被本方案替代。
 
 训练、评测与模型归档已完成，逐轮结果与模型选择见[B评测](b-evaluation.md)。以下保留启动时冻结的实验设计与运行记录。
 
@@ -33,7 +33,7 @@
 
 训练期间使用新benchmark的728条development，以及原AJIMEE200/dev137；逐轮报告来源分项，保持参考和候选池冻结。训练内入口只允许新格式development，不打开blind。旧500条网页用于后续回归；新725条blind已经在A比较中开启，后续只能注明为固定reference test。不同语料的BPC不直接横比。
 
-正式运行使用`screen vimeml-v3-b`与W&B online，入口`scripts/training/autodl_v3_b.sh`。新服务器为PyTorch 2.7.0/CUDA 12.8，实际识别GPU为RTX 4080 SUPER、报告显存32,760MiB。248个运行文件已部署，运行包2,091,854,528 bytes；只含代码、配置、必要token/index/映射、tokenizer和development评测输入，排除原始大文本、SQLite暂存库、凭据、blind候选和旧权重。
+正式运行使用`screen vimeml-v3-b`与W&B online，入口`scripts/training/launch_v3_b.sh`。新服务器为PyTorch 2.7.0/CUDA 12.8，实际识别GPU为RTX 4080 SUPER、报告显存32,760MiB。248个运行文件已部署，运行包2,091,854,528 bytes；只含代码、配置、必要token/index/映射、tokenizer和development评测输入，排除原始大文本、SQLite暂存库、凭据、blind候选和旧权重。
 
 首1,100次正式更新已确认正常，step100到1100约295k–316k有效tokens/s；初始编译约63秒。GPU瞬时利用率73%、显存使用17,484MiB，仅为初段观察，不等同整轮平均。两池窗口长度分布与A不同，不能按GPU型号或A的617k吞吐直接推断本轮耗时。15分钟后台检查已恢复，正常训练保持安静；完成后复用逐轮报告并补齐选定模型的必要同池评测。
 

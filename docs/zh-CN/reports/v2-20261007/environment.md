@@ -1,10 +1,10 @@
-# V2.0 AutoDL 环境与运行
+# V2.0 训练环境与运行
 
 2026-10-07。训练已完成，最终结果见 [评测](evaluation.md)。
 
 | 项目 | 记录 |
 | --- | --- |
-| 项目 / 大文件目录 | `/root/autodl-tmp/vimeml` |
+| 项目 / 大文件目录 | 实例数据盘 |
 | GPU / CPU / RAM | RTX 4090 D 24 GB / 18 cores / 60 GB |
 | Python / Torch | 3.12.3 / 2.7.0+cu128 |
 | NumPy / TensorBoard | 2.2.6 / 2.19.0 |
@@ -13,13 +13,13 @@
 | 训练预算 | BF16、batch 256、4 epochs / 393,704 updates |
 | 指标记录 | W&B online，运行结束状态finished |
 
-数据包含 token store、窗口索引、tokenizer 与原两套候选。50 个文件在传输后核对大小，使用 SFTP/gzip 完整性检查；源码快照记录 commit 与工作区改动。依赖见 [requirements-autodl.txt](../../../../requirements-autodl.txt)。
+数据包含 token store、窗口索引、tokenizer 与原两套候选。50 个文件在传输后核对大小，使用 SFTP/gzip 完整性检查；源码快照记录 commit 与工作区改动。依赖见 [requirements-cuda.txt](../../../../requirements-cuda.txt)。
 
 ## 运行入口
 
 ```bash
-cd /root/autodl-tmp/vimeml
-screen -dmS vimeml-v2 bash -c 'bash scripts/training/autodl_v2.sh > /root/autodl-tmp/vimeml-v2-training.log 2>&1'
+cd "$VIMEML_HOME"   # 数据盘上的项目目录
+VIMEML_WANDB_ENV=/path/to/private-wandb.env screen -dmS vimeml-v2 bash -c 'bash scripts/training/launch_v2.sh > vimeml-v2-training.log 2>&1'
 ```
 
 启动时间为北京时间 10:29。启动脚本读取权限 600 的外部 W&B 环境文件，数据包和代码包不含凭据。运行指标保存于模型目录 `progress.json`，结束指标保存于 `summary.json`。

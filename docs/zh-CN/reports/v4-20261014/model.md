@@ -1,6 +1,6 @@
 # V4-a 模型实现与已完成的本地检查
 
-2026-10-14。本地 V4-a 准备已完成。完整基础 LM 实验的目标平台为 AutoDL RTX4090 D，配置与运行设计见 [V4 训练设计](../../training-v4.md)。
+2026-10-14。本地 V4-a 准备已完成。完整基础 LM 实验的目标平台为 RTX 4090 D，配置与运行设计见 [V4 训练设计](../../training-v4.md)。
 
 ## 固定架构
 
@@ -36,12 +36,12 @@ K/V 各为 `[7,1,6,128,64]`，FP32 两份合计 2,752,512 bytes（2.625 MiB）�
 | 256 × 128 | 6.820 GiB | 7.424 GiB |
 | 128 × 128 | 3.457 GiB | 3.772 GiB |
 
-以上为本地 eager 合成测量，与 AutoDL 的 batch512 配置分开记录。V4 中断/恢复 fixture 与不中断运行的最终权重逐项完全一致，已提交数据游标一致。Checkpoint format 为 `vimeml_tiny_gpt_v4`。
+以上为本地 eager 合成测量，与云 GPU 的 batch512 配置分开记录。V4 中断/恢复 fixture 与不中断运行的最终权重逐项完全一致，已提交数据游标一致。Checkpoint format 为 `vimeml_tiny_gpt_v4`。
 
 证据保存在本地 `outputs/model-checks/`，包含 `v4-a-20261014-b128/report.json`、随机初始化/合成更新 fixture 与回归日志。测试 fixture 不作为正式训练初始化；2026-10-14 未启动正式语料训练。
 
-## AutoDL 训练配置
+## 云 GPU 训练配置
 
-[train-v4-b.toml](../../../../configs/train-v4-b.toml)描述从随机权重开始的正式训练：BF16、batch512、accumulation1、4 epochs、fused AdamW、LR6e-4、1000-step 学习率 warmup 与 cosine decay。主干编译、数据加载与 tracking 集成复用 V2.1/V3 的 AutoDL 路径。Validation 保持4096个抽样窗口，并补齐对应句子的所有窗口。目前没有 V4 在目标设备上的实际吞吐与显存结果。
+[train-v4-b.toml](../../../../configs/train-v4-b.toml)描述从随机权重开始的正式训练：BF16、batch512、accumulation1、4 epochs、fused AdamW、LR6e-4、1000-step 学习率 warmup 与 cosine decay。主干编译、数据加载与 tracking 集成复用 V2.1/V3 的云 GPU 路径。Validation 保持4096个抽样窗口，并补齐对应句子的所有窗口。目前没有 V4 在目标设备上的实际吞吐与显存结果。
 
-AutoDL 入口调整通过3项 tracking 入口回归检查，包括无网络初始化的新进程 V4 注册。配置核对确认预算为196,940次更新。CPU Dynamo fullgraph/dynamic capture 使用 eager backend，在两种输入形状下 masked loss 与所有参数梯度均对齐，并保持权重共享和 state-dict 名称。该检查验证图捕获，不代表已验证 Linux CUDA Inductor kernel 或目标设备吞吐。
+训练入口调整通过3项 tracking 入口回归检查，包括无网络初始化的新进程 V4 注册。配置核对确认预算为196,940次更新。CPU Dynamo fullgraph/dynamic capture 使用 eager backend，在两种输入形状下 masked loss 与所有参数梯度均对齐，并保持权重共享和 state-dict 名称。该检查验证图捕获，不代表已验证 Linux CUDA Inductor kernel 或目标设备吞吐。

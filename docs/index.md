@@ -27,7 +27,7 @@ V2.1 `extend5` step 40,000 / INT8 block-32 is the current deployment release. V1
 | --- | --- |
 | V2 family | [Summary](reports/v2-summary.md) |
 | V2 data/model preparation | [Tokenizer](reports/v2-20261007/tokenizer.md), [architecture](reports/v2-20261007/model.md), [token store](reports/v2-20261007/token-data.md), [prefix crop](reports/v2-20261007/prefix-crop.md) |
-| V2.0 | [Environment](reports/v2-20261007/autodl.md), [evaluation](reports/v2-20261007/evaluation.md) |
+| V2.0 | [Environment](reports/v2-20261007/environment.md), [evaluation](reports/v2-20261007/evaluation.md) |
 | V2.1 restart1 | [Plan](reports/v2-20261007/v21-plan.md), [throughput](reports/v2-20261007/v21-performance.md), [interrupted predecessor](reports/v2-20261007/v21-recovery.md), [evaluation](reports/v2-20261007/v21-evaluation.md) |
 | V2.1 extension | [Training and selection](reports/v2-20261007/v21-extend.md) |
 | Historical expanded IME set | [Construction](reports/v2-20261007/ime-3000-handoff.md), [initial evaluation](reports/v2-20261007/expanded-ime-evaluation.md), [label/error audit](reports/v2-20261007/label-error-audit.md) |

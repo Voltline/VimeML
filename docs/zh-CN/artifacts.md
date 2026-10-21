@@ -26,7 +26,7 @@ Git保存源码、配置、测试、文档和许可证。`datasets/`、`artifact
 | `handoff/mac-20261020-v42/` | V4.2 Core ML输入摘要与回传`handoff.json`；250份产物已恢复 |
 | `handoff/mac-20261008-v21/` | V2.1输入摘要与回传`handoff.json`；306份产物已恢复 |
 | `handoff/mac-20261006-v1/` | V1清单、源码与客户端快照 |
-| `handoff/autodl/` | AutoDL代码、报告快照与V4传输清单 |
+| `handoff/remote/` | 云 GPU 训练的代码、报告快照与V4传输清单 |
 | `handoff/benchmarks/` | Standard IME审核、Mac交接与候选回传包 |
 
 已验证可复现的大型传输包于2026-10-20删除，记录见`outputs/maintenance/handoff-cleanup-20261020/`与`handoff/README.md`。
@@ -37,4 +37,4 @@ Git保存源码、配置、测试、文档和许可证。`datasets/`、`artifact
 
 Manifest中的路径、代码指纹和失败项描述原运行环境，目录迁移不改写原始记录。模型／tokenizer变更时建立新身份，后续阶段复用冻结manifest；传输检查清单、大小与容器完整性。
 
-AutoDL数据目录为`/root/autodl-tmp/vimeml`，不随系统镜像保存。依赖由`requirements.txt`与`requirements-autodl.txt`重建；虚拟环境和凭据不进入迁移包。Mac环境记录在`outputs/deployment/environment/`，W&B账号和run链接只保存在本地忽略目录。
+云 GPU 实例的大文件放在数据盘上，不随系统镜像保存。依赖由`requirements.txt`与`requirements-cuda.txt`重建；虚拟环境和凭据不进入迁移包。Mac环境记录在`outputs/deployment/environment/`，W&B账号和run链接只保存在本地忽略目录。

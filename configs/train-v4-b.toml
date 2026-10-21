@@ -1,4 +1,4 @@
-# V4 base LM from scratch; AutoDL RTX 4090 D training configuration.
+# V4 base LM from scratch; RTX 4090 D training configuration.
 architecture = "tiny_gpt_v4"
 token_dir = "artifacts/token-data/corpus-v4-8k"
 index_dir = "artifacts/training-data/corpus-v4-c128"
