@@ -16,6 +16,8 @@ V2.1 `extend5` step 40,000 / INT8 block-32 is the current deployment release. V1
 | [V4.1 joint pretraining](training-v41.md) | Completed sixteen-epoch LM/chat/conversion experiment and local evaluation |
 | [V4.2 LM/chat pretraining](training-v42.md) | Completed twenty-epoch LM/chat experiment without conversion, and local evaluation |
 | [V5 scale-up pretraining (Chinese)](zh-CN/training-v5.md) | d512/L8 (28.4M) size-only comparison against V4.3: LM BPC −0.10, IME Top-1 unchanged; not deployed |
+| [IME error decomposition (Chinese)](zh-CN/reports/analysis-20261021/ime-errors.md) | Remaining Top-1 errors: candidate-pool misses, notation variants, few semantic errors |
+| [Training-free rescoring (Chinese)](zh-CN/reports/analysis-20261021/rescoring.md) | PMI, length and engine-score fusion; none passes held-out tracks, deployment keeps plain LM scoring |
 | [Evaluation](evaluation.md) | Fixed-pool scoring, statistics, and benchmark roles |
 | [Standard IME](benchmarks/standard-ime.md) / [initial comparison](benchmarks/standard-ime-results-20261008.md) | Source splits, AI review, candidate export, and reference-set consumption |
 | [Core ML](coreml.md) | Conversion, quantization, client contract, and V2.1/V4.2 measurements |
