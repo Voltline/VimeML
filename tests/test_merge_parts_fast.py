@@ -25,7 +25,8 @@ class FastMergeTests(unittest.TestCase):
     def setUp(self):
         self.fixture = part_fixtures.PartTests()
         self.fixture.setUp()
-        self.addCleanup(self.fixture.doCleanups)
+        # The fixture never runs as a test, so its own doCleanups would swallow errors.
+        self.addCleanup(self.fixture.temporary.cleanup)
 
     def test_parallel_merge_preserves_exact_exports_and_global_leakage_rules(self):
         fixture = self.fixture
@@ -84,7 +85,7 @@ class FastMergeTests(unittest.TestCase):
         train = (fast / "train.txt").read_text(encoding="utf-8").splitlines()
         self.assertIn(forced, train)
         self.assertIn(common, (fast / "test.txt").read_text(encoding="utf-8").splitlines())
-        with sqlite3.connect(fast / "index.sqlite") as db:
+        with contextlib.closing(sqlite3.connect(fast / "index.sqlite")) as db:
             tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             self.assertEqual(tables, {"origins", "contents", "annotations"})
             self.assertEqual(db.execute("SELECT COUNT(*) FROM origins").fetchone()[0], stats["document_origins"])

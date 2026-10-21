@@ -12,6 +12,9 @@ Git保存源码、配置、测试、文档和许可证。`datasets/`、`artifact
 | `artifacts/tokenizers/ja-unigram-16k-v2/` | V2词表，token ID与V1不同 |
 | `artifacts/token-data/corpus-v2-16k/`、`artifacts/training-data/corpus-v2-c128/` | Token store与窗口索引 |
 | `artifacts/benchmarks/ime-expanded-v21-candidates-v1/` | Development2000和blind1000；草稿标签，blind未计分 |
+| `artifacts/benchmarks/ime-standard-ja-v1-ai-expert-r1/`、`ime-standard-ja-v2-blind-ai-expert/`、`ime-homophone-ja-v1-ai-expert/`、`ime-incremental-ja-proto1/` | Standard v1、v2 blind、同音词挑战与分段原型的冻结版；同名`-draft`、`-review`为构建与审核记录 |
+| `artifacts/benchmarks/ime-candidates-v2-handoff{,.zip}` | 待在Mac上运行的候选导出v2包 |
+| `outputs/training-v43-20261020/remote/`、`outputs/training-v5-20261021/remote/` | V4.3（第27、30轮）与V5（第29、30轮）checkpoint、记录和源码；`controlled-10ep/`为10轮对照 |
 | `artifacts/deployment/tiny-ja-v2.1-extend5-{bundle,fp32,int8-b32,client-resources}-v1/` | 推理bundle、Core ML包和客户端资源 |
 | `outputs/ime-eval/`、`outputs/model-checks/`、`outputs/deployment/` | 分数、数值参考、推理、设备结果与trace |
 | `outputs/history/` | 已退役的脚本、快照、日志和冲突版本 |

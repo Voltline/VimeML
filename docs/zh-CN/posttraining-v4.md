@@ -100,7 +100,7 @@ L = 0.7 * mean_token_loss(OUT + EOS)
 
 ## 本地容量记录
 
-RTX 5060 Laptop 8 GB 的 BF16 eager 容量检查采用 microbatch 32、长度 128，覆盖两任务 mask，并预留两份 FP32 AdamW moment。峰值 allocated/reserved 为 1,150.78/1,340 MiB，optimizer 更新为零。该记录支持进一步验证本地可行性，未测完整训练器或编译模式的显存与速度。原始记录为 `outputs/posttraining-v4-c1-local-memory.json`；已准备的正式配置面向 RTX 4090。
+RTX 5060 Laptop 8 GB 的 BF16 eager 容量检查采用 microbatch 32、长度 128，覆盖两任务 mask，并预留两份 FP32 AdamW moment。峰值 allocated/reserved 为 1,150.78/1,340 MiB，optimizer 更新为零。该记录支持进一步验证本地可行性，未测完整训练器或编译模式的显存与速度。原始记录为 `outputs/posttraining-v4-c1/local-memory.json`；已准备的正式配置面向 RTX 4090。
 
 ## C2 候选 Ranking
 
