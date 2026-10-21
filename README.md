@@ -16,6 +16,8 @@ V2.1 is the deployed model: `extend5` checkpoint step 40,000, symmetric INT8 blo
 
 V4.2 (2026-10-20) is the strongest V4 model: a randomly initialized 8K-vocabulary model trained for twenty epochs on web text with 5% dialogue. It leads on Standard development but is only +6 over V2.1 on the fixed reference (p=0.56), trails on AJIMEE, and differs mainly in kana/kanji notation choices. Its INT8 Core ML package is 17.16 MB; on an iPhone 16 Pro Max test host it lowers peak footprint by 5.6 MB and tail rerank latency, while single calls are 0.16–0.35 ms slower. V2.1 remains the client default; V4.2 is available only as an opt-in variant pending keyboard-extension measurement.
 
+V4.3 (more web data) and V5 (d512/L8, 28.4M parameters, same data and budget as V4.3) are completed negative experiments: V5 lowers validation BPC by 0.10 but leaves IME Top-1 unchanged within noise, so neither is converted or deployed ([V5 training](docs/training-v5.md)).
+
 Release bundles include inference weights, matching tokenizer assets, Core ML resources, and aggregate evaluation records. Training checkpoints, datasets, credentials, and private benchmark texts are stored separately. The custom checkpoint format is not a Transformers `AutoModel` implementation. Details appear in the [model card](MODEL_CARD.md).
 
 ## Evaluation summary
@@ -24,13 +26,15 @@ IME columns report exact accepted-reference Top-1 counts on fixed AzooKey candid
 
 | Model | Standard dev / 728 | Fixed reference / 725 | Legacy / 500 | AJIMEE / 200 | Historical dev / 137 |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| V2.1 FP32 | 505 | 535 | 374 | **144** | 122 |
-| V2.1 INT8 (deployed) | 506 | — | **375** | **144** | 122 |
+| V2.1 FP32 | 505 | 535 | 374 | 144 | 122 |
+| V2.1 INT8 (deployed) | 506 | — | **375** | 144 | 122 |
 | V3 A | 508 | **546** | 368 | 136 | 123 |
-| V4-B | 498 | — | 377 | **144** | 120 |
+| V4-B | 498 | — | 377 | 144 | 120 |
 | V4.1 epoch 16 | 505 | — | 376 | 137 | **124** |
 | V4.2 FP32 | **523** | 541 | 370 | 139 | 123 |
 | V4.2 INT8 | 522 | — | 371 | 139 | 123 |
+| V4.3 epoch 30 | 519 | — | 367 | 143 | 123 |
+| V5 epoch 30 | 514 | — | 365 | **145** | **124** |
 
 The 725-case reference split was consumed in the initial V2.1/V3 A comparison; later models are scored once under a preregistered plan (V3 B: 533; V4.2: 541). Standard development has been reused across experiments. Paired p-values are exploratory. INT8 rows come from the Mac Core ML harness; strict logits alignment fails for both INT8 models, while task-level counts move by at most one case.
 
@@ -43,7 +47,7 @@ Historical sets with original V1/V2 baselines:
 | V2.1 release FP32 | 3.0802686 | 144 | 122 | 1,487 |
 | V2.1 release INT8 | Not measured | 144 | 122 | 1,481 |
 
-On the same validation text, V4-B and V4.2 reach 3.027777 and 3.045152 BPC with the 8K tokenizer. Full methods and limitations appear in [evaluation](docs/evaluation.md); V4.2 details are in the [training summary](docs/training-v42.md) and [Core ML report](docs/reports/mac-20261020/v42-coreml.md).
+On the same validation text, V4-B, V4.2, V4.3 and V5 reach 3.027777, 3.045152, 3.043831 and 2.942180 BPC with the 8K tokenizer. Full methods and limitations appear in [evaluation](docs/evaluation.md); V4.2 details are in the [training summary](docs/training-v42.md) and [Core ML report](docs/reports/mac-20261020/v42-coreml.md).
 
 ## Source installation and inference
 

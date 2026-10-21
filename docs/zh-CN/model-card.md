@@ -1,6 +1,6 @@
 # VimeML模型卡
 
-主要模型卡为[MODEL_CARD.md](../../MODEL_CARD.md)。公开版本为[V1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1)、[V2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1)与研究发布[V4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2)；V2.0、V3 A/B、V4-B、V4.1为实验checkpoint。V2.1为部署版本，V4.2为已完成测量的可选候选。
+主要模型卡为[MODEL_CARD.md](../../MODEL_CARD.md)。公开版本为[V1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1)、[V2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1)与研究发布[V4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2)；V2.0、V3 A/B、V4-B、V4.1、V4.3、V5为实验checkpoint。V2.1为部署版本，V4.2为已完成测量的可选候选。
 
 ## 架构与用途
 
@@ -24,6 +24,8 @@ V1/V2冻结语料来自9个FineWeb2-Edu日语分片和Tatoeba，共25,713,003唯
 V3使用当前8个JpnMix分片的清洗抽样池及两套真人聊天，B另含旧V2语料。聊天为裁剪后有效tokens的5%，包含重复曝光，不等于新增独立语料。A/B未形成稳定替换收益，V2.1仍为部署版本。
 
 V4系列使用新的8K词表与固定15.07M架构。V4-B在原V2文本上从头训练；V4.1加入对话与读音条件转换目标；V4.2去掉转换目标，在原文本加约5%对话目标上训练20轮（121亿监督目标），按完整LM验证BPC选择第20轮，选择早于任何IME评分。
+
+V4.3在V4.2方案上增加九个网页分片；V5以V4.3方案训练d512/L8（28,385,792参数，独立的`tiny_gpt_v5`身份）。V5验证BPC降至2.942180，但IME Top-1（Standard 514、Legacy 365、AJIMEE 145、历史dev 124）与V4.2、V4.3无显著差异，二者均不发布、不转换。见[V5训练与结论](training-v5.md)。
 
 ## 评测与部署边界
 

@@ -2,7 +2,7 @@
 
 ## Model identity and availability
 
-VimeML is a family of compact Japanese decoder-only language models for input-method candidate reranking. Public releases are [V1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1), [V2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1) and the research release [V4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2). V2.0, V3 A, V3 B, V4-B and V4.1 are experiment checkpoints. V2.1 is the deployed model; V4.2 is a measured opt-in candidate.
+VimeML is a family of compact Japanese decoder-only language models for input-method candidate reranking. Public releases are [V1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1), [V2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1) and the research release [V4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2). V2.0, V3 A, V3 B, V4-B, V4.1, V4.3 and V5 are experiment checkpoints. V2.1 is the deployed model; V4.2 is a measured opt-in candidate.
 
 | Architecture | V1 | V2 / V2.1 / V3 experiments | V4 family (V4-B / V4.1 / V4.2) |
 | --- | --- | --- | --- |
@@ -32,6 +32,8 @@ V1 trains from random initialization for one epoch. V2.0 trains from random init
 V3 A adapts V2.1 to a JpnMix sample and two real-dialogue corpora. V3 B trains the V2 architecture from scratch on old V2 text, the selected eight-shard JpnMix pool, and the same dialogue sources. Dialogue contributes 5% of effective post-crop tokens; repeated exposure is not additional unique text. V3 does not replace V2.1. [Data](docs/data.md) and [training](docs/training-v2.md) provide artifact scope and configuration references.
 
 The V4 family uses a new 8K tokenizer and a fixed 15.07M architecture. V4-B trains the original V2 text from random initialization; V4.1 adds dialogue and a reading-conditioned conversion objective; V4.2 removes the conversion objective and trains twenty epochs on the original text plus about 5% dialogue targets (12.1 billion supervised targets). Epoch 20 was selected on complete LM validation BPC before any IME scoring. [V4.2 training](docs/training-v42.md) records data, objective and settings.
+
+V4.3 extends the V4.2 recipe with nine more web shards; V5 trains the V4.3 recipe at d512/L8 (28,385,792 parameters, separate `tiny_gpt_v5` identity). V5 lowers validation BPC to 2.942180 but its IME Top-1 (Standard 514, Legacy 365, AJIMEE 145, historical development 124) is not significantly different from V4.2 or V4.3, so neither is released or converted. [V5 training](docs/training-v5.md).
 
 ## Evaluation
 
