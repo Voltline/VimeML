@@ -59,6 +59,9 @@ A 在 443,095 个计时更新、11,732.5 秒更新时段内记录 441,043.7 有�
 | `artifacts/models/tiny-ja-v4-b-e8k-d384-l7/` | A checkpoint、进度与验证记录 |
 | `artifacts/models/tiny-ja-v4-b12cosine-e8k-d384-l7/` | 独立 B checkpoint 与记录 |
 | `runs/training/` / `artifacts/tracking/` | TensorBoard / W&B 记录 |
+| `scripts/training/launch_v4{,_extended,_extended12,_b12cosine}.sh` | A 调度、两次延长与 B 的启动脚本 |
+| `scripts/training/check_model_v4.py` | 训练前的随机权重架构验收 |
+| `scripts/benchmarks/evaluate_v4.py` | 冻结开发集与回归集上的本地 FP32 A/B 比较 |
 
 二进制产物不纳入 Git。恢复时核对源码、tokenizer、token/窗口 manifest、精度与配置身份。训练只消费 train/validation，blind 保持隔离。
 

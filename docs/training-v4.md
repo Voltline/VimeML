@@ -59,6 +59,9 @@ A recorded 441,043.7 effective tokens/s across 443,095 timed updates and 11,732.
 | `artifacts/models/tiny-ja-v4-b-e8k-d384-l7/` | A checkpoints, progress, and validation records |
 | `artifacts/models/tiny-ja-v4-b12cosine-e8k-d384-l7/` | Independent B checkpoints and records |
 | `runs/training/` / `artifacts/tracking/` | TensorBoard / W&B records |
+| `scripts/training/launch_v4{,_extended,_extended12,_b12cosine}.sh` | Launchers for the A schedule, its two extensions, and B |
+| `scripts/training/check_model_v4.py` | Random-weight architecture acceptance before training |
+| `scripts/benchmarks/evaluate_v4.py` | Local FP32 A/B comparison on the frozen development and regression inputs |
 
 Binary artifacts are excluded from Git. Source, tokenizer, token/window manifests, precision, and configuration identities are checked for recovery. Training consumes train/validation only; blind data remains excluded.
 

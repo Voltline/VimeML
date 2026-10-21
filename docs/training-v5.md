@@ -12,7 +12,7 @@ V4.3 adds nine FineWeb2-Edu shards to the V4.2 pool (cross-pool deduplicated, ro
 | V4.3 controlled, 10 epochs | ~12B | 3.048984 |
 | V4.3, 30 epochs | ~36B | 3.043831 |
 
-At the same token budget, twice the new data gives no BPC gain, and tripling tokens lowers BPC by only 0.0013. Local FP32 Top-1 (Standard /728, Legacy /500, AJIMEE /200, historical development /137) is 523/370/139/123 for V4.2 epoch 20 and 519/367/143/123 for V4.3 epoch 30, with no significant difference. V4.3 source and configurations are in the repository (`joint_v43.py`, `v43_data.py`, `train-v43.toml`, `train-v43-10ep.toml`) and match the run's `code_sha256`; [`evaluate_v43.py`](../scripts/benchmarks/evaluate_v43.py) is the local evaluation entry.
+At the same token budget, twice the new data gives no BPC gain, and tripling tokens lowers BPC by only 0.0013. Local FP32 Top-1 (Standard /728, Legacy /500, AJIMEE /200, historical development /137) is 523/370/139/123 for V4.2 epoch 20 and 519/367/143/123 for V4.3 epoch 30, with no significant difference. V4.3 source and configurations are in the repository (`joint_v43.py`, `v43_data.py`, `train-v43.toml`, `train-v43-10ep.toml`) and match the run's `code_sha256`. The expansion pool is built by `scripts/corpus/dedup_expansion_v43.py` → `scripts/tokenizer/encode_v43_expansion.py` → `scripts/corpus/prepare_v43.py`; `scripts/training/cluster_v43.sh` launches training and [`evaluate_v43.py`](../scripts/benchmarks/evaluate_v43.py) is the local evaluation entry.
 
 ## Architecture
 

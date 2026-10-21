@@ -14,7 +14,7 @@ V4.3 在 V4.2 数据池上加入九个 FineWeb2-Edu 分片（跨池去重，每�
 
 同样约 12B token 下，两倍的新数据没有带来 BPC 改善；token 增加到三倍，BPC 也只降低 0.0013。三次运行都收敛到约 3.04，与训练长度和数据量无关。本地四组 FP32 Top-1（Standard /728、Legacy /500、AJIMEE /200、历史 dev /137）：V4.2 第 20 轮为 523/370/139/123，V4.3 第 30 轮为 519/367/143/123，V4.3 第 27 轮为 521/372/138/124，相对 V4.2 的差异都不显著。15M 模型的容量看起来已经用尽，V4.3 不再进行 Core ML 转换和设备测量。
 
-V4.3 的源码与配置已导入仓库（`joint_v43.py`、`v43_data.py`、`train-v43.toml`、`train-v43-10ep.toml`），与运行记录的 `code_sha256` 逐字节一致。本地评估入口为 [`evaluate_v43.py`](../../scripts/benchmarks/evaluate_v43.py)，结果在 `outputs/evaluation-v43-20261020/`。
+V4.3 的源码与配置已导入仓库（`joint_v43.py`、`v43_data.py`、`train-v43.toml`、`train-v43-10ep.toml`），与运行记录的 `code_sha256` 逐字节一致。扩充数据池依次由 `scripts/corpus/dedup_expansion_v43.py`（跨池去重）、`scripts/tokenizer/encode_v43_expansion.py`（编码）、`scripts/corpus/prepare_v43.py`（混合映射）构建，训练由 `scripts/training/cluster_v43.sh` 启动。本地评估入口为 [`evaluate_v43.py`](../../scripts/benchmarks/evaluate_v43.py)，结果在 `outputs/evaluation-v43-20261020/`。
 
 ## 架构
 

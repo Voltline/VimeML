@@ -88,7 +88,7 @@ These are experimental acceptance criteria, not measured outcomes. Report correc
 | `src/vimeml/posttraining/runtime.py` | Source identity, task normalization, stopping, and resume checks |
 | `src/vimeml/posttraining/train.py` | Dedicated training, validation, checkpointing, and selection |
 | `src/vimeml/posttraining/infer.py` | Conditional encoding and frozen-pool scoring |
-| `scripts/posttraining/` | Preparation, auditing, refinement, training, evaluation, and handoff entries |
+| `scripts/posttraining/` | `prepare_conversion.py` (preparation), `check_conversion.py` (full audit), `refine_conversion.py` (C1 ambiguity quarantine), `prepare_revision.py` (C1r2 views), `train.py`, `evaluate.py`, `prepare_handoff.py` (remote payload list), `launch_v4_c1.sh` |
 
 Cross-stage initialization restores weights only. Same-stage resume requires matching configuration, data, code, precision, and task/scoring identities, and restores AdamW, RNG, both committed cursors, and stopping counters. Cursors advance only after successful updates. A safe checkpoint precedes complete validation; pending validation resumes without repeating an optimizer update. Existing V4 pretraining and V2 initialization protections remain intact.
 

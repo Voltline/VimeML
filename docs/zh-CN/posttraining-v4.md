@@ -88,7 +88,7 @@ L = 0.7 * mean_token_loss(OUT + EOS)
 | `src/vimeml/posttraining/runtime.py` | 源模型身份、任务归一化、早停与恢复检查 |
 | `src/vimeml/posttraining/train.py` | 专用训练、验证、保存与选模 |
 | `src/vimeml/posttraining/infer.py` | 条件编码与固定候选池评分 |
-| `scripts/posttraining/` | 数据制作、审核、过滤、训练、评测与交接入口 |
+| `scripts/posttraining/` | `prepare_conversion.py`（数据制作）、`check_conversion.py`（完整审核）、`refine_conversion.py`（C1 歧义隔离）、`prepare_revision.py`（C1r2 视图）、`train.py`、`evaluate.py`、`prepare_handoff.py`（远端数据清单）、`launch_v4_c1.sh` |
 
 跨阶段初始化只恢复权重。同阶段 resume 要求配置、数据、代码、精度与任务/评分身份一致，并恢复 AdamW、RNG、两数据流已提交游标和早停计数。游标只在更新成功后提交；完整验证前保存安全状态，恢复时完成待执行验证，不重复 optimizer 更新。原 V4 预训练和 V2 初始化保护保持有效。
 
