@@ -1,6 +1,6 @@
 # 确认评分计划 v2（预注册）
 
-2026-10-21 注册。本计划在打开 [Standard v2 blind](standard-ime-v2-blind.md) 与[同音词挑战集](homophone-ime.md)之前提交，机器可读版本为 [`configs/ime-confirmation-v2.json`](../../../configs/ime-confirmation-v2.json)，执行入口为 [`confirm_ime_v2.py`](../../../scripts/benchmarks/confirm_ime_v2.py)。指标与统计按 [指标 v2](metrics-v2.md)。提交时两个集合都没有运行过任何模型，也没有计算过覆盖率。
+2026-10-21 注册。本计划在打开 [Standard v2 blind](standard-ime-v2-blind.md) 与[同音词挑战集](homophone-ime.md)之前提交，机器可读版本为 [`configs/ime-confirmation-v2.json`](../../../configs/ime-confirmation-v2.json)，执行入口为 [`confirm_ime_v2.py`](../../../scripts/benchmarks/confirm_ime_v2.py)。指标与统计按 [指标 v2](metrics-v2.md)。提交时两个集合都没有运行过任何模型，也没有计算过覆盖率。结果见[确认评分 v2 结果](confirmation-v2-results-20261021.md)。
 
 ## 要回答的问题
 
