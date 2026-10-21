@@ -1,6 +1,6 @@
 # Documentation index
 
-V2.1 `extend5` step 40,000 / INT8 block-32 is the current deployment release. V1 remains a baseline and fallback. V3 A and V3 B training, evaluation, and archival are complete; their results do not establish a stable replacement advantage. V4.2 epoch 20 leads on Standard development but is only +6 (not significant) over V2.1 on the fixed reference; its Core ML packages and an opt-in iOS variant are validated and measured, without replacing V2.1. Primary documents are English. [Chinese documentation](zh-CN/index.md) retains the corresponding reference material.
+V4.2 epoch 20 / INT8 block-32 is the current deployment release; it replaced V2.1 `extend5` step 40,000. V1 remains a baseline and fallback. V3 A and V3 B training, evaluation, and archival are complete; their results do not establish a stable replacement advantage. V4.2 leads V2.1 on Standard development and by +22 on the preregistered Standard v2 blind, but neither difference reaches author-cluster significance, and it is +6 (not significant) on the fixed reference. Primary documents are English. [Chinese documentation](zh-CN/index.md) retains the corresponding reference material.
 
 ## Model, data, and runtime
 
@@ -21,7 +21,7 @@ V2.1 `extend5` step 40,000 / INT8 block-32 is the current deployment release. V1
 | [Evaluation](evaluation.md) | Fixed-pool scoring, statistics, and benchmark roles |
 | [Standard IME](benchmarks/standard-ime.md) / [initial comparison](benchmarks/standard-ime-results-20261008.md) | Source splits, AI review, candidate export, and reference-set consumption |
 | [IME metrics v2 (Chinese)](zh-CN/benchmarks/metrics-v2.md) | Notation-lenient and pool-conditional Top-1, author-cluster tests, decision rule, and track roles |
-| [Confirmation plan v2](zh-CN/benchmarks/confirmation-v2-plan.md) and [results](zh-CN/benchmarks/confirmation-v2-results-20261021.md) (Chinese) | Preregistered scoring of Standard v2 blind and the homophone challenge. V2.1 -> V4.2 +22 exact on blind, author-cluster p = 0.0508: not confirmed, V2.1 stays deployed. V4.3 -> V5 +18 on homophones (Holm p = 0.025) |
+| [Confirmation plan v2](zh-CN/benchmarks/confirmation-v2-plan.md) and [results](zh-CN/benchmarks/confirmation-v2-results-20261021.md) (Chinese) | Preregistered scoring of Standard v2 blind and the homophone challenge. V2.1 -> V4.2 +22 exact on blind, author-cluster p = 0.0508: not confirmed; V4.2 is already deployed. V4.3 -> V5 +18 on homophones (Holm p = 0.025) |
 | [Standard v2 blind](zh-CN/benchmarks/standard-ime-v2-blind.md), [homophone challenge](zh-CN/benchmarks/homophone-ime.md), [incremental prototype](zh-CN/benchmarks/incremental-ime.md), [candidate export v2](zh-CN/benchmarks/candidates-v2-handoff.md) (Chinese) | New frozen confirmation, written-text homophone, and segmented-input tracks; the first two are now consumed |
 | [Core ML](coreml.md) | Conversion, quantization, client contract, and V2.1/V4.2 measurements |
 | [Artifact layout](artifacts.md) / [cross-platform exchange](reference/artifact-exchange.md) | Local assets, Git collaboration, and ZIP transfer |

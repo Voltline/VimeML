@@ -1,6 +1,6 @@
 # V5 scale-up pretraining
 
-V5 trains the V4.3 recipe unchanged at d512/L8 to test whether the 15M model is capacity-bound. Data, seed, objective, optimizer and token budget match V4.3; only the model size differs. Both the controlled ten-epoch and the thirty-epoch runs are complete and evaluated locally. The larger model lowers LM BPC by about 0.10 but does not improve IME Top-1, so V5 is not converted to Core ML or measured on device. V2.1 remains deployed and V4.2 the opt-in variant. [Detailed record (Chinese)](zh-CN/training-v5.md).
+V5 trains the V4.3 recipe unchanged at d512/L8 to test whether the 15M model is capacity-bound. Data, seed, objective, optimizer and token budget match V4.3; only the model size differs. Both the controlled ten-epoch and the thirty-epoch runs are complete and evaluated locally. The larger model lowers LM BPC by about 0.10 but does not improve IME Top-1, so V5 is not converted to Core ML or measured on device. V4.2 remains the deployed model. [Detailed record (Chinese)](zh-CN/training-v5.md).
 
 ## Motivation: V4.3 saturation
 

@@ -9,12 +9,12 @@ AzooKey supplies dictionary candidates. The language model reranks the fixed can
 | Model | Parameters | Tokenizer | Context | Status |
 | --- | ---: | --- | ---: | --- |
 | V1 | 7,386,624 | 16K SentencePiece Unigram, V1 vocabulary | 128 | Public baseline and fallback: [Voltline/vimeml-tiny-ja-v1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1) |
-| V2.1 | 12,537,920 | 16K SentencePiece Unigram, V2 vocabulary | 128 | **Deployed**, public: [Voltline/vimeml-tiny-ja-v2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1) |
-| V4.2 | 15,070,848 | 8K SentencePiece Unigram, V4 vocabulary | 128 | Research release, opt-in client variant: [Voltline/vimeml-tiny-ja-v4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2) |
+| V2.1 | 12,537,920 | 16K SentencePiece Unigram, V2 vocabulary | 128 | Previous deployment, public: [Voltline/vimeml-tiny-ja-v2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1) |
+| V4.2 | 15,070,848 | 8K SentencePiece Unigram, V4 vocabulary | 128 | **Deployed**, public: [Voltline/vimeml-tiny-ja-v4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2) |
 
-V2.1 is the deployed model: `extend5` checkpoint step 40,000, symmetric INT8 block-32 weight compression, FP32 computation, and CPU-only Core ML on iOS 18 or later (14.33 MB package). V3 A/B, V4-B and V4.1 are completed experiments without a stable replacement advantage.
+V4.2 epoch 20 is the deployed model: symmetric INT8 block-32 weight compression, FP32 computation, and CPU-only Core ML on iOS 18 or later (17.16 MB package). It replaced V2.1 `extend5` step 40,000 (14.33 MB package with the same recipe). V3 A/B, V4-B and V4.1 are completed experiments without a stable replacement advantage.
 
-V4.2 (2026-10-20) is the strongest V4 model: a randomly initialized 8K-vocabulary model trained for twenty epochs on web text with 5% dialogue. It leads on Standard development but is only +6 over V2.1 on the fixed reference (p=0.56), trails on AJIMEE, and differs mainly in kana/kanji notation choices. Its INT8 Core ML package is 17.16 MB; on an iPhone 16 Pro Max test host it lowers peak footprint by 5.6 MB and tail rerank latency, while single calls are 0.16–0.35 ms slower. V2.1 remains the client default; V4.2 is available only as an opt-in variant pending keyboard-extension measurement.
+V4.2 (2026-10-20) is the strongest V4 model: a randomly initialized 8K-vocabulary model trained for twenty epochs on web text with 5% dialogue. It leads on Standard development but is only +6 over V2.1 on the fixed reference (p=0.56), trails on AJIMEE, and differs mainly in kana/kanji notation choices. Its INT8 Core ML package is 17.16 MB; on an iPhone 16 Pro Max test host it lowers peak footprint by 5.6 MB and tail rerank latency, while single calls are 0.16–0.35 ms slower. On the preregistered Standard v2 blind it scores 598/729 against V2.1's 576 (+22, author-cluster p = 0.0508, just short of the registered threshold); on the written-text homophone challenge it scores 438/619 against 450 (not significant) ([confirmation results, Chinese](docs/zh-CN/benchmarks/confirmation-v2-results-20261021.md)). Keyboard-extension memory and typing latency are not recorded in this repository.
 
 V4.3 (more web data) and V5 (d512/L8, 28.4M parameters, same data and budget as V4.3) are completed negative experiments: V5 lowers validation BPC by 0.10 but leaves IME Top-1 unchanged within noise, so neither is converted or deployed ([V5 training](docs/training-v5.md)).
 
@@ -27,12 +27,12 @@ IME columns report exact accepted-reference Top-1 counts on fixed AzooKey candid
 | Model | Standard dev / 728 | Fixed reference / 725 | Legacy / 500 | AJIMEE / 200 | Historical dev / 137 |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | V2.1 FP32 | 505 | 535 | 374 | 144 | 122 |
-| V2.1 INT8 (deployed) | 506 | — | **375** | 144 | 122 |
+| V2.1 INT8 (previous deployment) | 506 | — | **375** | 144 | 122 |
 | V3 A | 508 | **546** | 368 | 136 | 123 |
 | V4-B | 498 | — | 377 | 144 | 120 |
 | V4.1 epoch 16 | 505 | — | 376 | 137 | **124** |
 | V4.2 FP32 | **523** | 541 | 370 | 139 | 123 |
-| V4.2 INT8 | 522 | — | 371 | 139 | 123 |
+| V4.2 INT8 (deployed) | 522 | — | 371 | 139 | 123 |
 | V4.3 epoch 30 | 519 | — | 367 | 143 | 123 |
 | V5 epoch 30 | 514 | — | 365 | **145** | **124** |
 

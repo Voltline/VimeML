@@ -1,6 +1,6 @@
 # 评测
 
-当前模型为V2.1 extend5 best / step40000，部署采用INT8 block32；V1为冻结基线。总体结论见[V2总结](reports/v2-summary.md)，训练和量化分别见[追加报告](reports/v2-20261007/v21-extend.md)与[Core ML评测](reports/mac-20261008/v21-coreml.md)。
+当前部署为V4.2第20轮INT8 block32；此前部署为V2.1 extend5 best / step40000 INT8 block32；V1为冻结基线。V4.2相对V2.1的确认评分见[确认评分v2结果](benchmarks/confirmation-v2-results-20261021.md)。总体结论见[V2总结](reports/v2-summary.md)，训练和量化分别见[追加报告](reports/v2-20261007/v21-extend.md)与[Core ML评测](reports/mac-20261008/v21-coreml.md)。
 
 ## 评分定义
 

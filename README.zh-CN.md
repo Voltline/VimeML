@@ -9,12 +9,12 @@
 | 模型 | 参数量 | 分词器 | Context | 状态 |
 | --- | ---: | --- | ---: | --- |
 | V1 | 7,386,624 | 16K SentencePiece Unigram，V1词表 | 128 | 公开基线与回退：[Voltline/vimeml-tiny-ja-v1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1) |
-| V2.1 | 12,537,920 | 16K SentencePiece Unigram，V2词表 | 128 | **当前部署**，公开：[Voltline/vimeml-tiny-ja-v2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1) |
-| V4.2 | 15,070,848 | 8K SentencePiece Unigram，V4词表 | 128 | 研究发布，客户端可选变体：[Voltline/vimeml-tiny-ja-v4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2) |
+| V2.1 | 12,537,920 | 16K SentencePiece Unigram，V2词表 | 128 | 上一部署版本，公开：[Voltline/vimeml-tiny-ja-v2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1) |
+| V4.2 | 15,070,848 | 8K SentencePiece Unigram，V4词表 | 128 | **当前部署**，公开：[Voltline/vimeml-tiny-ja-v4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2) |
 
-当前部署版本为V2.1 extend5 step40000：INT8 block32权重压缩、FP32计算、Core ML CPU_ONLY、最低iOS18，包体14.33 MB。V3 A/B、V4-B、V4.1均已完成，未形成稳定替换收益。
+当前部署版本为V4.2第20轮：INT8 block32权重压缩、FP32计算、Core ML CPU_ONLY、最低iOS18，包体17.16 MB。它替换了V2.1 extend5 step40000（同一配方，包体14.33 MB）。V3 A/B、V4-B、V4.1均已完成，未形成稳定替换收益。
 
-V4.2（2026-10-20）是V4系列最强的模型：8K词表、随机初始化、网页文本加5%对话训练20轮。它在Standard开发集领先，但在固定reference上只比V2.1多6条（p=0.56），AJIMEE落后，差异主要是假名／汉字书写选择。INT8 Core ML包17.16 MB；iPhone 16 Pro Max测试宿主中峰值内存低5.6 MB、重排长尾更快，单次调用慢0.16–0.35 ms。客户端默认仍为V2.1，V4.2仅作为可选变体，等待键盘扩展实测。
+V4.2（2026-10-20）是V4系列最强的模型：8K词表、随机初始化、网页文本加5%对话训练20轮。它在Standard开发集领先，但在固定reference上只比V2.1多6条（p=0.56），AJIMEE落后，差异主要是假名／汉字书写选择。INT8 Core ML包17.16 MB；iPhone 16 Pro Max测试宿主中峰值内存低5.6 MB、重排长尾更快，单次调用慢0.16–0.35 ms。在预注册的Standard v2 blind上为598/729，V2.1为576（+22，作者簇p=0.0508，差一点未达到注册阈值）；书面语同音词挑战上为438/619，V2.1为450（不显著）（[确认评分结果](docs/zh-CN/benchmarks/confirmation-v2-results-20261021.md)）。键盘扩展内存与打字延迟未记录在本仓库。
 
 V4.3（增加网页数据）与V5（d512/L8，2,840万参数，数据与预算同V4.3）为已完成的否定性实验：V5验证BPC降低0.10，但IME Top-1在噪声范围内不变，二者均不转换、不部署（[V5训练与结论](docs/zh-CN/training-v5.md)）。
 
@@ -27,12 +27,12 @@ IME各列为固定AzooKey候选池上的精确Top-1命中数，评分为联合�
 | 模型 | Standard dev /728 | 固定reference /725 | Legacy /500 | AJIMEE /200 | 历史dev /137 |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | V2.1 FP32 | 505 | 535 | 374 | 144 | 122 |
-| V2.1 INT8（部署） | 506 | — | **375** | 144 | 122 |
+| V2.1 INT8（上一部署） | 506 | — | **375** | 144 | 122 |
 | V3 A | 508 | **546** | 368 | 136 | 123 |
 | V4-B | 498 | — | 377 | 144 | 120 |
 | V4.1 第16轮 | 505 | — | 376 | 137 | **124** |
 | V4.2 FP32 | **523** | 541 | 370 | 139 | 123 |
-| V4.2 INT8 | 522 | — | 371 | 139 | 123 |
+| V4.2 INT8（部署） | 522 | — | 371 | 139 | 123 |
 | V4.3 第30轮 | 519 | — | 367 | 143 | 123 |
 | V5 第30轮 | 514 | — | 365 | **145** | **124** |
 

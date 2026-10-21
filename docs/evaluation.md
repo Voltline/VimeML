@@ -39,7 +39,7 @@ NLL is measured over valid prediction targets, including EOS. BPC is total NLL d
 | V4.3 epoch 30 | 143 | 123 | 519 | Not measured | 367 |
 | V5 epoch 30 | 145 | 124 | 514 | Not measured | 365 |
 
-V2.1 quantized scores are 144/200, 122/137, and 1,481/2,000 on the historical sets; on the Mac Core ML harness V2.1 INT8 scores 506 Standard and 375 Legacy, and V4.2 INT8 scores 139/123/522/371 in table order. Other Standard scores above are FP32. Neither V3, V4.2, V4.3 nor V5 establishes a stable deployment advantage ([V5](training-v5.md)); V4.2 differences against V2.1 are dominated by notation variants ([analysis, Chinese](zh-CN/reports/v42-20261020/reference-regressions.md)). [V2 summary](reports/v2-summary.md) and [V3 B evaluation](reports/v3-20261008/b-evaluation.md) retain detailed measurements.
+V2.1 quantized scores are 144/200, 122/137, and 1,481/2,000 on the historical sets; on the Mac Core ML harness V2.1 INT8 scores 506 Standard and 375 Legacy, and V4.2 INT8 scores 139/123/522/371 in table order. Other Standard scores above are FP32. Neither V3, V4.3 nor V5 establishes a stable advantage ([V5](training-v5.md)). V4.2, now deployed, is +22 over V2.1 on the preregistered Standard v2 blind (author-cluster p = 0.0508, not confirmed; [results, Chinese](zh-CN/benchmarks/confirmation-v2-results-20261021.md)); its differences against V2.1 are dominated by notation variants ([analysis, Chinese](zh-CN/reports/v42-20261020/reference-regressions.md)). [V2 summary](reports/v2-summary.md) and [V3 B evaluation](reports/v3-20261008/b-evaluation.md) retain detailed measurements.
 
 ## Statistical and deployment interpretation
 

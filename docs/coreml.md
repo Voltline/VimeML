@@ -1,6 +1,6 @@
 # Core ML deployment
 
-The current deployment asset is V2.1 `extend5` step 40,000, symmetric INT8 block-32 weights, FP32 computation, and `CPU_ONLY`, with minimum iOS 18. Model package size is 14.33 MB. V1 remains a fallback and comparison release. V4.2 epoch 20 has validated FP32/INT8 stateless, single-token KV and chunked KV packages and an opt-in client variant; it is not the deployed default.
+The current deployment asset is V4.2 epoch 20, symmetric INT8 block-32 weights, FP32 computation, and `CPU_ONLY`, with minimum iOS 18. Model package size is 17.16 MB. V4.2 has validated FP32/INT8 stateless, single-token KV and chunked KV packages. The previous deployment was V2.1 `extend5` step 40,000 with the same recipe (14.33 MB). V1 remains a fallback and comparison release.
 
 ## Runtime contract
 

@@ -2,6 +2,8 @@
 
 2026-10-21 注册。本计划在打开 [Standard v2 blind](standard-ime-v2-blind.md) 与[同音词挑战集](homophone-ime.md)之前提交，机器可读版本为 [`configs/ime-confirmation-v2.json`](../../../configs/ime-confirmation-v2.json)，执行入口为 [`confirm_ime_v2.py`](../../../scripts/benchmarks/confirm_ime_v2.py)。指标与统计按 [指标 v2](metrics-v2.md)。提交时两个集合都没有运行过任何模型，也没有计算过覆盖率。结果见[确认评分 v2 结果](confirmation-v2-results-20261021.md)。
 
+> **更正（评分后）**：注册时本计划把 V2.1 写成当前部署、V4.2 写成可选变体；实际 V4.2 已被采用为部署版本。这只影响模型角色的描述和 H1 判定后的部署表述，不影响假设、模型、指标、簇与判定规则。冻结的 JSON 不改，以下正文保持注册时的原文。
+
 ## 要回答的问题
 
 V2.1 部署以来，V4.2 在 development 上精确 Top-1 多 18 题，但按作者簇不显著（p = 0.081）；V4.3 加网页数据、V5 放大模型，在 development 上都没有带来可见改进。这些结论都来自反复使用过的 development。本计划用两套未打开的集合给出一次确认。

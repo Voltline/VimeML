@@ -1,6 +1,6 @@
 # VimeML模型卡
 
-主要模型卡为[MODEL_CARD.md](../../MODEL_CARD.md)。公开版本为[V1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1)、[V2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1)与研究发布[V4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2)；V2.0、V3 A/B、V4-B、V4.1、V4.3、V5为实验checkpoint。V2.1为部署版本，V4.2为已完成测量的可选候选。
+主要模型卡为[MODEL_CARD.md](../../MODEL_CARD.md)。公开版本为[V1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1)、[V2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1)与研究发布[V4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2)；V2.0、V3 A/B、V4-B、V4.1、V4.3、V5为实验checkpoint。V4.2为部署版本，V2.1为上一部署版本。
 
 ## 架构与用途
 
@@ -21,7 +21,7 @@
 
 V1/V2冻结语料来自9个FineWeb2-Edu日语分片和Tatoeba，共25,713,003唯一句子，按文档与精确重复分组切分。全面语义近重复与基准污染审计未完成。V1从头训练1轮；V2.0从头4轮；V2.1 restart1从V2.0续训2轮并重建AdamW；extend5携带优化器状态追加3.273轮，部署选定step40000。V2训练有30%合格首窗口prefix crop，验证不裁剪。
 
-V3使用当前8个JpnMix分片的清洗抽样池及两套真人聊天，B另含旧V2语料。聊天为裁剪后有效tokens的5%，包含重复曝光，不等于新增独立语料。A/B未形成稳定替换收益，V2.1仍为部署版本。
+V3使用当前8个JpnMix分片的清洗抽样池及两套真人聊天，B另含旧V2语料。聊天为裁剪后有效tokens的5%，包含重复曝光，不等于新增独立语料。A/B未形成稳定替换收益，当时保留V2.1部署。
 
 V4系列使用新的8K词表与固定15.07M架构。V4-B在原V2文本上从头训练；V4.1加入对话与读音条件转换目标；V4.2去掉转换目标，在原文本加约5%对话目标上训练20轮（121亿监督目标），按完整LM验证BPC选择第20轮，选择早于任何IME评分。
 
@@ -33,10 +33,10 @@ V2.1 FP32旧验证BPC为3.0802686，AJIMEE144/200、历史dev122/137、草稿dev
 
 Standard标签为冻结AI专家审核版，不是母语人工gold。已暴露reference不能用于重新选型或宣称新盲测；旧1000 blind未评分。逐case配对统计未充分校正作者／用户相关性、多重比较与development选型，属于探索性证据。
 
-V4.2：Standard dev 523/728、固定reference 541/725（评分前注册、仅运行一次）、Legacy 370/500、AJIMEE 139/200、历史dev 123/137。reference相对V2.1为+6（改善40、退化34，p=0.56）；Top-1翻转多为同一词的书写形式差异，AJIMEE退化主要是百科领域同音词错误。V4.2未证明比V2.1更准确。
+V4.2：Standard dev 523/728、固定reference 541/725（评分前注册、仅运行一次）、Legacy 370/500、AJIMEE 139/200、历史dev 123/137。reference相对V2.1为+6（改善40、退化34，p=0.56）；Top-1翻转多为同一词的书写形式差异，AJIMEE退化主要是百科领域同音词错误。V4.2未证明比V2.1更准确：预注册的Standard v2 blind上+22/729（作者簇p=0.0508，未证实），书面语同音词挑战上−12/619（不显著）。V4.2仍为当前部署版本。
 
 V2.1 Core ML包14.33 MB，INT8 block32存储、FP32计算、CPU_ONLY、iOS18以上；输入int32[1,T]、T≤128，输出float32[1,T,16384]原始logits。未压缩转换通过对齐，INT8最大logits误差1.00949144，严格对齐失败。小集命中数相同不代表分布或完整排序等效，也未证实该失败是模型规模或架构的固有属性。
 
-V4.2采用相同INT8配方：包体17.16 MB，输出float32[1,T,8192]；未压缩转换通过（最大误差5.2e-5），INT8严格对齐失败（T=128最大0.477、平均0.0495），各集合Top-1最多变化1条。iPhone 16 Pro Max XCTest宿主中，V4.2 INT8每次predict慢0.16–0.35 ms，重排p95更低（120.9对136.8 ms），峰值footprint低5.6 MB；键盘扩展内存与打字延迟未测量。
+部署的V4.2采用相同INT8配方：包体17.16 MB，输出float32[1,T,8192]；未压缩转换通过（最大误差5.2e-5），INT8严格对齐失败（T=128最大0.477、平均0.0495），各集合Top-1最多变化1条。iPhone 16 Pro Max XCTest宿主中，V4.2 INT8每次predict慢0.16–0.35 ms，重排p95更低（120.9对136.8 ms），峰值footprint低5.6 MB；键盘扩展内存与打字延迟未测量。
 
 短时真机测量不能认证长期内存、功耗或普遍延迟。代码与发布权重采用GPL-2.0；源语料和第三方组件保留独立许可。公开发布仅包含聚合报告，不含受限原始基准文本或训练优化器。

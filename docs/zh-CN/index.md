@@ -2,7 +2,7 @@
 
 英文主要文档见[Documentation index](../index.md)，当前中文概览见[README.zh-CN.md](../../README.zh-CN.md)与[模型卡](model-card.md)。此目录保留对应方法和历史实验的中文记录；英文入口汇总发布与当前实验状态。
 
-V2系列实验已完成，当前部署版本为V2.1 extend5 step40000 / INT8 block32；V1保留作基线和回退。总体结果与实验取舍见[V2系列总结](reports/v2-summary.md)。V3 A/B、V4-B、V4.1未形成稳定替换收益；V4.2第20轮在Standard开发集领先，固定reference仅比V2.1多6条且不显著，已完成Core ML、分段KV与iPhone测试宿主测量，作为可选变体保留，未替换V2.1。
+V2系列实验已完成，此前部署版本为V2.1 extend5 step40000 / INT8 block32，当前部署版本为V4.2第20轮 / INT8 block32；V1保留作基线和回退。总体结果与实验取舍见[V2系列总结](reports/v2-summary.md)。V3 A/B、V4-B、V4.1未形成稳定替换收益；V4.2第20轮在Standard开发集领先，固定reference仅比V2.1多6条且不显著，已完成Core ML、分段KV与iPhone测试宿主测量，已替换V2.1部署；预注册的Standard v2 blind上+22，作者簇p=0.0508，未达到证实标准。
 
 ## 使用与复现
 
