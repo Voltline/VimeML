@@ -8,8 +8,8 @@ version = "0.1.0"
 description = "Compact Japanese language models for input-method candidate reranking"
 readme = "README.md"
 requires-python = ">=3.11"
-license = "GPL-2.0-only"
-license-files = ["LICENSE"]
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE", "LICENSE-EXCEPTION", "NOTICE.md"]
 dynamic = ["dependencies"]
 keywords = ["japanese", "language-model", "ime", "coreml", "candidate-reranking"]
 classifiers = [

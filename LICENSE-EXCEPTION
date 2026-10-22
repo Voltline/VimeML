@@ -1,0 +1,56 @@
+VimeML
+Copyright (C) 2026 Voltline and VimeML contributors
+
+VimeML, including its source code and the model weights, tokenizers,
+manifests and Core ML packages published from it, is free software: you
+can redistribute it and/or modify it under the terms of the GNU General
+Public License as published by the Free Software Foundation, either
+version 3 of the License, or (at your option) any later version, with the
+additional permission below.
+
+VimeML is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+details. The full text of the License is in the file LICENSE.
+
+
+Additional permission under GNU GPL version 3 section 7
+
+If you convey object code of VimeML, or of a work based on it, including
+model weights, tokenizers or Core ML packages bundled in an application,
+through an application distribution service (such as Apple's App Store)
+whose terms of service, usage rules or technical measures conflict with
+this License, the copyright holders of VimeML grant you additional
+permission to convey that object code under those terms, provided that:
+
+  a) you offer the Corresponding Source of the conveyed version, free of
+     charge and under this License with this additional permission, in a
+     manner permitted by section 6 (for example, through a public source
+     repository or model repository that the application or its store
+     listing links to); and
+
+  b) the application displays, or provides a link to, this notice, the
+     full text of the License and the training data attribution in
+     NOTICE.md.
+
+This permission does not limit any right that recipients have under the
+License. As permitted by section 7, you may remove this additional
+permission from copies of your modified versions; it then no longer applies
+to those copies.
+
+
+Model weights
+
+For a released model, the published weights, tokenizer model and manifests
+are the preferred form of the work for making modifications. Quantized,
+compiled or converted forms (such as INT8 Core ML packages) are object
+code; their Corresponding Source is the published weights together with
+the conversion scripts in this repository. Training corpora are not part of
+the Corresponding Source and keep their own terms, listed in NOTICE.md.
+
+
+Earlier versions
+
+VimeML code and the V1, V2.1 and V4.2 weights were licensed under
+GPL-2.0-only until 2026-10-22. Copies received under those terms remain
+available under them.
