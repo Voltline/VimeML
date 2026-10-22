@@ -85,4 +85,4 @@ This command assumes the matching local training artifacts and their manifests a
 
 [Documentation index](docs/index.md) · [Model card](MODEL_CARD.md) · [Chinese overview](README.zh-CN.md) · [Contribution conventions](CONTRIBUTING.md) · [Licensing and attribution](NOTICE.md)
 
-Project code and published model weights use GPL-2.0. Upstream libraries and source datasets retain their own licenses. Private research benchmark text is not included in the public repository or model releases. Third-party notices remain with the corresponding components.
+Project code and published model weights use GPL-3.0-or-later with an additional permission under section 7 for application distribution services such as the App Store ([LICENSE-EXCEPTION](LICENSE-EXCEPTION)). Releases before 2026-10-22 used GPL-2.0-only. Upstream libraries and source datasets retain their own licenses. Private research benchmark text is not included in the public repository or model releases. Third-party notices remain with the corresponding components.

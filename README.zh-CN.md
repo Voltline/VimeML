@@ -57,4 +57,4 @@ Python≥3.11。`pyproject.toml`提供源代码editable安装元数据，依赖�
 
 [英文文档索引](docs/index.md) · [中文文档索引](docs/zh-CN/index.md) · [贡献约定](CONTRIBUTING.md) · [许可与归属](NOTICE.md)
 
-原创代码与发布权重采用GPL-2.0；第三方组件、语料和基准保留各自许可。公开仓库和模型发布不包含受限原始基准文本。
+原创代码与发布权重采用GPL-3.0-or-later，并依GPLv3第7条附加允许经App Store等应用商店分发的额外许可（见[LICENSE-EXCEPTION](LICENSE-EXCEPTION)）；2026-10-22之前的发布采用GPL-2.0-only。第三方组件、语料和基准保留各自许可。公开仓库和模型发布不包含受限原始基准文本。

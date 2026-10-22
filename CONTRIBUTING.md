@@ -12,6 +12,10 @@ Frozen checkpoints, labels, candidate pools, configurations, and original report
 
 Datasets, weights, per-case scores, traces, transfer packages, credentials, account identifiers, and tracking run URLs remain outside Git. Public model releases contain appropriately licensed assets and aggregate metrics. Upstream legal notices remain verbatim.
 
+## Licensing of contributions
+
+Contributions are licensed under GPL-3.0-or-later with the additional permission in [LICENSE-EXCEPTION](LICENSE-EXCEPTION), which allows the Vime client to bundle VimeML models on the App Store. Opening a pull request confirms the right to license the contribution on these terms. Training sources for released weights must permit redistribution of trained models in a GPLv3 application; non-commercial or no-derivatives data stays evaluation-only and its text stays out of releases.
+
 ## Proportionate validation
 
 Validation follows the changed behavior. Documentation-only changes require local-link and metadata checks; they do not require model inference, full-file checksums, training runs, or the complete regression suite. Existing frozen score caches are reused when checkpoint and candidate identity match. New functional changes require only relevant checks sufficient to establish their behavior; failures and measurement boundaries remain in the experiment record.
