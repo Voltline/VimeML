@@ -11,8 +11,16 @@ export TORCHINDUCTOR_CACHE_DIR="${TORCHINDUCTOR_CACHE_DIR:-/tmp/torchinductor-ca
 export TRITON_CACHE_DIR="${TRITON_CACHE_DIR:-/tmp/triton-cache}"
 mkdir -p "$TORCHINDUCTOR_CACHE_DIR" "$TRITON_CACHE_DIR"
 python_bin="${VIMEML_PYTHON:-python3}"
+# Resolve the last --config argument to find this run's own output directory.
+config="configs/train-v42.toml"
+prev=""
+for arg in "$@"; do
+  if [[ "$prev" == "--config" ]]; then config="$arg"; fi
+  prev="$arg"
+done
+output_dir=$(grep '^output_dir' "$config" | head -1 | sed 's/.*= *"\(.*\)"/\1/')
 resume=()
-if [[ -f artifacts/models/tiny-ja-v42-e8k-d384-l7/last.pt ]]; then
+if [[ -f "${output_dir:-artifacts/models/tiny-ja-v42-e8k-d384-l7}/last.pt" ]]; then
   resume=(--resume)
 fi
-exec "$python_bin" -X utf8 -u scripts/training/train_v42.py --config configs/train-v42.toml "${resume[@]}" "$@"
+exec "$python_bin" -X utf8 -u scripts/training/train_v42.py --config "$config" "${resume[@]}" "$@"

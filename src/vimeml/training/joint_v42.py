@@ -42,8 +42,8 @@ def build_plan(config,root=ROOT,verify_files=True):
         raise ValueError('V4.2 requires explicit random initialization; no source checkpoint')
     GPTV4Config(**config['model'])
     s=dict(config['training'])
-    if s['epochs']!=20:
-        raise ValueError('Use the frozen 20-epoch V4.2 budget')
+    if not 1<=s['epochs']<=50:
+        raise ValueError('V4.2 uses at most the 50-epoch mixture plan')
     for key in ('lm_batch','lm_microbatch','epochs','num_workers','cpu_threads','log_every',
                 'eval_every','checkpoint_every','validation_batch','bucket_multiplier','warmup_steps'):
         if type(s[key]) is not int or s[key]<1:
@@ -68,9 +68,10 @@ def build_plan(config,root=ROOT,verify_files=True):
     mix_dir=root/config['data_mixture']['directory']
     mix=read(mix_dir/'manifest.json')
     request=mix['request']
-    if (mix['status']!='complete' or request['epochs']!=20 or len(mix['epochs'])!=20
+    if (mix['status']!='complete' or len(mix['epochs'])!=request['epochs']
             or request['seed']!=s['seed'] or request['crop_probability']!=s['prefix_crop_probability']
-            or request['crop_minimum']!=8 or request['chat_fraction']!=.05):
+            or request['crop_minimum']!=8 or request['chat_fraction']!=.05
+            or not 1<=s['epochs']<=request['epochs']):
         raise ValueError('Frozen V4.2 mixture differs from training configuration')
     if file_sha(mix_dir/'manifest.json')!=config['dataset_sha256']:
         raise ValueError('V4.2 dataset manifest changed')
@@ -110,8 +111,8 @@ def build_plan(config,root=ROOT,verify_files=True):
         for path,digest in required.items():
             if file_sha(path)!=digest:
                 raise ValueError('Changed training dependency: '+str(path))
-    s['updates_per_epoch']=[math.ceil(r['windows']/s['lm_batch']) for r in mix['epochs']]
-    s['windows_per_epoch']=[r['windows'] for r in mix['epochs']]
+    s['updates_per_epoch']=[math.ceil(r['windows']/s['lm_batch']) for r in mix['epochs'][:s['epochs']]]
+    s['windows_per_epoch']=[r['windows'] for r in mix['epochs'][:s['epochs']]]
     s['max_steps']=sum(s['updates_per_epoch'])
     return {'stage':STAGE,'parameters':15_070_848,'settings':s,'signatures':signatures,'code_sha256':code,
         'required_files':{p.relative_to(root).as_posix():h for p,h in required.items()},
@@ -203,7 +204,9 @@ def checkpoint_payload(model,optimizer,state,config,plan,precision,initializatio
         'posttraining':{'stage':STAGE,'task_contract':TASK_CONTRACT},
         'initialization':initialization,'rng':rng_state(),
         'scheduler':{'step':state['step'],'max_steps':plan['settings']['max_steps'],
-                     'warmup_steps':plan['settings']['warmup_steps'],'name':'cosine'}}
+                     'warmup_steps':plan['settings']['warmup_steps'],
+                     'name':plan['settings'].get('learning_rate_schedule','cosine'),
+                     'stable_steps':plan['settings'].get('stable_steps',0)}}
 
 
 def restore_checkpoint(saved,model,optimizer,config,signatures,precision):

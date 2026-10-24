@@ -16,6 +16,7 @@ V4.2 epoch 20 / INT8 block-32 is the current deployment release; it replaced V2.
 | [V4.1 joint pretraining](training-v41.md) | Completed sixteen-epoch LM/chat/conversion experiment and local evaluation |
 | [V4.2 LM/chat pretraining](training-v42.md) | Completed twenty-epoch LM/chat experiment without conversion, and local evaluation |
 | [V5 scale-up pretraining](training-v5.md) | d512/L8 (28.4M) size-only comparison against V4.3: LM BPC −0.10, IME Top-1 unchanged; not deployed |
+| [WSD schedule runs](zh-CN/training-wsd.md) (Chinese) | V4.2 and V5 for 50 epochs with warmup-stable-decay at peak lr 3e-4: best BPC at each size (3.0328, 2.9317), confounded with a larger budget; IME Top-1 unchanged; not deployed |
 | [IME error decomposition (Chinese)](zh-CN/reports/analysis-20261021/ime-errors.md) | Remaining Top-1 errors: candidate-pool misses, notation variants, few semantic errors |
 | [Training-free rescoring (Chinese)](zh-CN/reports/analysis-20261021/rescoring.md) | PMI, length and engine-score fusion; none passes held-out tracks, deployment keeps plain LM scoring |
 | [Evaluation](evaluation.md) | Fixed-pool scoring, statistics, and benchmark roles |

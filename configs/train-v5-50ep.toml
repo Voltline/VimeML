@@ -1,0 +1,63 @@
+# V5 50-epoch WSD run: identical to train-v5-30ep.toml except all 50 epoch maps of the
+# 50-epoch V4.3 mixture, peak lr 3e-4 and the stable_decay schedule (decay over the last 15%).
+stage = "v5"
+architecture = "tiny_gpt_v5"
+token_dir = "artifacts/token-data/corpus-v4-8k"
+index_dir = "artifacts/training-data/corpus-v4-c128"
+tokenizer_dir = "artifacts/tokenizers/v4-a/ja-unigram-8192"
+output_dir = "artifacts/models/tiny-ja-v5-50ep-e8k-d512-l8"
+log_dir = "runs/training/tiny-ja-v5-50ep-e8k-d512-l8"
+dataset_sha256 = "e6df0f461136c578b8a5bd1bbac0a022cb3b824eefacaf03ac5524b52d79a6b3"
+
+[initialization]
+mode = "random"
+
+[data_mixture]
+directory = "artifacts/training-data/corpus-v43-mixed-c128"
+
+[model]
+vocab_size = 8192
+context_length = 128
+d_model = 512
+n_heads = 8
+n_layers = 8
+d_ff = 1280
+dropout = 0.0
+norm = "rmsnorm"
+norm_eps = 1e-05
+activation = "swiglu"
+bias = false
+tie_embeddings = true
+position_embedding = "learned"
+
+[runtime]
+compile_backbone = true
+
+[training]
+device = "cuda"
+precision = "bf16"
+seed = 1219827974
+cpu_threads = 4
+num_workers = 4
+bucket_multiplier = 64
+lm_batch = 512
+lm_microbatch = 512
+epochs = 50
+smoke_updates = 0
+learning_rate = 0.0003
+min_learning_rate = 6e-05
+warmup_steps = 1000
+learning_rate_schedule = "stable_decay"
+stable_steps = 4569974
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+prefix_crop_probability = 0.3
+log_every = 100
+eval_every = 2000
+checkpoint_every = 5000
+validation_batch = 256
+
+[tracking]
+enabled = false

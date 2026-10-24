@@ -225,7 +225,9 @@ def checkpoint_payload(model,optimizer,state,config,plan,precision,initializatio
         'posttraining':{'stage':STAGE,'task_contract':TASK_CONTRACT},
         'initialization':initialization,'rng':rng_state(),
         'scheduler':{'step':state['step'],'max_steps':plan['settings']['max_steps'],
-                     'warmup_steps':plan['settings']['warmup_steps'],'name':'cosine'}}
+                     'warmup_steps':plan['settings']['warmup_steps'],
+                     'name':plan['settings'].get('learning_rate_schedule','cosine'),
+                     'stable_steps':plan['settings'].get('stable_steps',0)}}
 
 
 def restore_checkpoint(saved,model,optimizer,config,signatures,precision):
