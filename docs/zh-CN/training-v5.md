@@ -62,7 +62,7 @@ VIMEML_PYTHON=/path/to/venv/bin/python bash scripts/training/cluster_v5.sh      
 
 ## 结果
 
-运行产物位于 HF 私有数据集 `Voltline/vimeml-v5-training-output`（revision `01e93a6…`）：根目录是 30 轮运行，`controlled-10ep/` 是 10 轮运行。两次运行的 `code_sha256` 与仓库代码逐字节一致（90 个文件），记录中的配置与上面两个 TOML 完全相等。下载校验记录在 `outputs/training-v5-20261021/download-receipt.json`。
+运行产物位于 HF 私有数据集 `Voltline/vimeml-v5-training-output`（revision `01e93a6…`；2026-10-24 清理后只保留第 29、30 轮与 10 轮对照的第 10 轮，历史已压缩，现为 `11b3079c…`）：根目录是 30 轮运行，`controlled-10ep/` 是 10 轮运行。两次运行的 `code_sha256` 与仓库代码逐字节一致（90 个文件），记录中的配置与上面两个 TOML 完全相等。下载校验记录在 `outputs/training-v5-20261021/download-receipt.json`。
 
 ### 验证 BPC
 

@@ -28,8 +28,11 @@ Git contains source code, configurations, review annotations, tests, documentati
 | V4-B | `artifacts/models/tiny-ja-v4-b12cosine-e8k-d384-l7/best.pt`, step 584,000 |
 | V4.1 | `artifacts/models/tiny-ja-v41-e8k-d384-l7/best-ordinary.pt` (epoch 13) and `last.pt` (epoch 16) |
 | V4.2 | `outputs/training-v42-20261020/remote/checkpoints/best-lm.pt`, step 1,081,942 (epoch 20); inference tensors `artifacts/models/tiny-ja-v42-e8k-d384-l7/deployment.pt` |
-| V4.3 | `outputs/training-v43-20261020/remote/checkpoints/epoch-{27,30}.pt`; controlled run `remote/controlled-10ep/checkpoints/epoch-10.pt` |
-| V5 | `outputs/training-v5-20261021/remote/checkpoints/epoch-{29,30}.pt` (epoch 30 primary); controlled run `remote/controlled-10ep/checkpoints/epoch-10.pt` |
+| V4.3 | `outputs/training-v43-20261020/remote/checkpoints/epoch-{27,30}.pt`; controlled run `remote/controlled-10ep/checkpoints/epoch-10.pt` (Hugging Face only, see below) |
+| V5 | `outputs/training-v5-20261021/remote/checkpoints/epoch-{29,30}.pt` (epoch 30 primary); controlled run `remote/controlled-10ep/checkpoints/epoch-10.pt` (Hugging Face only) |
+| WSD runs | `outputs/training-wsd-20261024/remote/checkpoints/epoch-50.pt` (V5-50ep) and `remote/v42-50ep/checkpoints/epoch-50.pt` (V4.2-50ep); epoch 42 of each is the stable-phase control (Hugging Face only) |
+
+Training checkpoints are kept in the private Hugging Face datasets `Voltline/vimeml-{v42,v43,v5,wsd}-training-output`. On 2026-10-24 each was cut to the checkpoints above, plus the WSD stable-phase fork points (V5-50ep epoch 25, V4.2-50ep epochs 17 and 25), and its history was squashed, so revisions cited in earlier reports no longer resolve. Records, sources and `SHA256SUMS` were kept, and the retained files have unchanged hashes. Local copies were deleted except V4.2 `best-lm.pt`; each `download-receipt.json` records the new revision and a restore command.
 
 Frozen IME benchmark releases live in `artifacts/benchmarks/`: `ime-standard-ja-v1-ai-expert-r1` (Standard v1), `ime-standard-ja-v2-blind-ai-expert`, `ime-homophone-ja-v1-ai-expert` and `ime-incremental-ja-proto1`; the matching `-draft` and `-review` directories hold their construction and review records. `ime-candidates-v2-handoff{,.zip}` is the Mac candidate package; its returned exports are imported per track and n-best into `ime-candidates-v2-imported/<track>-n<k>/`, and the return archive is kept in `handoff/benchmarks/`.
 

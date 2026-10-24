@@ -25,7 +25,7 @@
 
 ## 来源核对
 
-运行产物位于 HF 私有数据集 `Voltline/vimeml-wsd-training-output`（revision `9bc0f378…`）：根目录为 V5-50ep，`v42-50ep/` 为 V4.2-50ep。本地下载了两次运行的 records、source 以及第 42、50 轮 checkpoint，全部按远端 `SHA256SUMS` 校验，收据在 `outputs/training-wsd-20261024/download-receipt.json`。
+运行产物位于 HF 私有数据集 `Voltline/vimeml-wsd-training-output`（revision `9bc0f378…`）：根目录为 V5-50ep，`v42-50ep/` 为 V4.2-50ep。2026-10-24 评估后，仓库只保留第 42、50 轮和稳定段分叉点（V5 第 25 轮，V4.2 第 17、25 轮，分别对应 30 / 20 / 30 轮同预算衰减），其余 checkpoint 删除，历史已压缩，现为 `ab78c2c2…`。本地下载了两次运行的 records、source 以及第 42、50 轮 checkpoint，全部按远端 `SHA256SUMS` 校验，收据在 `outputs/training-wsd-20261024/download-receipt.json`。
 
 - 记录的 `code_sha256` 共 90 个文件。`joint_v42.py`（放宽为最多 50 轮、记录调度名）与 `joint_v5.py`（记录调度名）已从运行源码导入，现在与记录逐字节一致。`expanded_ime.py` 是 `54d7618` 之前的版本（评测模块，训练不使用）。其余文件与仓库一致。
 - 两份 TOML 与记录中的配置完全相等，文件头注释已改写（原注释抄自其他配置）。`cluster_v42.sh` 加入与 `cluster_v5.sh` 相同的 `--config` 解析，可以启动非默认配置。

@@ -6,7 +6,7 @@
 
 ## 实验身份
 
-来源：[Voltline/vimeml-v42-training-output](https://huggingface.co/datasets/Voltline/vimeml-v42-training-output)，固定 revision `99d914882ae7410bbd99d08090b7d59b3becbded`。
+来源：[Voltline/vimeml-v42-training-output](https://huggingface.co/datasets/Voltline/vimeml-v42-training-output)，固定 revision `99d914882ae7410bbd99d08090b7d59b3becbded`（2026-10-24 清理后历史已压缩，该 revision 失效，`best-lm.pt` 哈希不变，现为 `9b0830d5…`）。
 
 | 项目 | 实际记录 |
 | --- | --- |
@@ -94,7 +94,7 @@ V4.2 在 Standard 保留左文时为 523/728，清空左文时为 510/728；收�
 
 ## 复核产物
 
-- 本地权重：`outputs/training-v42-20261020/remote/checkpoints/best-lm.pt`。其余 epoch 和 last 权重仍在原私有仓库，本次未下载。
+- 本地权重：`outputs/training-v42-20261020/remote/checkpoints/best-lm.pt`。其余 epoch 和 last 权重已于 2026-10-24 从私有仓库删除。
 - 原始记录：`outputs/training-v42-20261020/remote/records/`；下载身份与逐文件校验见 `download-receipt.json`。
 - 评估计划：`outputs/evaluation-v42-20261020/plan.json`；单一 checkpoint 按完整 LM BPC 选取。
 - 逐题分数、指标和四个旧模型配对：`outputs/evaluation-v42-20261020/<track>/`。

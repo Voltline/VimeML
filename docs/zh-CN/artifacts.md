@@ -15,11 +15,13 @@ Git保存源码、配置、测试、文档和许可证。`datasets/`、`artifact
 | `artifacts/benchmarks/ime-standard-ja-v1-ai-expert-r1/`、`ime-standard-ja-v2-blind-ai-expert/`、`ime-homophone-ja-v1-ai-expert/`、`ime-incremental-ja-proto1/` | Standard v1、v2 blind、同音词挑战与分段原型的冻结版；同名`-draft`、`-review`为构建与审核记录 |
 | `artifacts/benchmarks/ime-candidates-v2-handoff{,.zip}` | 候选导出v2的Mac交接包 |
 | `artifacts/benchmarks/ime-candidates-v2-imported/<轨道>-n<k>/` | 导入的候选导出v2（回传包在 `handoff/benchmarks/`） |
-| `outputs/training-v43-20261020/remote/`、`outputs/training-v5-20261021/remote/` | V4.3（第27、30轮）与V5（第29、30轮）checkpoint、记录和源码；`controlled-10ep/`为10轮对照 |
+| `outputs/training-v43-20261020/remote/`、`outputs/training-v5-20261021/remote/`、`outputs/training-wsd-20261024/remote/` | V4.3（第27、30轮）、V5（第29、30轮）与WSD两次运行（第42、50轮）的记录和源码；`controlled-10ep/`为10轮对照，`v42-50ep/`为V4.2-50ep。checkpoint只保留在HF，见下文 |
 | `artifacts/deployment/tiny-ja-v2.1-extend5-{bundle,fp32,int8-b32,client-resources}-v1/` | 推理bundle、Core ML包和客户端资源 |
 | `outputs/ime-eval/`、`outputs/model-checks/`、`outputs/deployment/` | 分数、数值参考、推理、设备结果与trace |
 | `outputs/history/` | 已退役的脚本、快照、日志和冲突版本 |
 | `outputs/maintenance/` | 导入、目录整理及文档改版记录 |
+
+训练checkpoint保存在HF私有数据集`Voltline/vimeml-{v42,v43,v5,wsd}-training-output`。2026-10-24起每个仓库只保留评测过的checkpoint（V4.2第20轮best-lm；V4.3第27、30轮与10轮对照；V5第29、30轮与10轮对照；WSD两次运行第42、50轮）以及WSD稳定段分叉点（V5-50ep第25轮、V4.2-50ep第17、25轮），并压缩了历史，早前报告引用的revision已失效。records、源码与`SHA256SUMS`保留，保留文件的哈希不变。本地只留V4.2 `best-lm.pt`，其余由各`download-receipt.json`中的新revision与恢复命令重新下载。
 
 语料原文在`outputs/corpus-fast-v1/`（约50GB），原输入在`datasets/`（约2.44GB）。`rows.bin`依赖JSONL原始字节位置；部署只需要推理权重、tokenizer、manifest与参考结果，不依赖训练原文、token store或优化器。
 
