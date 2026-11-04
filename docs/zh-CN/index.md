@@ -34,6 +34,7 @@ V2系列实验已完成，此前部署版本为V2.1 extend5 step40000 / INT8 blo
 | V4.2 LM／Chat 预训练 | [训练设置](training-v42.md)、[二十轮完整评估](reports/v42-20261020/evaluation.md)、[固定 reference 与退化分析](reports/v42-20261020/reference-regressions.md) |
 | V5 规模扩展预训练 | [设计、V4.3 饱和证据、结果与结论](training-v5.md)：BPC −0.10，IME Top-1 无提升，不部署 |
 | WSD 调度实验 | [V4.2-50ep 与 V5-50ep 的设计、曲线与结论](training-wsd.md)：BPC 3.0328 / 2.9317（各规模最佳），IME Top-1 无提升，不部署 |
+| V4.4 消融（预注册） | [V4.2 配方上的六臂单因素实验](training-v44-plan.md)：三个 seed 重复测 run 间噪声，聊天 0 / 10%，prefix crop 0.60；只评第 20 轮 |
 | IME 错误分解 | [瓶颈不在 LM 容量](reports/analysis-20261021/ime-errors.md)：池外 48%、书写形式 35–44%、语义 8% |
 | 免训练重打分 | [PMI、长度与引擎分融合](reports/analysis-20261021/rescoring.md)：均未通过独立检验，部署保持纯 LM 打分 |
 | V4.2 Apple 部署 | [Core ML、INT8、分段 KV、Mac 与 iPhone 测量（英文）](../reports/mac-20261020/v42-coreml.md) |

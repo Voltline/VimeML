@@ -66,7 +66,7 @@ def prepare_maps(directory, root=ROOT):
                     used+=int(cumulative[take-1])
                 if take<len(order):
                     break
-            chosen=np.concatenate(chosen)
+            chosen=np.concatenate(chosen) if chosen else np.empty(0,dtype=np.int64)
             mapping=np.concatenate((web,chosen)).astype('<u4')
             rng.shuffle(mapping)
             path=directory/f'epoch-{epoch}.npy'
@@ -82,7 +82,7 @@ def prepare_maps(directory, root=ROOT):
             records.append(record)
             print(json.dumps({'map_epoch':epoch+1,'windows':len(mapping),'chat_fraction':record['chat_fraction']}),flush=True)
         result={'format':'vimeml_token_mixture_v1','status':'complete','request':request,'epochs':records,
-                'policy':'Each retained V2.1/V4 LM window once per epoch; chat-only repeated shuffled cycles at 5% actual cropped LM targets; maps SHA256-pinned'}
+                'policy':f"Each retained V2.1/V4 LM window once per epoch; chat-only repeated shuffled cycles at {request['chat_fraction']:.0%} actual cropped LM targets; maps SHA256-pinned"}
         if expected and result!=expected:
             raise ValueError('Rebuilt mixture manifest differs')
         # Preserve the frozen bytes across Windows/Linux newline conventions.
