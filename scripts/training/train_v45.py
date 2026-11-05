@@ -1,0 +1,80 @@
+"""V4.5 distillation-student entry point; W&B without any machine-wide login.
+
+Credentials come only from the environment (WANDB_API_KEY, optional WANDB_ENTITY),
+as `cluster_v45.sh` sets them from a private file with isolated W&B directories.
+Without a key, or when online initialization fails, the run logs offline under
+artifacts/tracking/<model>/ for a later `wandb sync`; training never waits on W&B.
+"""
+import argparse
+import os
+from pathlib import Path
+import sys
+import tomllib
+ROOT=Path(__file__).resolve().parents[2]
+sys.path.insert(0,str(ROOT/'src'))
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--config',type=Path,required=True)
+    parser.add_argument('--resume',action='store_true')
+    parser.add_argument('--dry-run',action='store_true',
+        help='Verify configuration, code, data and teacher identities, then exit')
+    parser.add_argument('--smoke',type=int,default=0,
+        help='Run N real updates into <output>-smoke without W&B, to check memory and speed')
+    args=parser.parse_args()
+    config=tomllib.loads(args.config.read_text('utf-8'))
+    if args.smoke:
+        config['training']['smoke_updates']=args.smoke
+        config['output_dir']+='-smoke'
+        config['log_dir']+='-smoke'
+        config['tracking']={'enabled':False}
+    output=ROOT/config['output_dir']
+    logs=ROOT/config['log_dir']
+    if args.dry_run:
+        from vimeml.training.joint_v45 import build_plan
+        plan=build_plan(config,ROOT,verify_files=True)
+        print({'stage':plan['stage'],'arm':config['arm'],'parameters':plan['parameters'],
+               'max_steps':plan['settings']['max_steps'],
+               'updates_per_epoch':plan['settings']['updates_per_epoch'][:3]+['...'],
+               'required_files':len(plan['required_files']),'teachers':plan['signatures']['teachers']})
+        return
+    if not args.resume and ((output.exists() and any(output.iterdir())) or (logs.exists() and any(logs.iterdir()))):
+        parser.error('Fresh V4.5 output/log directories must be empty')
+    if args.resume and not (output/'last.pt').exists():
+        parser.error('No V4.5 checkpoint to resume')
+    from vimeml.training.joint_v45 import run
+    tracking=config.get('tracking',{})
+    if not tracking.get('enabled'):
+        result=run(config,args.resume)
+        print(result,flush=True)
+        return
+    import wandb
+    from vimeml.training.data import write_json
+    directory=ROOT/'artifacts/tracking'/output.name
+    directory.mkdir(parents=True,exist_ok=True)
+    def start(mode):
+        return wandb.init(project=tracking.get('project','vimeml'),entity=os.environ.get('WANDB_ENTITY'),
+            group=tracking['group'],name=config['arm']+('-resume' if args.resume else ''),
+            job_type='distillation',tags=['v4.5',config['arm'],config['distillation']['pool']],mode=mode,dir=str(directory),
+            sync_tensorboard=True,save_code=False,config=config,
+            settings=wandb.Settings(disable_git=True,init_timeout=90))
+    mode=tracking.get('mode','online') if os.environ.get('WANDB_API_KEY') else 'offline'
+    try:
+        cloud=start(mode)
+    except Exception as error:
+        if mode=='offline':
+            raise
+        print(f'W&B online initialization failed ({type(error).__name__}: {error}); logging offline',flush=True)
+        mode='offline'
+        cloud=start(mode)
+    with cloud:
+        write_json(directory/f'live-{cloud.id}.json',{'id':cloud.id,'url':cloud.url if mode!='offline' else None,
+            'mode':mode,'resume':args.resume,'directory':str(directory)})
+        print(f'W&B run ({mode}): {cloud.url if mode!="offline" else directory}',flush=True)
+        result=run(config,args.resume)
+        cloud.summary.update({'training_result':result})
+
+
+if __name__=='__main__':
+    main()

@@ -20,6 +20,7 @@ V2系列实验已完成，此前部署版本为V2.1 extend5 step40000 / INT8 blo
 | [Standard v2 blind](benchmarks/standard-ime-v2-blind.md) / [同音词挑战](benchmarks/homophone-ime.md) / [分段输入原型](benchmarks/incremental-ime.md) | 新确认集合、书面语同音词集合与分段协议原型；前两个已按确认计划使用 |
 | [确认评分计划 v2](benchmarks/confirmation-v2-plan.md) | Standard v2 blind 与同音词集合首次评分的预注册假设、模型、判定规则与功效 |
 | [确认评分 v2 结果](benchmarks/confirmation-v2-results-20261021.md) | H1（V2.1 → V4.2）+22、作者簇 p = 0.0508，未证实；V4.3 → V5 在同音词上 +18 |
+| [seed 集成复核结果](benchmarks/ensemble-replication-v2-results-20261105.md) | v2 blind 第二次使用：四 seed 集成 619 对 V4.2 598（+21，作者簇 p = 0.0012），复现；同音词 +7，不显著 |
 | [候选导出 v2](benchmarks/candidates-v2-handoff.md) | n-best 20/50、确定性与左文依赖对照的 Mac 交接 |
 | [Core ML](coreml.md) | 导出、量化、客户端接口与设备范围 |
 | [本地产物](artifacts.md) / [跨平台管理](reference/artifact-exchange.md) | 路径、归档、Git与ZIP协作 |
@@ -36,6 +37,7 @@ V2系列实验已完成，此前部署版本为V2.1 extend5 step40000 / INT8 blo
 | WSD 调度实验 | [V4.2-50ep 与 V5-50ep 的设计、曲线与结论](training-wsd.md)：BPC 3.0328 / 2.9317（各规模最佳），IME Top-1 无提升，不部署 |
 | V4.4 消融（预注册） | [V4.2 配方上的六臂单因素实验](training-v44-plan.md)：三个 seed 重复测 run 间噪声，聊天 0 / 10%，prefix crop 0.60；只评第 20 轮 |
 | V4.4 消融结果 | [seed 噪声带与处理臂判定](training-v44.md)：处理臂均无效（去掉聊天变差）；Standard seed 带 501–523，V4.2 在顶端，此前单 seed 差异都在带内；探索性四 seed 集成 535 |
+| V4.5 集成蒸馏（预注册） | [四 seed 集成蒸馏进 15M student](training-v45-plan.md)：几何 / 算术两种合并 × 四个孪生 seed，0.5 CE + 0.5 软目标；按 student 减孪生配对判定 |
 | IME 错误分解 | [瓶颈不在 LM 容量](reports/analysis-20261021/ime-errors.md)：池外 48%、书写形式 35–44%、语义 8% |
 | 免训练重打分 | [PMI、长度与引擎分融合](reports/analysis-20261021/rescoring.md)：均未通过独立检验，部署保持纯 LM 打分 |
 | V4.2 Apple 部署 | [Core ML、INT8、分段 KV、Mac 与 iPhone 测量（英文）](../reports/mac-20261020/v42-coreml.md) |
