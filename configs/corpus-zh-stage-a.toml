@@ -1,0 +1,20 @@
+# Stage A of the Chinese web corpus: rule filter, Traditional -> Simplified, exact dedup.
+[input]
+dir = "datasets/fineweb-2-cmn-hani"
+manifest = "datasets/fineweb-2-cmn-hani/manifest.json"
+
+[rules]
+terms = "configs/zh-filter-terms.toml"
+
+[thresholds]
+min_han = 100             # fewer Chinese characters -> drop (short)
+min_han_share = 0.4       # Chinese characters / non-space characters below this -> drop (low_han)
+max_repeated_lines = 0.3  # share of line characters in repeated lines above this -> drop (repetitive)
+traditional = 0.08        # share of Traditional-only characters above this -> convert with tw2sp
+
+[output]
+dir = "outputs/zh-corpus/stage-a-v2"
+
+[run]
+workers = 14
+batch_rows = 20000

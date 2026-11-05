@@ -1,0 +1,94 @@
+# Term and domain lists for the Chinese corpus content filter (pilot v0).
+#
+# Any document whose text contains one of these collocations is dropped from the
+# training corpus. The corpus keeps only a small fraction of FineWeb2 anyway, so the
+# lists favour recall: a false positive costs one web page, a miss costs nothing more
+# than what the IME-side blocklist already has to handle. The IME output filter is the
+# authoritative control; this list only keeps the model from learning to rank such
+# content highly.
+#
+# Review workflow: run scripts/corpus/zh_term_pilot.py, read the per-term hit counts
+# and context samples, then add, narrow or delete entries here. Entries are matched as
+# plain substrings (case-insensitive for Latin letters).
+
+[categories]
+gambling = [
+  "百家乐", "娱乐城", "时时彩", "六合彩", "北京赛车", "老虎机", "真人娱乐", "博彩", "赌场",
+  "葡京", "威尼斯人", "太阳城", "足球投注", "网上赌", "注册送", "开户送", "体育投注", "彩金",
+  "棋牌游戏", "澳门娱乐", "皇冠体育", "bet365", "赌博网站", "网投", "菠菜", "永利娱乐",
+  "银河娱乐", "金沙娱乐", "开户网址", "下注平台",
+  "澳门赌场", "赌场网址", "赌场官网", "网上赌场", "在线赌场", "网投平台", "网投网址", "网投官方",
+  # gambling-SEO collocations from the 2026-11-05 SEO pilot (3 stage-A v1 shards, 3.8M docs)
+  # and the first human batch: near-always inserted into stolen news/novel text
+  "pk10", "分分彩", "幸运飞艇", "一分快三", "真人视讯", "首存", "彩票平台", "彩票网", "捕鱼游戏",
+  "娱乐官网", "娱乐网址", "娱乐注册", "娱乐开户", "娱乐返点", "备用网址", "官方网站app",
+  "拉菲娱乐", "杏彩", "杏耀", "188bet",
+  # mixed in the pilot (also 综合娱乐平台, 电子游艺场 in police notices): weak
+  "娱乐平台", "电子游艺", "网址多少", "网址是多少",
+]
+porn = [
+  "色情", "一级片", "毛片", "无码", "偷拍", "性爱", "做爱", "情色", "三级片", "女优", "黄片",
+  "成人电影", "成人网站", "乱伦", "口交", "自慰", "巨乳", "裸聊", "约炮", "啪啪", "内射",
+  "骚货", "炮友", "淫荡", "淫乱", "番号", "国产精品", "无套", "援交", "恋夜秀场",
+]
+illicit = [
+  "代开发票", "办证", "刻章", "私人侦探", "代孕", "高仿", "迷药", "枪支出售", "网赚", "刷单",
+  "贷款秒批", "信用卡套现", "黑客接单", "代考", "身份证复印件出售",
+]
+# Political compliance terms for the mainland-China build (draft v0, 2026-11-05).
+# Not an authoritative list: the regulator's lists are not public and change, so the
+# IME output layer should use a maintained moderation list. This draft only aims to
+# keep the training text away from banned-movement material and the best-known
+# event names; most political material is handled by the domain list below.
+# Words that mainland official media also use (台独, 藏独, 港独, 翻墙 ...) are in
+# rules.weak, so state-media news that mentions them is kept.
+political = [
+  "法轮功", "法轮大法", "李洪志", "九评共产党", "三退", "大纪元", "新唐人", "退党声明",
+  "天安门事件", "八九民运", "六四事件", "六四屠杀", "坦克人", "天安门母亲",
+  "台独", "藏独", "疆独", "港独", "翻墙", "科学上网", "共匪", "中共暴政",
+]
+
+[rules]
+# Everyday words that also appear in spam. They count only when the same document
+# hits a second, different term, so ordinary pages (spinach recipes, hotel listings,
+# crime news) keep teaching the model these words.
+weak = ["菠菜", "赌场", "色情", "网投", "番号", "高仿", "办证", "代考", "刷单", "网赚", "情色", "偷拍",
+        "台独", "藏独", "疆独", "港独", "翻墙", "科学上网",
+        "娱乐平台", "电子游艺", "网址多少", "网址是多少"]
+
+[domains]
+# Hosts dropped outright, independent of text (suffix match, e.g. "example.com" also
+# drops "www.example.com").
+# Tier 1: overseas political outlets blocked in mainland China (about 0.6% of sampled
+# documents on 2026-11-05).
+block = [
+  "epochtimes.com", "dajiyuan.com", "epochweekly.com", "ntdtv.com", "secretchina.com",
+  "kanzhongguo.com", "minghui.org", "aboluowang.com", "soundofhope.org", "falundafa.org",
+  "tuidang.org", "bannedbook.org", "rfa.org", "voachinese.com", "voacantonese.com", "rfi.fr",
+  "dw.com", "boxun.com", "chinadigitaltimes.net", "creaders.net", "6park.com", "backchina.com",
+  "hrichina.org", "chinaaid.org", "theinitium.com", "initiumlab.com", "cn.nytimes.com",
+  "bbc.com", "bbc.co.uk", "zhengjian.org", "renminbao.com",
+]
+# Tier 2: Taiwan and Hong Kong mainstream news (about 0.6%). Not banned material, but
+# mostly political news written from a non-mainland position; listed separately so the
+# choice stays visible. Dropped in the pilot.
+block_tier2 = [
+  "udn.com", "chinatimes.com", "ltn.com.tw", "appledaily.com", "appledaily.com.tw",
+  "mingpao.com", "hk01.com", "storm.mg", "cna.com.tw", "rthk.hk", "setn.com", "ettoday.net",
+  "tvbs.com.tw", "nownews.com", "newtalk.tw",
+]
+# Gambling pinyin in the host name (substring match), e.g. hongyunguojiyulecheng.u07bgqr7k.com.
+# These spam farms paste stolen ordinary text, so the term list misses them. Ambiguous
+# pinyin (yule 娱乐, tiyu 体育, aomen 澳门, jingcai 精彩) is left out; .gov.cn and .edu.cn
+# hosts are exempt.
+host_terms = [
+  "yulecheng", "shishicai", "baijiale", "bocai", "touzhu", "liuhecai", "duchang", "pk10",
+  "bet365", "weinisiren", "taiyangcheng", "zhenrenyule", "qipai", "laohuji", "casino",
+  "xinpujing", "pujing", "sbobet",
+]
+# Top-level domains dominated by spam in the cmn_Hani probe (2026-11-05).
+# pw added after the SEO pilot ("编辑：空山鸟语" template farm on random .pw hosts).
+block_tlds = ["click", "xyz", "live", "icu", "top", "vip", "buzz", "bond", "cyou", "pw"]
+# Checked by hand (2026-11-05): legitimate sites that the spam-host / spam-farm rules of
+# `zh_stage_a.py report` would list. Their documents get the ordinary per-document rules.
+spam_allow = ["cool3c.com", "to8to.com", "39.net", "yaolan.com"]

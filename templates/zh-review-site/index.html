@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>语料人工审核</title>
+<style>
+:root{--bg:#f7f7f5;--panel:#fff;--text:#1d1d1f;--muted:#6b6b70;--line:#e2e2e0;--hit:#ffe08a;--accent:#2f6fde;
+--keep:#2e8b57;--drop:#c0392b;--unsure:#8e8e93}
+@media (prefers-color-scheme:dark){:root{--bg:#161618;--panel:#1f1f22;--text:#ececec;--muted:#9a9aa0;--line:#333338;
+--hit:#7a5c00;--accent:#6f9cff;--keep:#4cbf7f;--drop:#ff6b5b;--unsure:#a0a0a6}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.7 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+header{position:sticky;top:0;z-index:2;background:var(--panel);border-bottom:1px solid var(--line);padding:10px 16px;
+display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+header input[type=text]{width:9em}
+main{max-width:860px;margin:0 auto;padding:16px}
+.meta{color:var(--muted);font-size:13px;word-break:break-all}
+.tags span{display:inline-block;border:1px solid var(--line);border-radius:4px;padding:0 6px;margin:2px 4px 2px 0;font-size:12px}
+.doc{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin:10px 0;
+white-space:pre-wrap;word-break:break-word}
+mark{background:var(--hit);color:inherit;border-radius:2px}
+.keys{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+button{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:6px;padding:4px 10px;cursor:pointer}
+button.on{outline:2px solid var(--accent)}
+button[data-l=keep]{color:var(--keep)} button[data-l=unsure]{color:var(--unsure)}
+button.drop{color:var(--drop)}
+.bar{height:4px;background:var(--line);border-radius:2px;overflow:hidden;flex:1 1 120px}
+.bar i{display:block;height:100%;background:var(--accent)}
+.hint{color:var(--muted);font-size:13px}
+.empty{padding:40px 0;text-align:center;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <strong>语料人工审核</strong>
+  <label>审核人 <input type="text" id="reviewer" placeholder="你的名字"></label>
+  <label><input type="file" id="file" accept=".json"> 打开批次</label>
+  <span id="progress" class="hint"></span>
+  <div class="bar"><i id="barfill" style="width:0"></i></div>
+  <button id="next-open">下一条未标注</button>
+  <button id="export">导出标注</button>
+  <label><input type="file" id="import" accept=".json" hidden><button id="import-btn">导入标注</button></label>
+</header>
+<main>
+  <div id="view" class="empty">选择一个批次文件（或在网址后加 <code>?batch=批次路径</code>）开始审核。</div>
+  <p class="hint">快捷键：1 保留 · 2 不保留 · 3 不确定 · ←/→ 上一条/下一条 · 标注后自动跳到下一条。
+  标注只保存在这个浏览器里，审完请点“导出标注”把文件发回。</p>
+</main>
+<script>
+const LABELS=[['keep','保留'],['drop','不保留'],['unsure','不确定']];
+const MAX=4000;
+let batch=null,pos=0,labels={},expanded=false;
+const $=id=>document.getElementById(id);
+const store={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},
+             set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const key=()=>`zh-review:${batch.batch}:${$('reviewer').value.trim()||'anon'}`;
+$('reviewer').value=store.get('zh-review:reviewer')||'';
+$('reviewer').addEventListener('change',()=>{store.set('zh-review:reviewer',$('reviewer').value.trim());if(batch){labels=store.get(key())||{};render()}});
+
+function esc(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function highlight(text,hits){
+  let html=esc(text);
+  for(const h of [...(hits||[])].sort((a,b)=>b.length-a.length)){
+    if(!h)continue;
+    const re=new RegExp(esc(h).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi');
+    html=html.replace(re,m=>`<mark>${m}</mark>`);
+  }
+  return html;
+}
+function load(data){
+  if(!data||!Array.isArray(data.items)||!data.batch){alert('不是有效的批次文件');return}
+  batch=data;labels=store.get(key())||{};
+  pos=Math.max(0,batch.items.findIndex(it=>!labels[it.id]));if(pos<0)pos=0;render();
+}
+function render(){
+  if(!batch)return;
+  const it=batch.items[pos],done=batch.items.filter(x=>labels[x.id]).length,n=batch.items.length;
+  $('progress').textContent=`批次 ${batch.batch} · 第 ${pos+1}/${n} 条 · 已标 ${done}`;
+  $('barfill').style.width=`${100*done/n}%`;
+  const text=expanded||it.text.length<=MAX?it.text:it.text.slice(0,MAX)+'…';
+  const cur=labels[it.id]&&labels[it.id].label;
+  $('view').className='';
+  $('view').innerHTML=`<div class="meta">${esc(it.host||'')} · ${esc(it.url||'')}</div>
+    <div class="tags">${(it.reasons||[]).map(r=>`<span>${esc(r)}</span>`).join('')}${(it.hits||[]).map(h=>`<span>命中：${esc(h)}</span>`).join('')}</div>
+    <div class="keys">${LABELS.map(([l,t],i)=>`<button data-l="${l}" class="${cur===l?'on':''} ${l==='drop'?'drop':''}">${i+1} ${t}</button>`).join('')}</div>
+    <div class="doc">${highlight(text,it.hits)}</div>
+    ${it.text.length>MAX?`<button id="expand">${expanded?'收起':'展开全文'}（${it.text.length} 字）</button>`:''}`;
+  document.querySelectorAll('.keys button').forEach(b=>b.onclick=()=>mark(b.dataset.l));
+  if($('expand'))$('expand').onclick=()=>{expanded=!expanded;render()};
+}
+function mark(l){
+  const it=batch.items[pos];labels[it.id]={label:l,t:new Date().toISOString()};store.set(key(),labels);
+  move(1);
+}
+function move(d){if(!batch)return;pos=Math.min(batch.items.length-1,Math.max(0,pos+d));expanded=false;render();window.scrollTo(0,0)}
+document.addEventListener('keydown',e=>{
+  if(!batch||e.target.tagName==='INPUT')return;
+  const i='123'.indexOf(e.key);if(i>=0){mark(LABELS[i][0]);return}
+  if(e.key==='ArrowRight'||e.key==='j')move(1);
+  if(e.key==='ArrowLeft'||e.key==='k')move(-1);
+});
+$('next-open').onclick=()=>{if(!batch)return;const i=batch.items.findIndex(it=>!labels[it.id]);if(i>=0){pos=i;expanded=false;render()}else alert('这个批次已全部标完')};
+$('file').onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(t=>load(JSON.parse(t))).catch(()=>alert('读取失败'))};
+$('export').onclick=()=>{
+  if(!batch)return;const who=$('reviewer').value.trim();if(!who){alert('请先填写审核人');return}
+  const out={batch:batch.batch,source:batch.source||null,reviewer:who,exported:new Date().toISOString(),labels};
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(out)],{type:'application/json'}));
+  a.download=`labels-${batch.batch}-${who}.json`;a.click();URL.revokeObjectURL(a.href);
+};
+$('import-btn').onclick=()=>$('import').click();
+$('import').onchange=e=>{const f=e.target.files[0];if(!f||!batch)return;f.text().then(t=>{const d=JSON.parse(t);
+  if(d.batch!==batch.batch){alert('标注文件和当前批次不一致');return}
+  labels={...d.labels,...labels};store.set(key(),labels);render()})};
+const q=new URLSearchParams(location.search).get('batch');
+if(q)fetch(q).then(r=>r.json()).then(load).catch(()=>alert('无法加载批次：'+q));
+</script>
+</body>
+</html>
