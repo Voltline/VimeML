@@ -18,6 +18,7 @@ V4.2 epoch 20 / INT8 block-32 is the current deployment release; it replaced V2.
 | [V5 scale-up pretraining](training-v5.md) | d512/L8 (28.4M) size-only comparison against V4.3: LM BPC −0.10, IME Top-1 unchanged; not deployed |
 | [WSD schedule runs](zh-CN/training-wsd.md) (Chinese) | V4.2 and V5 for 50 epochs with warmup-stable-decay at peak lr 3e-4: best BPC at each size (3.0328, 2.9317), confounded with a larger budget; IME Top-1 unchanged; not deployed |
 | [V4.4 ablation plan](zh-CN/training-v44-plan.md) (Chinese) | Preregistered six-arm single-factor ablation of the V4.2 recipe: three replicate seeds for the first run-to-run IME noise band, chat fraction 0 / 0.10, prefix crop 0.60; epoch 20 only, author-cluster tests against V4.2 |
+| [V4.4 ablation results](zh-CN/training-v44.md) (Chinese) | No treatment arm effective (removing chat hurts); Standard Top-1 seed band 501–523 (SD 9.5) with V4.2 at the top, so every earlier single-seed Standard difference is within noise; exploratory 4-seed log-probability ensemble reaches 535 |
 | [IME error decomposition (Chinese)](zh-CN/reports/analysis-20261021/ime-errors.md) | Remaining Top-1 errors: candidate-pool misses, notation variants, few semantic errors |
 | [Training-free rescoring (Chinese)](zh-CN/reports/analysis-20261021/rescoring.md) | PMI, length and engine-score fusion; none passes held-out tracks, deployment keeps plain LM scoring |
 | [Evaluation](evaluation.md) | Fixed-pool scoring, statistics, and benchmark roles |

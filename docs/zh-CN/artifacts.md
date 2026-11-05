@@ -21,7 +21,7 @@ Git保存源码、配置、测试、文档和许可证。`datasets/`、`artifact
 | `outputs/history/` | 已退役的脚本、快照、日志和冲突版本 |
 | `outputs/maintenance/` | 导入、目录整理及文档改版记录 |
 
-训练checkpoint保存在HF私有数据集`Voltline/vimeml-{v42,v43,v5,wsd}-training-output`。2026-10-24起每个仓库只保留评测过的checkpoint（V4.2第20轮best-lm；V4.3第27、30轮与10轮对照；V5第29、30轮与10轮对照；WSD两次运行第42、50轮）以及WSD稳定段分叉点（V5-50ep第25轮、V4.2-50ep第17、25轮），并压缩了历史，早前报告引用的revision已失效。records、源码与`SHA256SUMS`保留，保留文件的哈希不变。本地只留V4.2 `best-lm.pt`，其余由各`download-receipt.json`中的新revision与恢复命令重新下载。
+V4.4消融（2026-11-05）在`Voltline/vimeml-v44-training-output`（revision `a77fd281…`）：每臂只有去掉优化器状态的第20轮权重、记录、混合清单与源码，中间轮次留在集群；本地副本与收据在`outputs/training-v44-20261105/`。训练checkpoint保存在HF私有数据集`Voltline/vimeml-{v42,v43,v5,wsd}-training-output`。2026-10-24起每个仓库只保留评测过的checkpoint（V4.2第20轮best-lm；V4.3第27、30轮与10轮对照；V5第29、30轮与10轮对照；WSD两次运行第42、50轮）以及WSD稳定段分叉点（V5-50ep第25轮、V4.2-50ep第17、25轮），并压缩了历史，早前报告引用的revision已失效。records、源码与`SHA256SUMS`保留，保留文件的哈希不变。本地只留V4.2 `best-lm.pt`，其余由各`download-receipt.json`中的新revision与恢复命令重新下载。
 
 语料原文在`outputs/corpus-fast-v1/`（约50GB），原输入在`datasets/`（约2.44GB）。`rows.bin`依赖JSONL原始字节位置；部署只需要推理权重、tokenizer、manifest与参考结果，不依赖训练原文、token store或优化器。
 
