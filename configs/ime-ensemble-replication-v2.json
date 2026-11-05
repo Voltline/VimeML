@@ -1,0 +1,186 @@
+{
+  "version": "ime-ensemble-replication-v2",
+  "created_utc": "2026-11-05T01:31:38.805483+00:00",
+  "metric_policy": "configs/ime-metrics-v2.json",
+  "status_of_sets": "Second use. Both pools were consumed once by configs/ime-confirmation-v2.json; the ensemble idea came from development after that. Outcomes are descriptive replication evidence; any deployment claim needs a fresh blind release",
+  "tracks": {
+    "standard-v2-blind": {
+      "release_id": "5bd7c49057f24dc5a96cb1a3c0dc2f88",
+      "cases": 729,
+      "pools": {
+        "n20": {
+          "directory": "artifacts/benchmarks/ime-candidates-v2-imported/standard-v2-blind-n20",
+          "sha256": {
+            "manifest.json": "935245c1a92f75d41482abdb1654d69f5c706214806df313a5dbf8601cd3c917",
+            "case-map.json": "01cb675a4d3f1c8260ebb90e4994409f11104d971018de7a2ecb3e225d356b59",
+            "ajimee-results/ajimee-input.json": "8adab08438c53767a27efc7f257258599a5440472dc2f4c8b9493a78f5ddfeb2",
+            "ajimee-results/azookey-candidates.json": "0715e34870601cdf97d421de3ccfb441849b2c0a9a7ababfa9a643c1bf56ff86"
+          }
+        },
+        "n50": {
+          "directory": "artifacts/benchmarks/ime-candidates-v2-imported/standard-v2-blind-n50",
+          "sha256": {
+            "manifest.json": "bebd4aa7e1ce430eaa8fbabaab97e7bb90d761a76964da04bd52309d9bab7c43",
+            "case-map.json": "01cb675a4d3f1c8260ebb90e4994409f11104d971018de7a2ecb3e225d356b59",
+            "ajimee-results/ajimee-input.json": "8adab08438c53767a27efc7f257258599a5440472dc2f4c8b9493a78f5ddfeb2",
+            "ajimee-results/azookey-candidates.json": "7168ed282950d21e1edb80c3f7a45a0cd98d85b81cfb95d1b6f879dc8516b532"
+          }
+        }
+      }
+    },
+    "homophone-v1": {
+      "release_id": "b0dd116118a24f429960ae0920096e7f",
+      "cases": 619,
+      "pools": {
+        "n20": {
+          "directory": "artifacts/benchmarks/ime-candidates-v2-imported/homophone-v1-n20",
+          "sha256": {
+            "manifest.json": "d3f27cb92592caaca547b4734b311451f551574543f320658d29c0919b35f979",
+            "case-map.json": "7a2aa10168720785b9664a6be66512f84e3fd1b46758a7310a4308fbe285911a",
+            "ajimee-results/ajimee-input.json": "67482659700f01d4a4615f3ec0364e0acb99794bbb1e2657598cf255478bcef2",
+            "ajimee-results/azookey-candidates.json": "92466b7d06028258b23c9ddb921613d8ec3732c9e815531af17fbd36191b1e31"
+          }
+        },
+        "n50": {
+          "directory": "artifacts/benchmarks/ime-candidates-v2-imported/homophone-v1-n50",
+          "sha256": {
+            "manifest.json": "91292ef43dcb362a9163c9579135eb50999ef74020c420b35552ad0f8387f104",
+            "case-map.json": "7a2aa10168720785b9664a6be66512f84e3fd1b46758a7310a4308fbe285911a",
+            "ajimee-results/ajimee-input.json": "67482659700f01d4a4615f3ec0364e0acb99794bbb1e2657598cf255478bcef2",
+            "ajimee-results/azookey-candidates.json": "6972d2fc5dbe5498308a54d734f812da97836b4a3ec783a308526f468949e7b1"
+          }
+        }
+      }
+    }
+  },
+  "preflight": {
+    "pool": "artifacts/benchmarks/ime-candidates-v2-imported/standard-v1-development-n20",
+    "sha256": {
+      "manifest.json": "a3697e1263bd65b7050532462eb8f9fb7803406ad3b9e461b3c7f96dbdae06db",
+      "case-map.json": "6499a063c793fd4dca0652d353ae1cab8a43842402af28fc816a89a1aee37f88",
+      "ajimee-results/ajimee-input.json": "157614e7daffbc5ab25ed62c1155779f4f424d626c7fcc7be486b5f7c07331da",
+      "ajimee-results/azookey-candidates.json": "c5b1e839d542be5f3eea0f039fe809bf8a051481bbaa67445fde29654067b069"
+    },
+    "requirement": "s1-s3 reproduce their recorded development lm_context_sum order on all 728 cases before any blind or homophone file is read"
+  },
+  "models": {
+    "s1": {
+      "checkpoint": "outputs/training-v44-20261105/remote/s1/checkpoints/epoch-20.pt",
+      "tokenizer": "artifacts/tokenizers/v4-a/ja-unigram-8192",
+      "loader": "v4",
+      "recorded_development": "outputs/evaluation-v44-20261105/s1/standard-development/scores.jsonl",
+      "sha256": "31cc81207de132b9c8c51f975ef8a550d50f35196401c69b24f70f46f4502338",
+      "bytes": 60322045,
+      "step": 1081944
+    },
+    "s2": {
+      "checkpoint": "outputs/training-v44-20261105/remote/s2/checkpoints/epoch-20.pt",
+      "tokenizer": "artifacts/tokenizers/v4-a/ja-unigram-8192",
+      "loader": "v4",
+      "recorded_development": "outputs/evaluation-v44-20261105/s2/standard-development/scores.jsonl",
+      "sha256": "dd8a33acee77981cdb3b07b602bbdd665f6db058eed505e8bcb06a54859040cb",
+      "bytes": 60322045,
+      "step": 1081940
+    },
+    "s3": {
+      "checkpoint": "outputs/training-v44-20261105/remote/s3/checkpoints/epoch-20.pt",
+      "tokenizer": "artifacts/tokenizers/v4-a/ja-unigram-8192",
+      "loader": "v4",
+      "recorded_development": "outputs/evaluation-v44-20261105/s3/standard-development/scores.jsonl",
+      "sha256": "bac6f0fe8d20ad643b25ff8291599f74b4274efa79965dbe366972dbb6b5786e",
+      "bytes": 60321981,
+      "step": 1081937
+    }
+  },
+  "reused_scores": {
+    "model": "v42-e20",
+    "source": "configs/ime-confirmation-v2.json run",
+    "files": {
+      "standard-v2-blind/n20": {
+        "file": "outputs/confirmation-v2-20261021/standard-v2-blind/n20/v42-e20.jsonl",
+        "sha256": "3a9f28eea596279532bdc8093ff8a28e62e6a56f77d525c5c1e84a981cb55633"
+      },
+      "standard-v2-blind/n50": {
+        "file": "outputs/confirmation-v2-20261021/standard-v2-blind/n50/v42-e20.jsonl",
+        "sha256": "94939e4a24c020abeb014ff243ec16660eb243b7143ae43d22e770dc4049138b"
+      },
+      "homophone-v1/n20": {
+        "file": "outputs/confirmation-v2-20261021/homophone-v1/n20/v42-e20.jsonl",
+        "sha256": "1e2398cce2af605a67c67524f3f7d49226c44effa1b20891eeedf60038f00e9c"
+      },
+      "homophone-v1/n50": {
+        "file": "outputs/confirmation-v2-20261021/homophone-v1/n50/v42-e20.jsonl",
+        "sha256": "1cfd31d8fc39a3fd35980f30312d1a73e1f7664f17ec6c36dcc101a68b0e50a0"
+      }
+    }
+  },
+  "ensemble": {
+    "name": "ens4",
+    "members": [
+      "v42-e20",
+      "s1",
+      "s2",
+      "s3"
+    ],
+    "rule": "Rank candidates by the equal-weight sum of the members' contextual full-vocabulary suffix logP sums; ties keep AzooKey order"
+  },
+  "scoring": {
+    "semantics": "FP32 full-vocabulary suffix logP sum; joint context+candidate tokenization; no final EOS, truncation or tuning; stable ties",
+    "precision": "FP32 on CUDA; TF32 disabled",
+    "packages": {
+      "torch": "2.10.0+cu128",
+      "fugashi": "1.5.2",
+      "unidic-lite": "1.0.8",
+      "sentencepiece": "0.2.1"
+    }
+  },
+  "primary": {
+    "id": "R1",
+    "before": "v42-e20",
+    "after": "ens4",
+    "track": "standard-v2-blind",
+    "pool": "n20",
+    "question": "Does the four-seed ensemble improve exact Top-1 over the deployed V4.2 epoch 20?",
+    "metric": "exact Top-1",
+    "claim_rule": "net > 0 and author-cluster sign-flip p < 0.05; and no notation-lenient loss with cluster p < 0.05 for the same pair on either n20 track",
+    "if_replicated": "The development ensemble gain replicates on the consumed blind; distill the ensemble (V4.5)",
+    "if_not_replicated": "No replicated gain; ensemble distillation is not pursued on this evidence"
+  },
+  "secondary": {
+    "tests": [
+      {
+        "id": "R2",
+        "before": "v42-e20",
+        "after": "ens4",
+        "track": "homophone-v1",
+        "pool": "n20",
+        "question": "The same on written-text homophones"
+      }
+    ],
+    "metric": "exact Top-1",
+    "claim_rule": "two-sided author/homophone-group cluster p < 0.05 (single test, no adjustment) and the same notation-lenient guard"
+  },
+  "descriptive": [
+    "seed band (mean, range, SD) of the four single seeds on each track and pool",
+    "every two- and three-member ensemble",
+    "ensemble against each single seed",
+    "n50 pools, error classes, by source and homophone diagnostics as in confirmation v2"
+  ],
+  "execution": "One run; a run that stops for a technical failure before summary.json may be repeated into a new directory, recorded in the receipt. Never rerun to change an outcome",
+  "publication": "Aggregates and case IDs only",
+  "code_sha256": {
+    "scripts/benchmarks/replicate_ensemble_v2.py": "1044852c07c76da38fb3439b5684f8767dcbc90697a1c289f24d4de1fafcb994",
+    "configs/ime-metrics-v2.json": "aae918689d85ae2a74434953baf9e5cd7ca76cbd8492eb261ebbb3ac85846bd2",
+    "scripts/benchmarks/confirm_ime_v2.py": "cccaae44be36cf5a6f9a2298c40c224a692c991302daadfff5af89baf3ce3a57",
+    "src/vimeml/benchmarks/notation.py": "af5150abfcfcc3efca51e1213e42114d54a1d59255ebcb2853c7838e68028900",
+    "src/vimeml/benchmarks/statistics.py": "6c9ff9880d36c89ac27f0815c221923a434e34a299b53ce06c8b99613189014f",
+    "src/vimeml/benchmarks/evaluate_ajimee.py": "72c3b78cc54220cd8c9b81faad53bb35b5e9c4641e194692a0977e008f72fc10",
+    "src/vimeml/benchmarks/standard_ime.py": "2e5262feb989fedfeee8af585b63de3dcd1b0264100838f97f2b54f2ba70b7cf",
+    "src/vimeml/benchmarks/expanded_ime.py": "96275849c28c53e879587b90585816f94d22448cea78ef82b05bf9cbcde15796",
+    "src/vimeml/benchmarks/comparison.py": "b7bc15c672bbf7f09212a2764e9f92bfab4f56daeea8ae94097371d26028afd3",
+    "src/vimeml/training/evaluate_ime.py": "9a36b75893f58f61228ad7a6bbb2a34b52aaf312ca6675383580964500d639cd",
+    "src/vimeml/training/infer.py": "12dfae274902ac7d3be36829385d41b73004e4653d57df89e24f8613e62ad8f4",
+    "src/vimeml/training/infer_v4.py": "552d93c35bf4d1e420404e41a44278ae2689876eb681c46136b92be7f94f85fe",
+    "src/vimeml/training/infer_v5.py": "71ee7b2a2699ae1f42ea0ff1959c0b81097e8812a2e492b3485a5e50ce2cae99"
+  }
+}
