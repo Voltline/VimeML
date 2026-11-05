@@ -160,11 +160,24 @@ def run(args):
 
 
 def ensemble_rows(rows, members):
-    """Rows whose lm_context_sum order is the members' summed contextual logP ranking."""
+    """Rows whose lm_context_sum order is the members' summed contextual logP ranking.
+
+    Where the context is not scorable (e.g. longer than the 128-token window) every
+    single model falls back to the AzooKey order; the shared tokenizer makes that
+    fallback identical across members, and the ensemble keeps it too.
+    """
     base = rows[members[0]]
     result = []
     for i, row in enumerate(base):
         order = row['orders']['azookey']
+        fallback = {rows[name][i]['fallbacks'].get('lm_context_sum') for name in members}
+        if len(fallback) != 1:
+            raise ValueError(f"{row['id']}: members disagree on the contextual fallback")
+        if fallback != {None}:
+            merged = copy.copy(row)
+            merged['orders'] = {**row['orders'], 'lm_context_sum': list(order)}
+            result.append(merged)
+            continue
         total = {t: 0.0 for t in order}
         for name in members:
             assert rows[name][i]['id'] == row['id']
