@@ -10,6 +10,7 @@ V2系列实验已完成，此前部署版本为V2.1 extend5 step40000 / INT8 blo
 | --- | --- |
 | [数据](data.md) | 冻结语料、来源、清洗和split |
 | [Vime 1.3 中文语料](data-zh-v13.md) | 进行中：FineWeb2 cmn_Hani 21 分片与 LCCC，繁转简、规则过滤、垃圾站剔除、95.5 万条人工审核队列 |
+| [中文 20M 实验计划](training-zh-v13-plan.md) | 预注册草案：八臂，同为 224 亿字，新数据/5 轮/20 轮 × 8K/12K，12K 新数据三个 seed 测噪声 |
 | [中文 tokenizer 词表对比](reports/zh-v13-20261106/tokenizer-vocab.md) | 只训 tokenizer：8K–32K 与覆盖率 0.9995/0.9999；20M 只实验 8K 和 12K，200M 再开 16K–32K |
 | [V4 基础训练](training-v4.md) | 固定 8K 架构、已完成 A/B 调度、结果与恢复 |
 | [V4 后训练](posttraining-v4.md) / [转换数据](data-v4-c1.md) | 已完成 C1/C1r2、冻结数据、条件评分与后训练设置 |

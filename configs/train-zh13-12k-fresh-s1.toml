@@ -1,0 +1,62 @@
+# Vime 1.3 Chinese 20M arm 12k-fresh-s1 (docs/zh-CN/training-zh-v13-plan.md): 12K vocabulary, L9,
+# web pool P1 for 1 epoch(s), seed 1591996171. Everything else is the V4.2 recipe.
+# dataset_sha256 is the LF manifest prepare_zh13.py writes; pin it after the first build.
+stage = "zh-v1.3"
+arm = "12k-fresh-s1"
+architecture = "tiny_gpt_zh13"
+output_dir = "artifacts/models/tiny-zh13-12k-fresh-s1-d384-l9"
+log_dir = "runs/training/tiny-zh13-12k-fresh-s1-d384-l9"
+dataset_sha256 = ""
+
+[initialization]
+mode = "random"
+
+[data_mixture]
+directory = "artifacts/training-data/zh13-12k-fresh-s1-c128"
+
+[model]
+vocab_size = 12288
+context_length = 128
+d_model = 384
+n_heads = 6
+n_layers = 9
+d_ff = 960
+dropout = 0.0
+norm = "rmsnorm"
+norm_eps = 0.00001
+activation = "swiglu"
+bias = false
+tie_embeddings = true
+position_embedding = "learned"
+
+[runtime]
+compile_backbone = true
+
+[training]
+device = "cuda"
+precision = "bf16"
+seed = 1591996171
+cpu_threads = 4
+num_workers = 4
+bucket_multiplier = 64
+lm_batch = 512
+lm_microbatch = 512
+smoke_updates = 0
+learning_rate = 0.0006
+min_learning_rate = 0.00006
+warmup_steps = 1000
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+prefix_crop_probability = 0.30
+log_every = 100
+eval_every = 5000
+checkpoint_every = 5000
+validation_batch = 256
+
+[tracking]
+enabled = true
+project = "vimeml"
+group = "zh13-20m"
+mode = "online"
