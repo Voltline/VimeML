@@ -17,6 +17,7 @@ V2系列实验已完成，此前部署版本为V2.1 extend5 step40000 / INT8 blo
 | [V1训练](training.md) | 冻结基线复现 |
 | [评测](evaluation.md) | 评分语义、同池结果、统计与标签限制 |
 | [Standard IME基准](benchmarks/standard-ime.md) / [首次结果](benchmarks/standard-ime-results-20261008.md) | WRIME/JMultiWOZ独立来源、旧网页回归、审核与版本协议；V2.1/V3 A固定比较 |
+| [Standard 中文 IME 基准](benchmarks/standard-ime-zh.md) | CrossWOZ/RiSAWOZ/KdConv 2,901 条，全拼与简拼两轨，librime + rime-ice 候选池；AI 专家审核加人工抽查，blind 未开启 |
 | [IME 指标 v2](benchmarks/metrics-v2.md) | 书写宽松与池条件 Top-1、作者簇检验、判定规则与轨道角色 |
 | [Standard v2 blind](benchmarks/standard-ime-v2-blind.md) / [同音词挑战](benchmarks/homophone-ime.md) / [分段输入原型](benchmarks/incremental-ime.md) | 新确认集合、书面语同音词集合与分段协议原型；前两个已按确认计划使用 |
 | [确认评分计划 v2](benchmarks/confirmation-v2-plan.md) | Standard v2 blind 与同音词集合首次评分的预注册假设、模型、判定规则与功效 |
