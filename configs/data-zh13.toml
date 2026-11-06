@@ -1,0 +1,13 @@
+# Vime 1.3 Chinese 20M token data (docs/zh-CN/training-zh-v13-plan.md).
+# measure: per-document pool hash and paragraph characters -> thresholds q, q/5, q/20.
+# encode: one web store (P1 only, per-paragraph tier) and one chat store per vocabulary.
+export_dir = "outputs/zh-corpus/export-r1"
+tokenizer_dir = "artifacts/tokenizers/zh-v13"
+pools_dir = "artifacts/training-data/zh13-pools"
+pool_label = "zh-v13-pool"
+memo_label = "zh-v13-memo"
+# P1 is the smallest hash prefix whose paragraph characters reach this target.
+p1_target_characters = 21_280_000_000
+memo_documents = 10000
+workers = 16
+context_length = 128
