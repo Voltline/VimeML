@@ -110,7 +110,21 @@ Rime 第一候选命中这一列是引擎自身的基线，不是模型分数，
 
 更短的片段多是常用短语（苏州旅游），不做筛查。这种方法查不出改写或近似重复，因此不能宣称完全无污染。
 
-扫描正在进行，结果和处理方式待补。
+**结果**
+
+| split | 参与筛查的条目（连续汉字段 / 整条消息） | 命中条目（连续汉字段 / 整条消息） |
+| --- | ---: | ---: |
+| development | 889 / 1,385 | 57 / 19 |
+| blind | 886 / 1,374 | 44 / 27 |
+
+- 合计有 128 条题目至少命中一种模式：CrossWOZ 38 条、RiSAWOZ 44 条、KdConv 46 条。
+- 匹配到的片段几乎都是 8–11 字的客套话或通用问句，例如“好的，谢谢你了。”“这个我就不太清楚了。”“联系电话是多少呢”。这些句子在网页和聊天里本来就常见，不说明原数据集被收进了语料。
+- 只有 1 条的匹配片段达到 12 字以上，在 development 里：KdConv 一条转述百科的发言（“大栅栏……是北京著名的古老街市和繁华的商业闹市区”）。
+- 没有发现整段对话被网页转载的迹象。
+
+**处理**
+- 不删题，`ime-standard-zh-v1-r1` 不改版。
+- 命中的条目 id 记在 `frozen-r1/overlap/overlap.jsonl`。报告分数时，可以把“去掉命中条目”作为一个敏感性子集单独列出。
 
 ## 评分与盲测使用
 
@@ -122,7 +136,7 @@ Rime 第一候选命中这一列是引擎自身的基线，不是模型分数，
 
 ## 构建入口
 
-原始来源放在 `datasets/ime-standard-zh-v1/raw/`，引擎在 `datasets/ime-standard-zh-v1/engine/`。产物在 `outputs/benchmarks/ime-standard-zh-v1/` 下：`draft-r1/`、`expert-review-r1/`、`frozen-r1/`、`rime/`。
+原始来源放在 `datasets/ime-standard-zh-v1/raw/`，引擎在 `datasets/ime-standard-zh-v1/engine/`。产物在 `outputs/benchmarks/ime-standard-zh-v1/` 下：`draft-r1/`、`expert-review-r1/`、`frozen-r1/`（含 `overlap/`）、`rime/`。
 
 ```powershell
 .\.venv\Scripts\python.exe -I -X utf8 scripts/benchmarks/prepare_standard_ime_zh.py extract --out outputs/benchmarks/ime-standard-zh-v1/draft-r1
