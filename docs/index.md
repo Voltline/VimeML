@@ -9,6 +9,7 @@ V4.2 epoch 20 / INT8 block-32 is the current deployment release; it replaced V2.
 | [Model card](../MODEL_CARD.md) | Architecture, intended use, releases, metrics, and limitations |
 | [Data](data.md) | Frozen corpora, cleaning, splits, and provenance |
 | [Vime 1.3 Chinese corpus](zh-CN/data-zh-v13.md) (Chinese) | In progress: FineWeb2 cmn_Hani (21 shards) and LCCC; Traditional-to-Simplified, rule filter, spam-site removal, 955K-item human review queue |
+| [Chinese tokenizer vocabulary probe](zh-CN/reports/zh-v13-20261106/tokenizer-vocab.md) (Chinese) | Tokenizer-only comparison of 8K–32K Unigram vocabularies and coverage 0.9995 / 0.9999: the 20M model will compare only 8K and 12K at 0.9995; 16K–32K are deferred to a 200M model |
 | [V1 training](training.md) | Original baseline and reproducibility |
 | [V2 training](training-v2.md) / [V2 design](plan_v2.md) | Architecture, tokenization, cropping, and schedules |
 | [V3 experiments](plan_v3.md) | Adaptation and joint retraining scope |
