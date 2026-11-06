@@ -50,3 +50,7 @@ tempCodeRunnerFile.py
 /source-provenance.json
 .build/
 .swiftpm/
+
+# Human data-review tooling stays local, never committed
+/scripts/corpus/zh_review_queue.py
+/templates/zh-review-site/
