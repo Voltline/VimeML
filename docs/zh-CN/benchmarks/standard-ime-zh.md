@@ -134,6 +134,52 @@ Rime 第一候选命中这一列是引擎自身的基线，不是模型分数，
 - blind 只能在两个前提下使用：标签已经冻结，并且已经提交一份预注册计划，写明全部比较模型和评分规则。
 - 第一次开启 blind 后要记录消耗。之后它可以作为固定的 reference test 继续比较，但不能再叫新盲测，也不能用它的分数继续调参，再宣称是独立验证。
 
+## 评分脚本与 Rime 基线（development）
+
+评分入口是 `score_standard_ime_zh.py`，有两个子命令。
+
+**score**
+- 不带 `--scores` 时，按候选池原顺序评分，得到的就是 Rime 基线。
+- 带 `--scores` 时，读一份 JSONL，每行 `{"id", "candidates", "scores"}`：
+  - `candidates` 必须与冻结的候选池顺序逐字一致；
+  - 按分数从高到低重排，分数相同时保持候选池原顺序；
+  - `scores` 为 null 的题回退到候选池原顺序，计入 `fallbacks`。
+- 输出逐题 rank 和以下汇总：
+  - 精确 Top-1/3/5/10/20、池条件 Top-1、MRR；
+  - 各来源的 micro 和三来源等权的 macro；
+  - 按长度分层和来源×长度分层的结果；
+  - 去掉重叠命中条目后的敏感性子集。
+- 输出目录已存在时拒绝运行。
+- `--split blind` 必须同时给出 `--blind-plan`。这份计划要已提交到 Git、工作区里没有改动，并且写明 `ime-standard-zh-v1-r1`；评分结果会记下计划的 commit。
+
+**compare**
+- 对两次评分做配对比较，调用 `vimeml.benchmarks.statistics.paired`。
+- 每段对话最多抽一题，所以对话簇就是单题，簇检验与逐题检验等价。
+- 报告 Top-1 和 Top-3，分别给出总体和各来源的结果。
+
+**Rime 基线**
+
+候选池原顺序，产物在 `outputs/benchmarks/ime-standard-zh-v1/baselines-r1/`：
+
+| 轨道 / 范围 | 条数 | Top-1 | Top-3 | Top-10 | 池内 | 池条件 Top-1 | MRR |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 全拼 合计 | 1,456 | 1,001 (.688) | .900 | .963 | 1,420 (.975) | .705 | .800 |
+| 全拼 CrossWOZ | 478 | 310 (.649) | .918 | .977 | 469 | .661 | .788 |
+| 全拼 RiSAWOZ | 493 | 357 (.724) | .913 | .974 | 486 | .735 | .824 |
+| 全拼 KdConv | 485 | 334 (.689) | .870 | .938 | 465 | .718 | .787 |
+| 全拼 2–3 字 | 523 | 397 (.759) | .950 | .990 | 522 | .761 | .859 |
+| 全拼 4–6 字 | 467 | 348 (.745) | .927 | .974 | 460 | .757 | .841 |
+| 全拼 7–12 字 | 466 | 256 (.549) | .818 | .921 | 438 | .584 | .693 |
+| 全拼 去掉重叠命中 | 1,392 | 950 (.682) | .898 | .963 | 1,358 | .700 | .797 |
+| 简拼 合计 | 990 | 142 (.143) | .236 | .345 | 403 (.407) | .352 | .206 |
+| 简拼 2–3 字 | 523 | 80 (.153) | .273 | .426 | 254 | .315 | .235 |
+| 简拼 4–6 字 | 467 | 62 (.133) | .195 | .255 | 149 | .416 | .173 |
+
+- 全拼的三来源 macro Top-1 为 .687，简拼为 .143。
+- 全拼 Top-1 与候选池第一项的命中数一致（1,001），简拼同样一致（142）。
+- 用"参考答案打最高分"的构造打分验证重排：Top-1 正好等于池内条数 1,420。
+- 长句是主要难点：全拼 7–12 字的 Top-1 只有 .549，但 Top-3 有 .818。模型重排的空间主要在这里。
+
 ## 构建入口
 
 原始来源放在 `datasets/ime-standard-zh-v1/raw/`，引擎在 `datasets/ime-standard-zh-v1/engine/`。产物在 `outputs/benchmarks/ime-standard-zh-v1/` 下：`draft-r1/`、`expert-review-r1/`、`frozen-r1/`（含 `overlap/`）、`rime/`。
@@ -146,6 +192,11 @@ Rime 第一候选命中这一列是引擎自身的基线，不是模型分数，
 .\.venv\Scripts\python.exe -I -X utf8 scripts/benchmarks/rime_lattice.py index
 .\.venv\Scripts\python.exe -I -X utf8 scripts/benchmarks/rime_lattice.py pool <F>/rime-full.jsonl <F>/cand-full.jsonl <F>/pool-full.jsonl --track full
 .\.venv\Scripts\python.exe -I -X utf8 scripts/benchmarks/screen_overlap_zh.py <F>/items.jsonl <F>/overlap <corpus files>...
+.\.venv\Scripts\python.exe -I -X utf8 scripts/benchmarks/score_standard_ime_zh.py score <F> <B>/rime-full-development --track full
+.\.venv\Scripts\python.exe -I -X utf8 scripts/benchmarks/score_standard_ime_zh.py score <F> <OUT> --track full --scores <model>.jsonl --name <model>
+.\.venv\Scripts\python.exe -I -X utf8 scripts/benchmarks/score_standard_ime_zh.py compare <B>/rime-full-development <OUT> <OUT>/compare.json
 ```
+
+`<B>` 是 `outputs/benchmarks/ime-standard-zh-v1/baselines-r1`。
 
 简拼轨道把 `full` 换成 `abbrev`。已完成的产物不重复构建；参数一改就换新的输出目录。
