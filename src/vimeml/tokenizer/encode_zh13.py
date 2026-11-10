@@ -19,6 +19,10 @@ U+2581 (SentencePiece meta space, decoded as a space) cannot roundtrip and is
 dropped everywhere, in measure too, and counted. Every stored paragraph is
 checked to decode to its exact text. The file layout and manifest are the
 vimeml_sentence_tokens_v1 format read by TokenStore and SentenceWindowDataset.
+
+pools.json and the store manifests hold no timing, so a rebuild from the same
+export, tokenizer and sentencepiece version is byte-identical on any machine;
+the wall time goes to run.json beside them, which nothing hashes.
 """
 import hashlib
 import json
@@ -125,9 +129,11 @@ def measure(config, export, pools, export_identity, max_groups=0):
               "memo_threshold": memo_threshold, "memo_documents": config["memo_documents"],
               "pools": {k: {"documents": int(v.sum()), "characters": int(c[v].sum())} for k, v in pools_by_name.items()},
               "tiers": tiers, "all_train": {"documents": int(len(h)), "characters": int(c.sum())},
-              "files": per_file, "max_row_groups": max_groups, "seconds": round(time.time() - began, 1)}
+              "files": per_file, "max_row_groups": max_groups}
     write_json(pools / "pools.json", result)
-    return result
+    seconds = round(time.time() - began, 1)
+    write_json(pools / "run.json", {"seconds": seconds, "pools_sha256": sha256(pools / "pools.json")})
+    return {**result, "seconds": seconds}
 
 
 # ---- encode --------------------------------------------------------------------------------
@@ -259,7 +265,9 @@ def _split_stats(parts, tiers):
 
 def encode(config, export, vocab, outputs, pools_path, export_identity, max_groups=0):
     """outputs: {'web': token dir, 'chat': token dir, 'web_index': dir, 'chat_index': dir}."""
+    import sentencepiece
     from vimeml.training.data import prepare_indexes
+    spm_version = sentencepiece.__version__
     export = Path(export)
     tokenizers = json.loads((Path(config["tokenizer_dir"]) / "manifest.json").read_text("utf-8"))
     record = tokenizers["models"][str(vocab)]
@@ -319,9 +327,11 @@ def encode(config, export, vocab, outputs, pools_path, export_identity, max_grou
                                         "train.tiers.bin per paragraph (0 probe, 1 P20, 2 P5, 3 P1)"
                                         if store == "web" else "BOS + stripped LCCC utterance + EOS"),
                     "export": export_identity, "pools_sha256": sha256(pools_path), "output_sha256": digests,
-                    "test_or_blind_read": False, "max_row_groups": max_groups,
-                    "seconds": round(time.time() - began, 1)}
+                    "sentencepiece_version": spm_version,
+                    "test_or_blind_read": False, "max_row_groups": max_groups}
         write_json(out / "manifest.json", manifest)
+        write_json(out / "run.json", {"seconds": round(time.time() - began, 1),
+                                      "manifest_sha256": sha256(out / "manifest.json")})
         index = prepare_indexes(out, Path(outputs[f"{store}_index"]), config["context_length"], splits=("train", "validation"))
         manifests[store] = {"tokens": manifest["splits"], "windows": {s: index["splits"][s]["windows"] for s in index["splits"]}}
     return manifests

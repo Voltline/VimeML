@@ -6,7 +6,7 @@ arm = "12k-ep20"
 architecture = "tiny_gpt_zh13"
 output_dir = "artifacts/models/tiny-zh13-12k-ep20-d384-l9"
 log_dir = "runs/training/tiny-zh13-12k-ep20-d384-l9"
-dataset_sha256 = ""
+dataset_sha256 = "2dcf276c8b7f29f6e563f5e7c7998b2801bff7483fbfea5c04d40beaf838b791"
 
 [initialization]
 mode = "random"

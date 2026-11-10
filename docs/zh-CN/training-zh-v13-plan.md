@@ -65,11 +65,21 @@
 
 ## 开训前要补齐
 
-- [ ] 审核部分导出并运行 `finish`，export-r1 冻结。P1/P5/P20 都从冻结后的 train 里选，后补文档会改变数据池，所以必须先冻结。
-- [ ] 正式 tokenizer：8K 和 12K 各一个，在冻结的 train 上重训，`\n` 设为 user_defined_symbol，其余设置同 tokenizer 报告（Unigram、identity、byte_fallback、覆盖率 0.9995）。写出 SHA256。代码已就绪：[train_zh13.py](../../scripts/tokenizer/train_zh13.py)，冒烟通过，待导出冻结后运行。
-- [ ] 编码与数据池：P1 两种词表各编码一次（P5、P20 是 P1 的子集，不用另编）；记录 q、各池文档数与字数、validation 与 P20 记忆抽样集的清单。代码已就绪：[encode_zh13.py](../../scripts/tokenizer/encode_zh13.py) 的 `measure` 与 `encode`，集群上用 本地的数据下载脚本（不进仓库） 一次跑完，冒烟通过。
-- [ ] 混合映射：每臂的 epoch 映射与聊天配额，清单 SHA 写入配置，集群上重建必须逐字节一致。代码已就绪：[prepare_zh13.py](../../scripts/corpus/prepare_zh13.py)。冒烟时删掉映射文件后重建，SHA 与原来一致。正式数据出来后，把各臂清单的 SHA 填进配置。
+- [x] 审核部分导出并运行 `finish`，export-r1 冻结。P1/P5/P20 都从冻结后的 train 里选，后补文档会改变数据池，所以必须先冻结。2026-11-10 完成：审核文档经一审和涉政二审，所有票都是保留的才收入，共 381,935 篇（train 381,744，validation 191）；export-r1 共 104 个数据文件、45.0GB，已整份上传私有存储 `/datasets/vimeml-zh-v13/export-r1/`。
+- [x] 正式 tokenizer：8K 和 12K 各一个，在冻结的 train 上重训，`\n` 设为 user_defined_symbol，其余设置同 tokenizer 报告（Unigram、identity、byte_fallback、覆盖率 0.9995）。写出 SHA256。代码：[train_zh13.py](../../scripts/tokenizer/train_zh13.py)。2026-11-10 完成，输出在 `artifacts/tokenizers/zh-v13/`：
+  - 取样与词表报告不同：审核文件按来源分片并回网页文件，每个分片同样配额，分片内按文档均匀随机抽取（词表报告是每个文件取 2 个 row group）。这样审核文档保持自然占比，网页段落中占 1.67%（25,053 / 1,500,000）；按文件等额取样时会占到 24%。另取聊天 80,000 条。
+  - 取样文件 `train-sample.txt`：277,161,535 字节，9,757 万字（汉字 8,054 万），SHA256 `f28dc84edb08e54f3cd8b345444b6654e62c6c0fe0a1907e25dbb0a2cb4a77b9`。
+  - `zh-unigram-8192/tokenizer.model`：SHA256 `2bb385d2ae78941d945339c99823cd8752fe97e4abbdeea3461dd8361cc0d790`。
+  - `zh-unigram-12288/tokenizer.model`：SHA256 `68bd37c45bcb018b32b2eef5b241561ab5b6dc1b77c1c3aadcc1b41c4bf47e5a`。
+  - 两个模型都核对过：保留 ID `<CTX>` 4、`<READ>` 5、`<OUT>` 6、`\n` 7，256 个字节词片，validation 428,750 条往返全部一致。
+  - 整个目录已上传私有存储 `/datasets/vimeml-zh-v13/tokenizers/zh-v13/`，集群取回后放到 `artifacts/tokenizers/zh-v13`，编码前会按 manifest 核对 SHA256。
+- [x] 编码与数据池：P1 两种词表各编码一次（P5、P20 是 P1 的子集，不用另编）；记录 q、各池文档数与字数、validation 与 P20 记忆抽样集的清单。代码：[encode_zh13.py](../../scripts/tokenizer/encode_zh13.py) 的 `measure` 与 `encode`。2026-11-10 在本地（export-r1 所在处）用 [build_zh13_data.sh](../../scripts/tokenizer/build_zh13_data.sh) 跑完：
+  - 数据池：网页 train 共 29,599,087 篇、380.5 亿字。P1 取 16,551,843 篇、212.80 亿字；P5 3,310,736 篇、42.57 亿字；P20 827,248 篇、10.65 亿字。记忆抽样集 10,000 篇、1,261 万字，都在 P20 里。阈值（sha256 前 8 字节）q = 10317501391349349668，P5 为 q // 5，P20 为 q // 20。`pools.json` 的 SHA256 为 `3231ac37dc536b3479d630db27539e56db613c86994b3c87963dc8aff50af4da`。
+  - token 数据：P1 网页有 330,491,330 个段落，含 U+2581 的段落丢弃 1,111 个。12K 是 151.5 亿个内容 token，每个 token 1.404 字；8K 是 171.0 亿，每个 token 1.245 字。c128 窗口 12K 有 3.61 亿个，8K 有 3.71 亿个。validation 有 14,872 篇、1,938 万字；LCCC train 有 16,326,323 条、2.09 亿字。
+  - manifest 里不写耗时（耗时另记在不参与哈希的 `run.json` 里）。同一份 export、tokenizer 和 sentencepiece 0.2.1 在两处各建一遍，冒烟结果逐字节一致。
+- [x] 混合映射：每臂的 epoch 映射与聊天配额，清单 SHA 写入配置。代码：[prepare_zh13.py](../../scripts/corpus/prepare_zh13.py)。2026-11-10 建好八臂，`dataset_sha256` 已写入各配置，八臂的 `train_zh13.py --dry-run` 都核对通过。各臂实际看到的量：网页 212.80 亿字（ep5 为 212.85 亿，ep20 为 213.01 亿，因为 P5、P20 的阈值取整，略多于 1/5、1/20）。聊天 12K 约 4.12 遍，8K 约 4.20 遍（上文估计约 5 遍；聊天 token 按网页监督 token 的 5/95 取，所以按字数算略少）。监督 token 总数 12K 约 145.2 亿，8K 约 163.7 亿。更新步数 12K 约 84.5 万，8K 约 86.7 万。
+  - 集群不重新编码，直接从私有存储 `/datasets/vimeml-zh-v13/{tokenizers,token-data,training-data}` 下载建好的 tokenizer、token 数据、窗口索引和八臂映射，共约 85GiB。下载后按仓库里的 [data-zh13.sha256](../../configs/data-zh13.sha256)（186 个文件）逐个核对，用 本地的数据下载脚本（不进仓库） 一步完成。之所以不在集群重建，是因为集群环境的 numpy 版本与本地不同，不能保证逐字节一致；下载后按 SHA 核对，与本地完全相同。
 - [x] 训练入口、八个配置、集群单臂脚本和八臂启动脚本，沿用 V4.4 的做法（W&B 凭据只来自私有文件，不在机器上登录）。对应 [train_zh13.py](../../scripts/training/train_zh13.py)、`configs/train-zh13-*.toml`、[cluster_zh13.sh](../../scripts/training/cluster_zh13.sh) 和 [launch_zh13_all.sh](../../scripts/training/launch_zh13_all.sh)。CPU 冒烟（24 次更新、20 个测点、续训）通过，全量验证的 token 数与清单逐项一致。
 - [x] 打分器：输出 `score_standard_ime_zh.py --scores` 所需的 JSONL，确定词片合并的处理，用随机初始化的模型跑通流程；把处理方式补进上文“打分方式”。
 - [x] 判定脚本：[judge_zh13.py](../../scripts/benchmarks/judge_zh13.py) 读八臂的打分文件，按上文规则直接给出结论，输出 `judgement.json` 和 `report.md`，覆盖噪声带、五个对比的 Holm 校正、两条有效条件、“结论如何使用”的取舍，以及全部描述性结果。开始计算前先核对：打分文件与其 SHA256 一致，打分来自该臂的 `final.pt`（与磁盘上的文件比 SHA256），训练状态为 complete 且 20 个测点齐全，同一词表的臂共用一个 tokenizer，Rime 基线仍是 1,001。任何一项不符就拒绝出结果。“结论如何使用”里方向相反的两种情况（数据对比 12K 与 8K 相反、词表对比 5 轮与 20 轮相反）已补上规则，脚本照此取舍，不留人工判断。用造出的八臂数据测过正常结论、各个判定分支和拒绝路径。
-- [ ] 集群从私有存储取回 export-r1，逐个核对 SHA256SUMS。
+- [ ] 集群从私有存储取回训练数据（不需要 export-r1 原文），按 `configs/data-zh13.sha256` 逐个核对。
