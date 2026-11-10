@@ -7,7 +7,8 @@ output_dir = "artifacts/tokenizers/zh-v13"
 seed = 20261106
 web_lines = 1500000
 chat_lines = 80000
-row_groups_per_file = 2
+# Web and review files are pooled per stage-a shard, equal quota per shard, row groups
+# drawn with weight = documents (src/vimeml/tokenizer/zh13.py sample_shard).
 max_line_bytes = 16384
 vocab_sizes = [8192, 12288]
 character_coverage = 0.9995

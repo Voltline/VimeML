@@ -2,6 +2,8 @@
 
 Paragraphs are the lines of a document after strip(); empty lines are dropped. The
 sample is taken once, written to train-sample.txt and read whole by every vocabulary.
+Web and review train files are grouped back by stage-a shard; every shard gets the same
+quota (see sample_shard), so the accepted review documents keep their natural share.
 """
 import hashlib
 import json
@@ -73,20 +75,59 @@ def check_files(export, files, identity, verify):
             raise ValueError(f"{name} differs from SHA256SUMS")
 
 
+def shard_of(path):
+    """web-000_00009-001.parquet and review-000_00009-000.parquet both come from shard 000_00009."""
+    return Path(path).name.split("-")[1]
+
+
+def sample_shard(rng, handles, quota, max_bytes):
+    """Paragraphs of one stage-a shard, its web and review files pooled back together.
+
+    Documents of the whole shard are put in one seeded random order and taken from the
+    front, quota documents per round, until their paragraphs reach the quota; then quota
+    paragraphs are drawn from them. Every document has the same chance however its file
+    was cut into row groups (whole row groups would favor the large web groups).
+    """
+    groups = [(kind, handle, g, handle.metadata.row_group(g).num_rows)
+              for kind, handle in handles for g in range(handle.metadata.num_row_groups)]
+    starts = [0]
+    for group in groups:
+        starts.append(starts[-1] + group[3])
+    order = list(range(starts[-1]))
+    rng.shuffle(order)
+    pool, taken = [], 0
+    while taken < len(order) and len(pool) < quota:
+        chosen = sorted(order[taken:taken + quota])
+        taken += quota
+        position = 0
+        for index, (kind, handle, g, rows) in enumerate(groups):
+            lo, hi = starts[index], starts[index] + rows
+            wanted = []
+            while position < len(chosen) and chosen[position] < hi:
+                wanted.append(chosen[position] - lo)
+                position += 1
+            if not wanted:
+                continue
+            texts = handle.read_row_group(g, columns=["text"])["text"].to_pylist()
+            pool += [(kind, line) for row in wanted for line in paragraphs(texts[row], max_bytes)]
+    return rng.sample(pool, min(quota, len(pool)))
+
+
 def sample(config, export, out):
     import pyarrow.parquet as pq
     rng = random.Random(config["seed"])
     files = web_train_files(export)
-    per_file = config["web_lines"] // len(files) + 1
-    web = []
+    shards = {}
     for path in files:
-        handle = pq.ParquetFile(path)
-        count = handle.metadata.num_row_groups
-        groups = sorted(rng.sample(range(count), min(config["row_groups_per_file"], count)))
-        lines = list(paragraphs("\n".join(handle.read_row_groups(groups, columns=["text"])["text"].to_pylist()),
-                                config["max_line_bytes"]))
-        web += rng.sample(lines, min(per_file, len(lines)))
-    web = web[:config["web_lines"]]
+        shards.setdefault(shard_of(path), []).append(path)
+    per_shard = config["web_lines"] // len(shards) + 1
+    web, by_shard = [], {}
+    for shard in sorted(shards):
+        handles = [(p.name.split("-")[0], pq.ParquetFile(p)) for p in shards[shard]]
+        picked = sample_shard(rng, handles, per_shard, config["max_line_bytes"])
+        by_shard[shard] = {kind: sum(k == kind for k, _ in picked) for kind in ("web", "review")}
+        web += picked
+    web = [line for _, line in web[:config["web_lines"]]]
     chat_path = Path(export) / "train/chat-lccc-train.parquet"
     chat = pq.read_table(chat_path, columns=["text"])["text"].to_pylist()
     chat = [c for c in rng.sample(chat, min(config["chat_lines"], len(chat))) if c.strip() and "\n" not in c]
@@ -94,7 +135,9 @@ def sample(config, export, out):
     rng.shuffle(lines)
     path = out / "train-sample.txt"
     path.write_bytes(("\n".join(lines) + "\n").encode("utf-8"))
-    return path, {"web_lines": len(web), "chat_lines": len(chat), "characters": sum(map(len, lines)),
+    return path, {"web_lines": len(web), "chat_lines": len(chat), "per_shard_quota": per_shard,
+                  "review_lines": sum(v["review"] for v in by_shard.values()), "by_shard": by_shard,
+                  "characters": sum(map(len, lines)),
                   "han": sum(len(HAN.findall(x)) for x in lines), "seed": config["seed"],
                   "files": [p.relative_to(export).as_posix() for p in files] + [chat_path.relative_to(export).as_posix()],
                   "sha256": sha256(path)}
