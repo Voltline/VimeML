@@ -49,7 +49,7 @@ Plateau 策略要求相对停止参考值累计改善超过 0.01 完整 BPC；�
 
 运行路径复用 V2.1/V3 的 BF16 SDPA、fused AdamW、pinned memory 非阻塞传输及长度分桶。词表投影和 cross entropy 只处理有效目标。`torch.compile(fullgraph=True, dynamic=True)` 保留参数名称和 checkpoint 格式；prefix crop 与轮次顺序支持确定性恢复。
 
-A 在 443,095 个计时更新、11,732.5 秒更新时段内记录 441,043.7 有效 tokens/s；B 为 439,458.1 有效 tokens/s。计时排除验证、保存及开头 warmup。[V2.1 RTX 4090 D 结果](reports/v2-20261007/v21-performance.md)的模型与 tokenizer 不同，不能据此作受控吞吐对比。Linux 固定依赖见 [requirements-cuda.txt](../../requirements-cuda.txt)，启动封装保留持久化 TorchInductor/Triton cache。
+A 在 443,095 个计时更新、11,732.5 秒更新时段内记录 441,043.7 有效 tokens/s；B 为 439,458.1 有效 tokens/s。计时排除验证、保存及开头 warmup。[V2.1 RTX 4090 D 结果](reports/v2-20261007/v21-performance.md)的模型与 tokenizer 不同，不能据此作受控吞吐对比。Linux 固定依赖见 [requirements/cuda.txt](../../requirements/cuda.txt)，启动封装保留持久化 TorchInductor/Triton cache。
 
 | 路径 | 用途 |
 | --- | --- |

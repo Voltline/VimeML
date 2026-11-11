@@ -10,7 +10,7 @@ Parquet / TSV → Unicode and deterministic cleanup → keep/drop/review
               → document grouping, exact deduplication, split assignment → text/JSONL/provenance
 ```
 
-Whitespace, decoration, and isolated URLs can be dropped; ambiguous navigation tails remain review items. Adjacent lines are not joined solely because punctuation is absent. Source text and modification reasons remain auditable. Approval decisions are stored in `annotations/approved-v1.jsonl`. No reading augmentation is generated.
+Whitespace, decoration, and isolated URLs can be dropped; ambiguous navigation tails remain review items. Adjacent lines are not joined solely because punctuation is absent. Source text and modification reasons remain auditable. Approval decisions are stored in `configs/annotations/approved-v1.jsonl`. No reading augmentation is generated.
 
 ## Parallel and sharded reconstruction
 

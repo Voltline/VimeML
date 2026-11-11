@@ -12,7 +12,7 @@ parquet / TSV → Unicode 与确定性基础清理 → 噪声 keep/drop/review
               → 文档分组、精确去重、split 去泄漏 → TXT / JSONL / 来源审计
 ```
 
-清洗保留原文与修改原因，明确空白、装饰或独立 URL 可 drop；可疑导航尾缀进入 review。换行恢复采用保守接续规则，不因没有句号就盲目连接标题、数量等相邻行。已有批准记录在 `annotations/approved-v1.jsonl`，校准文档 ID 在 `annotations/calibration-documents-v1.json`。
+清洗保留原文与修改原因，明确空白、装饰或独立 URL 可 drop；可疑导航尾缀进入 review。换行恢复采用保守接续规则，不因没有句号就盲目连接标题、数量等相邻行。已有批准记录在 `configs/annotations/approved-v1.jsonl`，校准文档 ID 在 `configs/annotations/calibration-documents-v1.json`。
 
 同一文档与重复文本按组处理，避免相同句子跨 split；种子 42，目标比例 98% / 1% / 1%。精确去重已完成，语义近重复和与公开评测的训练重叠尚未全面审计。仅做句内语料，不生成 reading augmentation。
 

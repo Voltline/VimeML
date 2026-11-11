@@ -57,7 +57,7 @@ parquet / TSV
 
 ## 审核
 
-v1 的审核已完成：638 个隔离块继续排除，批准记录在 `annotations/approved-v1.jsonl`，校准文档 ID 在 `annotations/calibration-documents-v1.json`。修改清洗规则需要建立新的语料版本。
+v1 的审核已完成：638 个隔离块继续排除，批准记录在 `configs/annotations/approved-v1.jsonl`，校准文档 ID 在 `configs/annotations/calibration-documents-v1.json`。修改清洗规则需要建立新的语料版本。
 
 审核流程：
 

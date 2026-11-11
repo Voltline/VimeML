@@ -39,6 +39,6 @@ AJIMEE 读音 ≤16、17–32、33–64、>64 的 coverage 为 65/68、58/72、2
 - 标签与决策：`artifacts/benchmarks/ime-dev-label-reviewed-v3/`。
 - 复核评分：`outputs/ime-eval/dev-label-audit-20261007/`。
 - 逐例诊断：`scripts/benchmarks/v2-error-decisions.tsv`、`outputs/ime-eval/v2-error-audit-20261007/`。
-- 工具：`audit_v2_labels.py`、`analyse_v2_errors.py`，复用缓存评分；词典依赖见 `requirements-evaluation.txt`。
+- 工具：`audit_v2_labels.py`、`analyse_v2_errors.py`，复用缓存评分；词典依赖见 `requirements/evaluation.txt`。
 
 3,000 条真实新候选及草稿标签初评见 [扩大开发集报告](expanded-ime-evaluation.md)。

@@ -49,7 +49,7 @@ Training `best.pt` uses fixed-subset loss; `best-epoch.pt` uses full epoch BPC. 
 
 The runtime reuses V2.1/V3 BF16 SDPA, fused AdamW, nonblocking pinned-memory transfers, and length buckets. Only valid target positions enter vocabulary projection and cross entropy. `torch.compile(fullgraph=True, dynamic=True)` preserves parameter names and checkpoint format. Prefix crops and epoch ordering support deterministic recovery.
 
-A recorded 441,043.7 effective tokens/s across 443,095 timed updates and 11,732.5 update seconds; B recorded 439,458.1 effective tokens/s. These measurements exclude validation, saving, and initial warmup timing. The [V2.1 RTX 4090 D results](reports/v2-20261007/v21-performance.md) used a different model/tokenizer and do not form a controlled cross-model throughput comparison. The pinned Linux dependencies remain in [requirements-cuda.txt](../requirements-cuda.txt); launcher wrappers retain persistent TorchInductor/Triton caches.
+A recorded 441,043.7 effective tokens/s across 443,095 timed updates and 11,732.5 update seconds; B recorded 439,458.1 effective tokens/s. These measurements exclude validation, saving, and initial warmup timing. The [V2.1 RTX 4090 D results](reports/v2-20261007/v21-performance.md) used a different model/tokenizer and do not form a controlled cross-model throughput comparison. The pinned Linux dependencies remain in [requirements/cuda.txt](../requirements/cuda.txt); launcher wrappers retain persistent TorchInductor/Triton caches.
 
 | Path | Role |
 | --- | --- |

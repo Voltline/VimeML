@@ -1,8 +1,8 @@
 # VimeML
 
-Compact Japanese causal language models for kana-to-kanji candidate reranking and experimental text completion in the Vime input method.
+Compact causal language models for candidate reranking in the Vime input method: Japanese kana-to-kanji conversion, and Chinese pinyin input since `vimeml-tiny-zh-v1`.
 
-AzooKey supplies dictionary candidates. The language model reranks the fixed candidate pool using left context; dictionary retrieval remains an application dependency. Short continuation and next-word suggestions are secondary research features. These models are not instruction-tuned conversational assistants.
+For Japanese, AzooKey supplies dictionary candidates. The language model reranks the fixed candidate pool using left context; dictionary retrieval remains an application dependency. Short continuation and next-word suggestions are secondary research features. These models are not instruction-tuned conversational assistants.
 
 ## Model releases and status
 
@@ -49,9 +49,30 @@ Historical sets with original V1/V2 baselines:
 
 On the same validation text, V4-B, V4.2, V4.3 and V5 reach 3.027777, 3.045152, 3.043831 and 2.942180 BPC with the 8K tokenizer. Full methods and limitations appear in [evaluation](docs/evaluation.md); V4.2 details are in the [training summary](docs/training-v42.md) and [Core ML report](docs/reports/mac-20261020/v42-coreml.md).
 
+## Chinese pinyin model
+
+| Model | Parameters | Tokenizer | Context | Status |
+| --- | ---: | --- | ---: | --- |
+| `vimeml-tiny-zh-v1` | 20,036,736 | 12K SentencePiece Unigram, Chinese | 128 | Blind-confirmed; export, device tests and release pending |
+
+`vimeml-tiny-zh-v1` reranks the pinyin candidates of librime with rime-ice using left context. It was trained from random initialization on 22.4B characters of cleaned and reviewed FineWeb2 `cmn_Hani` web text and LCCC dialogue, as the release arm (`12k-fresh-s1`) of a preregistered eight-arm experiment ([plan](docs/zh-CN/training-zh-v1-plan.md), [training](docs/zh-CN/reports/zh-v1-20261110/training.md), [judgement](docs/zh-CN/reports/zh-v1-20261110/ime-benchmark.md)). Internal code and artifact paths still use the codename `zh13`.
+
+Exact Top-1 on `ime-standard-zh-v1-r1` (CrossWOZ, RiSAWOZ and KdConv dialogue turns; AI-reviewed labels, not native-speaker gold). The blind split was consumed by the preregistered confirmation, which passed (+329/−19 against Rime, p = 3.6e-74); the comparisons were scored afterwards with blind as a reference test ([report, Chinese](docs/zh-CN/reports/zh-v1-20261111/blind-and-baselines.md)).
+
+| System | Pinyin dev / 1,456 | Pinyin blind / 1,445 | Abbreviated blind / 964 |
+| --- | ---: | ---: | ---: |
+| **vimeml-tiny-zh-v1** | **93.6%** | **93.8%** | **35.0%** |
+| Qwen2.5-0.5B, same pool and scoring | 91.3% | 91.8% | 31.0% |
+| Qwen3-0.6B-Base, same pool and scoring | 89.8% | 89.2% | 30.6% |
+| rime-ice + Wanxiang grammar model | 79.0% | 82.2% | 15.7% |
+| rime-ice (candidate pool source) | 68.8% | 72.2% | 14.6% |
+| Luna Pinyin (Rime default) | 68.3% | 68.9% | 12.9% |
+
+Rime configurations rank on their own without left context; the models rerank a frozen 20-candidate pool, which contains the answer for 97.4% of blind pinyin items and about 41% of abbreviated items. A dialogue-level leak scan of the training data found no republished benchmark dialogues.
+
 ## Source installation and inference
 
-Python 3.11 or later is required. Platform-specific versions are pinned in `requirements.txt`; the recorded Linux/CUDA training environment uses `requirements-cuda.txt`. Optional benchmark preparation dependencies are listed in `requirements-evaluation.txt`.
+Python 3.11 or later is required. Platform-specific versions are pinned in `requirements.txt`; the recorded Linux/CUDA training environment uses `requirements/cuda.txt`. Optional benchmark preparation dependencies are listed in `requirements/evaluation.txt`, and external-model comparisons in `requirements/external-eval.txt`.
 
 ```bash
 python -m venv .venv
@@ -72,8 +93,8 @@ This command assumes the matching local training artifacts and their manifests a
 | --- | --- |
 | `src/vimeml/` | Corpus processing, tokenization, training, evaluation, and deployment implementations |
 | `scripts/` | Command-line entry points organized by subsystem |
-| `configs/` | Versioned experiment and data-processing configurations |
-| `annotations/` | Versioned corpus review decisions |
+| `configs/` | Versioned experiment and data-processing configurations; `configs/annotations/` holds Japanese corpus review decisions |
+| `requirements/` | Additional dependency pins for CUDA training, benchmark preparation and external-model evaluation |
 | `docs/` | Primary English documentation and dated experiment records |
 | `docs/zh-CN/` | Chinese documentation and detailed experiment reports |
 | `examples/ios/` | Core ML probe, SentencePiece bridge, and historical client examples |

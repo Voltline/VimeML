@@ -12,7 +12,7 @@ fineweb_paths = [
   "datasets/fineweb-2-edu-japanese/train-00170-of-00283.parquet",
 ]
 tatoeba_path = "datasets/Tatoeba/jpn_sentences.tsv"
-calibration_ids = "annotations/calibration-documents-v1.json"
+calibration_ids = "configs/annotations/calibration-documents-v1.json"
 
 [build]
 quality_mode = "rules_with_approved_annotations"
@@ -26,7 +26,7 @@ commit_every = 5000
 progress_every = 5000
 
 [review]
-annotations = "annotations/approved-v1.jsonl"
+annotations = "configs/annotations/approved-v1.jsonl"
 require_all_annotations = true
 
 [split]

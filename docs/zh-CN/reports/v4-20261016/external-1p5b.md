@@ -70,7 +70,7 @@ Standard development 的 TinySwallow 正确率为 72.39%，V2.1 为 69.37%，V4-
 
 这些是本地 PyTorch 分配器记录，不包含桌面显示和其他进程占用，也不是物理 footprint 或 iOS 延迟。原训练虚拟环境未安装或升级依赖；可选包在 `artifacts/external-eval/site-packages/`。远端 V4.1 未执行任何操作。
 
-入口为 `scripts/benchmarks/evaluate_external_lm.py`，可选版本见 `requirements-external-eval.txt`，数学一致性检查为 `tests/test_external_lm_scoring.py`。官方模型及 tokenizer 文件保留在 `artifacts/models/external/TinySwallow-1.5B/`，本次记录在 `outputs/evaluation-tinyswallow-20261016/`：
+入口为 `scripts/benchmarks/evaluate_external_lm.py`，可选版本见 `requirements/external-eval.txt`，数学一致性检查为 `tests/test_external_lm_scoring.py`。官方模型及 tokenizer 文件保留在 `artifacts/models/external/TinySwallow-1.5B/`，本次记录在 `outputs/evaluation-tinyswallow-20261016/`：
 
 - `model-source.json`、`plan.json`：固定 revision、模型文件及评测输入 SHA256、评分和精度协议。
 - `environment.json`、`dependencies.json`：硬件和运行依赖。

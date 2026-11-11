@@ -4,7 +4,7 @@
 
 The sentence corpus combines nine FineWeb2-Edu Japanese `small_tokens_cleaned` Parquet shards and Tatoeba Japanese sentences. The selected web shards are `train-00010`, `00030`, `00050`, `00070`, `00090`, `00110`, `00130`, `00150`, and `00170` of 283, totaling approximately 2.43 GB compressed.
 
-Deterministic cleaning processes 2,289,346 source records into 25,713,003 unique sentences. Unicode/basic-noise cleanup, conservative line joining, sentence segmentation, quarantine, document grouping, and exact deduplication precede splitting. Approved decisions reside in `annotations/approved-v1.jsonl`; 638 quarantined blocks remain excluded.
+Deterministic cleaning processes 2,289,346 source records into 25,713,003 unique sentences. Unicode/basic-noise cleanup, conservative line joining, sentence segmentation, quarantine, document grouping, and exact deduplication precede splitting. Approved decisions reside in `configs/annotations/approved-v1.jsonl`; 638 quarantined blocks remain excluded.
 
 | Split | Sentences |
 | --- | ---: |

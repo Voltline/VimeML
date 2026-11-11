@@ -28,7 +28,7 @@ def main():
     code = sorted((ROOT / "src/vimeml").rglob("*.py"))
     code += sorted((ROOT / "scripts/posttraining").glob("*.py"))
     code += [ROOT / "scripts/posttraining/launch_v4_c1.sh", config_path]
-    code += [ROOT / name for name in ("requirements.txt", "requirements-cuda.txt", "pyproject.toml", "README.md", "LICENSE")]
+    code += [ROOT / name for name in ("requirements.txt", "requirements/cuda.txt", "pyproject.toml", "README.md", "LICENSE")]
     code += [ROOT / name for name in ("docs/zh-CN/posttraining-v4.md", "docs/zh-CN/data-v4-c1.md",
                                     "docs/posttraining-v4.md", "docs/data-v4-c1.md")]
     data = [ROOT / p for p in plan["required_files"]]

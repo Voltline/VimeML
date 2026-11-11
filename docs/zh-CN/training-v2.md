@@ -24,7 +24,7 @@ extend5配置为[train-v21-extend.toml](../../configs/train-v21-extend.toml)：�
 
 ## 云 GPU 运行
 
-项目和大文件放在实例数据盘上（下文记为 `$VIMEML_HOME`）。镜像记录：Python 3.12.3、PyTorch 2.7.0+cu128、NumPy 2.2.6、TensorBoard 2.19.0；其余依赖见 [requirements-cuda.txt](../../requirements-cuda.txt)。实例镜像用于环境复用，数据盘文件需单独确认迁移。
+项目和大文件放在实例数据盘上（下文记为 `$VIMEML_HOME`）。镜像记录：Python 3.12.3、PyTorch 2.7.0+cu128、NumPy 2.2.6、TensorBoard 2.19.0；其余依赖见 [requirements/cuda.txt](../../requirements/cuda.txt)。实例镜像用于环境复用，数据盘文件需单独确认迁移。
 
 ```bash
 cd "$VIMEML_HOME"

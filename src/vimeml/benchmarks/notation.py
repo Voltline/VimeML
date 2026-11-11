@@ -5,7 +5,7 @@ the same words differently (notation, A) or picks different words (semantic, S).
 Conservative A: equal UniDic lemma sequences AND nested kanji sets. Against 210 earlier
 hand-tagged V2.1/V4.2 flips this never labels a semantic flip as A (72/72) and recovers
 118/138 notation flips; satisfying only one rule is reported as an upper bound ('a').
-Requires `fugashi` and `unidic-lite` (requirements-evaluation.txt).
+Requires `fugashi` and `unidic-lite` (requirements/evaluation.txt).
 """
 import unicodedata
 

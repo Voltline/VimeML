@@ -1,6 +1,6 @@
 # VimeML
 
-用于日语假名转汉字候选重排的小型因果语言模型，兼有实验性的短文本续写和下一词联想功能。AzooKey负责词典候选检索，语言模型利用左文重排固定候选池。模型未进行指令微调，不定位为通用聊天助手。
+用于 Vime 输入法候选重排的小型因果语言模型：日语假名转汉字，以及从 `vimeml-tiny-zh-v1` 开始的中文拼音输入。日语兼有实验性的短文本续写和下一词联想功能，由AzooKey负责词典候选检索，语言模型利用左文重排固定候选池。模型未进行指令微调，不定位为通用聊天助手。
 
 [English README](README.md)为主要入口；[英文模型卡](MODEL_CARD.md)描述模型与评测边界，[中文模型卡](docs/zh-CN/model-card.md)提供对应概览。
 
@@ -49,11 +49,32 @@ IME各列为固定AzooKey候选池上的精确Top-1命中数，评分为联合�
 
 同一验证文本上，V4-B、V4.2、V4.3与V5（8K词表）的BPC分别为3.027777、3.045152、3.043831和2.942180。完整方法与限制见[英文评测文档](docs/evaluation.md)；V4.2见[训练设置](docs/zh-CN/training-v42.md)、[完整评估](docs/zh-CN/reports/v42-20261020/evaluation.md)、[reference与退化分析](docs/zh-CN/reports/v42-20261020/reference-regressions.md)和[Core ML报告](docs/reports/mac-20261020/v42-coreml.md)。
 
+## 中文拼音模型
+
+| 模型 | 参数量 | 分词器 | Context | 状态 |
+| --- | ---: | --- | ---: | --- |
+| `vimeml-tiny-zh-v1` | 20,036,736 | 12K SentencePiece Unigram，中文词表 | 128 | blind 确认通过；导出、设备测试与发布待完成 |
+
+`vimeml-tiny-zh-v1` 利用左文重排 librime + rime-ice 的拼音候选。模型随机初始化，在 224 亿字经过清洗和审核的 FineWeb2 `cmn_Hani` 网页文本与 LCCC 对话上训练，是预注册八臂实验的发布臂（`12k-fresh-s1`）（[实验计划](docs/zh-CN/training-zh-v1-plan.md)、[训练记录](docs/zh-CN/reports/zh-v1-20261110/training.md)、[打分与判定](docs/zh-CN/reports/zh-v1-20261110/ime-benchmark.md)）。代码和产物路径仍使用内部代号 `zh13`。
+
+`ime-standard-zh-v1-r1` 上的精确 Top-1（CrossWOZ、RiSAWOZ、KdConv 对话；标签经 AI 专家审核，不是母语人工 gold）。blind 已用于预注册确认评分并通过（对 Rime +329/−19，p = 3.6e-74），对照比较在此之后进行，blind 只作参考测试集（[报告](docs/zh-CN/reports/zh-v1-20261111/blind-and-baselines.md)）。
+
+| 系统 | 全拼 dev /1,456 | 全拼 blind /1,445 | 简拼 blind /964 |
+| --- | ---: | ---: | ---: |
+| **vimeml-tiny-zh-v1** | **93.6%** | **93.8%** | **35.0%** |
+| Qwen2.5-0.5B，同一候选池和打分 | 91.3% | 91.8% | 31.0% |
+| Qwen3-0.6B-Base，同一候选池和打分 | 89.8% | 89.2% | 30.6% |
+| 雾凇 + 万象语法模型 | 79.0% | 82.2% | 15.7% |
+| 雾凇（候选池来源） | 68.8% | 72.2% | 14.6% |
+| 朙月拼音（Rime 默认） | 68.3% | 68.9% | 12.9% |
+
+Rime 各配置独立排序，不看左文；模型在冻结的 20 候选池上重排，该池覆盖 blind 全拼 97.4%、简拼约 41% 的答案。对话级泄露检查没有发现训练数据转载了基准对话。
+
 ## 安装与目录
 
-Python≥3.11。`pyproject.toml`提供源代码editable安装元数据，依赖读取`requirements.txt`；Linux CUDA 训练和评测的附加依赖分别记录在对应requirements文件。源仓库推理需要本地匹配checkpoint、tokenizer及manifest；默认CLI仍选择V1，V4 checkpoint通过`vimeml.training.infer_v4.JapaneseLMV4`加载。Core ML转换与运行时评测需要macOS。
+Python≥3.11。`pyproject.toml`提供源代码editable安装元数据，依赖读取`requirements.txt`；Linux CUDA 训练、评测准备和外部模型对照的附加依赖在 `requirements/` 目录下。源仓库推理需要本地匹配checkpoint、tokenizer及manifest；默认CLI仍选择V1，V4 checkpoint通过`vimeml.training.infer_v4.JapaneseLMV4`加载。Core ML转换与运行时评测需要macOS。
 
-`src/vimeml/`保存实现，`scripts/`保存分类命令入口，`configs/`保存配置，`docs/`保存英文主要文档，`docs/zh-CN/`保存中文文档与详细实验报告。`datasets/`、`artifacts/`、`outputs/`、`runs/`、`handoff/`为忽略目录。当前iOS客户端在独立Vime仓库维护；`examples/ios/`为历史接入参考。
+`src/vimeml/`保存实现，`scripts/`保存分类命令入口，`configs/`保存配置（日语语料审核决定在`configs/annotations/`），`requirements/`保存附加依赖，`docs/`保存英文主要文档，`docs/zh-CN/`保存中文文档与详细实验报告。`datasets/`、`artifacts/`、`outputs/`、`runs/`、`handoff/`为忽略目录。当前iOS客户端在独立Vime仓库维护；`examples/ios/`为历史接入参考。
 
 [英文文档索引](docs/index.md) · [中文文档索引](docs/zh-CN/index.md) · [贡献约定](CONTRIBUTING.md) · [许可与归属](NOTICE.md)
 

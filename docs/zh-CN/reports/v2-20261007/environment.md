@@ -13,7 +13,7 @@
 | 训练预算 | BF16、batch 256、4 epochs / 393,704 updates |
 | 指标记录 | W&B online，运行结束状态finished |
 
-数据包含 token store、窗口索引、tokenizer 与原两套候选。50 个文件在传输后核对大小，使用 SFTP/gzip 完整性检查；源码快照记录 commit 与工作区改动。依赖见 [requirements-cuda.txt](../../../../requirements-cuda.txt)。
+数据包含 token store、窗口索引、tokenizer 与原两套候选。50 个文件在传输后核对大小，使用 SFTP/gzip 完整性检查；源码快照记录 commit 与工作区改动。依赖见 [requirements/cuda.txt](../../../../requirements/cuda.txt)。
 
 ## 运行入口
 

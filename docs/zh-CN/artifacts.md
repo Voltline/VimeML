@@ -43,4 +43,4 @@ V4.4消融（2026-11-05）在`Voltline/vimeml-v44-training-output`（revision `a
 
 Manifest中的路径、代码指纹和失败项描述原运行环境，目录迁移不改写原始记录。模型／tokenizer变更时建立新身份，后续阶段复用冻结manifest；传输检查清单、大小与容器完整性。
 
-云 GPU 实例的大文件放在数据盘上，不随系统镜像保存。依赖由`requirements.txt`与`requirements-cuda.txt`重建；虚拟环境和凭据不进入迁移包。Mac环境记录在`outputs/deployment/environment/`，W&B账号和run链接只保存在本地忽略目录。
+云 GPU 实例的大文件放在数据盘上，不随系统镜像保存。依赖由`requirements.txt`与`requirements/cuda.txt`重建；虚拟环境和凭据不进入迁移包。Mac环境记录在`outputs/deployment/environment/`，W&B账号和run链接只保存在本地忽略目录。
