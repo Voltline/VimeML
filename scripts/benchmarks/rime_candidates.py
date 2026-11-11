@@ -10,6 +10,14 @@ schema, patched only where the benchmark needs a fixed, input-only engine:
 Everything else (the rime-ice dictionaries, spelling algebra with abbreviated pinyin,
 the Lua filters that reorder candidates) is unchanged.
 
+--variant selects the engine configuration (default ice, the frozen benchmark pools):
+  ice       librime + rime-ice, as above
+  ice-gram  ice plus the wanxiang grammar model through librime-octagram, with the
+            parameters of rime-ice's own others/recipes/grammar.recipe.yaml
+  luna      the stock Luna Pinyin, simplified output (luna_pinyin_simp), with
+            rime-prelude, rime-essay and rime-stroke; user dictionary off
+Each variant deploys into its own --work directory.
+
   deploy  build the dictionaries into <work>/user/build (takes a few minutes)
   probe   print the candidates of a few key sequences
   query   <inputs.jsonl> rows {id, keys, n_han} -> <out.jsonl> rows {id, keys,
@@ -43,6 +51,45 @@ SCHEMA_CUSTOM='''patch:
     - script_translator
     - table_translator@custom_phrase
 '''
+
+# rime-ice others/recipes/grammar.recipe.yaml (99662ba), copied without change.
+GRAMMAR_PATCH='''  grammar:
+    language: wanxiang-lts-zh-hans
+    collocation_max_length: 6
+    collocation_min_length: 3
+    collocation_penalty: -14
+    non_collocation_penalty: -6
+    weak_collocation_penalty: -100
+    rear_penalty: -20
+  translator/contextual_suggestions: false
+  translator/max_homophones: 8
+'''
+GRAMMAR_FILE=ENGINE/'grammar/wanxiang-lts-zh-hans.gram'
+LUNA_REPOS=('rime-luna-pinyin','rime-prelude','rime-essay','rime-stroke')
+LUNA_CUSTOM='''patch:
+  translator/enable_user_dict: false
+'''
+WORK=ROOT/'outputs/benchmarks/ime-standard-zh-v1'
+VARIANTS={
+    'ice':dict(schema='rime_ice',shared=ENGINE/'rime-ice',work=WORK/'rime',patch=SCHEMA_CUSTOM,label='rime-ice'),
+    'ice-gram':dict(schema='rime_ice',shared=ENGINE/'rime-ice',work=WORK/'rime-ice-gram',patch=SCHEMA_CUSTOM+GRAMMAR_PATCH,
+                    label='rime-ice + wanxiang-lts-zh-hans grammar'),
+    'luna':dict(schema='luna_pinyin_simp',shared=None,work=WORK/'rime-luna',patch=LUNA_CUSTOM,label='luna_pinyin_simp'),
+}
+
+
+def luna_shared(work):
+    """One shared data directory from the pinned Luna Pinyin repositories and librime's OpenCC data."""
+    import shutil
+    shared=Path(work)/'shared'
+    if not shared.exists():
+        shared.mkdir(parents=True)
+        for repo in LUNA_REPOS:
+            for f in (ENGINE/'luna'/repo).glob('*'):
+                if f.suffix in ('.yaml','.txt'): shutil.copy(f,shared/f.name)
+        shutil.copytree(ENGINE/'librime/share/opencc',shared/'opencc')
+    return shared
+
 
 API_FIELDS=('setup set_notification_handler initialize finalize start_maintenance is_maintenance_mode '
     'join_maintenance_thread deployer_initialize prebuild deploy deploy_schema deploy_config_file '
@@ -94,10 +141,13 @@ SIGS=dict(setup=(None,C.POINTER(Traits)),initialize=(None,C.POINTER(Traits)),fin
 
 
 class Rime:
-    def __init__(self,shared,work,dll,log_level=2):
+    def __init__(self,shared,work,dll,log_level=2,variant='ice'):
+        v=VARIANTS[variant]; self.schema=v['schema']; self.label=v['label']
         self.user=Path(work)/'user'; self.user.mkdir(parents=True,exist_ok=True)
-        (self.user/'default.custom.yaml').write_text(DEFAULT_CUSTOM,encoding='utf-8')
-        (self.user/'rime_ice.custom.yaml').write_text(SCHEMA_CUSTOM,encoding='utf-8')
+        (self.user/'default.custom.yaml').write_text(DEFAULT_CUSTOM.replace('rime_ice',self.schema),encoding='utf-8')
+        (self.user/f'{self.schema}.custom.yaml').write_text(v['patch'],encoding='utf-8')
+        if variant=='ice-gram' and not (self.user/GRAMMAR_FILE.name).exists():
+            import shutil; shutil.copy(GRAMMAR_FILE,self.user/GRAMMAR_FILE.name)
         empty=Path(work)/'prebuilt-none'; empty.mkdir(exist_ok=True)  # never use a shipped build
         lib=C.CDLL(str(dll)); lib.rime_get_api.restype=C.POINTER(Api)
         raw=lib.rime_get_api().contents
@@ -117,8 +167,10 @@ class Rime:
 
     def session(self):
         s=self.f['create_session']()
-        assert s and self.f['select_schema'](s,b'rime_ice'), 'schema rime_ice not deployed'
-        for o in (b'ascii_mode',b'emoji',b'traditionalization',b'full_shape'): self.f['set_option'](s,o,0)
+        assert s and self.f['select_schema'](s,self.schema.encode()), f'schema {self.schema} not deployed'
+        for o in (b'ascii_mode',b'emoji',b'traditionalization',b'full_shape',b'zh_hant',b'zh_hant_hk',b'zh_hant_tw'):
+            self.f['set_option'](s,o,0)
+        if self.schema=='luna_pinyin_simp': self.f['set_option'](s,b'zh_hans',1)
         return s
 
     def candidates(self,s,keys,limit=300):
@@ -147,13 +199,16 @@ def main():
     p=argparse.ArgumentParser(description=__doc__,formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('command',choices=['deploy','probe','query'])
     p.add_argument('args',nargs='*',help='probe: key sequences; query: inputs.jsonl out.jsonl')
-    p.add_argument('--shared',default=str(ENGINE/'rime-ice'))
+    p.add_argument('--variant',choices=sorted(VARIANTS),default='ice')
+    p.add_argument('--shared',help='default: the shared data of the variant')
     p.add_argument('--dll',default=str(ENGINE/'librime/dist/lib/rime.dll'))
-    p.add_argument('--work',default=str(ROOT/'outputs/benchmarks/ime-standard-zh-v1/rime'))
+    p.add_argument('--work',help='default: the work directory of the variant')
     p.add_argument('--n',type=int,default=20)
     p.add_argument('--scan',type=int,default=300,help='how many Rime candidates to look through')
     a=p.parse_args()
-    r=Rime(a.shared,a.work,a.dll)
+    v=VARIANTS[a.variant]; work=a.work or str(v['work'])
+    shared=a.shared or str(v['shared'] or luna_shared(work))
+    r=Rime(shared,work,a.dll,variant=a.variant)
     if a.command=='deploy':
         r.deploy(); print(f'librime {r.version}: deployed into {r.user}'); return
     s=r.session()
@@ -168,7 +223,7 @@ def main():
             if not line.strip(): continue
             q=json.loads(line)
             c=full(r.candidates(s,q['keys'],a.scan),q['n_han'],a.n)
-            fo.write(json.dumps(dict(id=q['id'],keys=q['keys'],engine=f'librime {r.version} + rime-ice',
+            fo.write(json.dumps(dict(id=q['id'],keys=q['keys'],engine=f'librime {r.version} + {r.label}',
                                      candidates=c),ensure_ascii=False)+'\n')
 
 
