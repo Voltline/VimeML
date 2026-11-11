@@ -1,4 +1,4 @@
-"""Judge the eight Vime 1.3 Chinese 20M arms by the preregistered rules (development only).
+"""Judge the eight vimeml-tiny-zh-v1 arms by the preregistered rules (development only).
 
 RUNS/<arm>/full.jsonl and full.meta.json come from score_zh13_lm.py on each arm's final.pt;
 abbrev.jsonl/abbrev.meta.json are optional and only described. Writes OUT/judgement.json,

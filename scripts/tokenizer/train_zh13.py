@@ -1,4 +1,4 @@
-"""Train the Vime 1.3 Chinese 8K and 12K tokenizers on the frozen export.
+"""Train the vimeml-tiny-zh-v1 8K and 12K tokenizers on the frozen export.
 
 Formal runs read configs/tokenizer-zh13.toml, require the export to be frozen
 (manifest.json + SHA256SUMS) and hash every input against SHA256SUMS. --unfrozen is

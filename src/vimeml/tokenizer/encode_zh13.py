@@ -1,4 +1,4 @@
-"""Vime 1.3 Chinese token stores with nested hash pools.
+"""vimeml-tiny-zh-v1 token stores with nested hash pools.
 
 measure (vocabulary-independent)
     Every web/review train document gets h = first 8 bytes of

@@ -98,7 +98,7 @@ Rime 第一候选命中这一列是引擎自身的基线，不是模型分数，
 
 ## 重叠筛查
 
-用 `screen_overlap_zh.py` 在 Vime 1.3 训练语料里查题目原文的逐字重叠。扫描范围：
+用 `screen_overlap_zh.py` 在 vimeml-tiny-zh-v1 训练语料里查题目原文的逐字重叠。扫描范围：
 
 - stage-a-v2 的 21 个非删除分片，包括 keep 和 review 两部分，范围偏保守；
 - LCCC v2 的 train 和 review。

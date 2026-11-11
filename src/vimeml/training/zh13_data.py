@@ -1,4 +1,4 @@
-"""Vime 1.3 Chinese 20M arm mixtures (docs/zh-CN/training-zh-v13-plan.md).
+"""vimeml-tiny-zh-v1 arm mixtures (docs/zh-CN/training-zh-v1-plan.md).
 
 Web: every window of the arm's pool (train.tiers.bin <= max tier: P1 3, P5 2,
 P20 1) once per epoch, prefix-cropped per epoch. Chat: one run-long sequence of
@@ -244,7 +244,7 @@ class Zh13Mixture(MixtureWindowDataset):
         self.directory = Path(directory)
         self.manifest = read(self.directory / "manifest.json")
         if self.manifest.get("status") != "complete" or self.manifest.get("format") != FORMAT:
-            raise ValueError("Incomplete or unsupported Vime 1.3 zh mixture")
+            raise ValueError("Incomplete or unsupported vimeml-tiny-zh-v1 mixture")
         request = self.manifest["request"]
         if (request["token_manifest_sha256"] != file_sha(Path(base.token_dir) / "manifest.json")
                 or request["window_manifest_sha256"] != file_sha(Path(root) / request["index_dir"] / "manifest.json")):

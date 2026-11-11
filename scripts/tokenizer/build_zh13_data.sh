@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the Vime 1.3 zh training data once, where the frozen export lives (docs/zh-CN/training-zh-v13-plan.md):
+# Build the vimeml-tiny-zh-v1 training data once, where the frozen export lives (docs/zh-CN/training-zh-v1-plan.md):
 # verify export-r1 against SHA256SUMS -> measure pools -> encode 8K and 12K -> eight arm mixtures,
 # then write configs/data-zh13.sha256, the list the cluster checks after downloading.
 # Needs outputs/zh-corpus/export-r1 and the formal tokenizers in artifacts/tokenizers/zh-v13.

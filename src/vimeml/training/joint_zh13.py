@@ -1,4 +1,4 @@
-"""Vime 1.3 Chinese 20M pretraining arms (docs/zh-CN/training-zh-v13-plan.md).
+"""vimeml-tiny-zh-v1 pretraining arms (docs/zh-CN/training-zh-v1-plan.md).
 
 The V4.2 LM/chat recipe on Chinese stores. Each arm has its own frozen mixture
 from prepare_zh13.py; the arm fixes vocabulary, layer count, pool, epochs and
@@ -55,10 +55,10 @@ def build_plan(config, root=ROOT, verify_files=True):
     root = Path(root)
     if (config.get("stage") != STAGE or config.get("architecture") != ARCHITECTURE
             or config.get("initialization") != {"mode": "random"}):
-        raise ValueError("Vime 1.3 zh requires explicit random initialization; no source checkpoint")
+        raise ValueError("vimeml-tiny-zh-v1 requires explicit random initialization; no source checkpoint")
     arm = config.get("arm")
     if arm not in ARMS:
-        raise ValueError("Unknown Vime 1.3 zh arm")
+        raise ValueError("Unknown vimeml-tiny-zh-v1 arm")
     vocab, pool, epochs, seed = ARMS[arm]
     model = GPTZh13Config(**config["model"])
     s = dict(config["training"])
@@ -85,7 +85,7 @@ def build_plan(config, root=ROOT, verify_files=True):
         raise ValueError("Formal training is CUDA/BF16/compiled; only smoke runs are CPU/FP32")
     if (not 0 < s["min_learning_rate"] <= s["learning_rate"] or s["beta1"] >= 1 or s["beta2"] >= 1
             or s["prefix_crop_probability"] != 0.30 or s["lm_microbatch"] > s["lm_batch"]):
-        raise ValueError("Vime 1.3 zh optimizer/crop/microbatch contract mismatch")
+        raise ValueError("vimeml-tiny-zh-v1 optimizer/crop/microbatch contract mismatch")
     mix_dir = root / config["data_mixture"]["directory"]
     mix = read(mix_dir / "manifest.json")
     request = mix["request"]
@@ -94,7 +94,7 @@ def build_plan(config, root=ROOT, verify_files=True):
             or request["seed"] != seed or request["crop_probability"] != s["prefix_crop_probability"]):
         raise ValueError("Frozen mixture differs from the training configuration")
     if file_sha(mix_dir / "manifest.json") != config["dataset_sha256"]:
-        raise ValueError("Vime 1.3 zh dataset manifest changed")
+        raise ValueError("vimeml-tiny-zh-v1 dataset manifest changed")
     required = {mix_dir / "manifest.json": config["dataset_sha256"],
                 mix_dir / "request.json": file_sha(mix_dir / "request.json"),
                 mix_dir / mix["probe"]["file"]: mix["probe"]["sha256"]}
@@ -230,7 +230,7 @@ def restore_checkpoint(saved, model, optimizer, config, plan, precision):
             or saved.get("model_config") != model.configuration()
             or saved.get("pretraining", {}).get("task_contract") != plan["task_contract"]
             or saved.get("tokenizer_identity") != plan["tokenizer_identity"]):
-        raise ValueError("Explicit compatible Vime 1.3 zh checkpoint required")
+        raise ValueError("Explicit compatible vimeml-tiny-zh-v1 checkpoint required")
     if saved["config"] != config or saved["signatures"] != plan["signatures"] or saved["precision"] != precision:
         raise ValueError("Resume requires identical config, code, data and precision")
     if saved["step"] != saved["training_state"]["step"] or saved["epoch"] != saved["training_state"]["epoch"]:

@@ -1,4 +1,4 @@
-"""Screen the Standard zh benchmark items for verbatim overlap with the Vime 1.3 training corpus.
+"""Screen the Standard zh benchmark items for verbatim overlap with the vimeml-tiny-zh-v1 training corpus.
 
 usage: screen_overlap_zh.py <items.jsonl> <out dir> <corpus file>...
   corpus files: stage-a parquet shards (text column; every row of a non-dropped shard, so both

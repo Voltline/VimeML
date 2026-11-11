@@ -1,4 +1,4 @@
-"""Write LM rerank scores of a Vime 1.3 zh checkpoint on Standard zh development.
+"""Write LM rerank scores of a vimeml-tiny-zh-v1 checkpoint on Standard zh development.
 
 The output JSONL is the --scores input of score_standard_ime_zh.py; a .meta.json
 next to it records the checkpoint, tokenizer and scores SHA256. Development only.

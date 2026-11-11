@@ -1,6 +1,6 @@
-# Vime 1.3 Chinese formal tokenizers (docs/zh-CN/training-zh-v13-plan.md).
+# vimeml-tiny-zh-v1 formal tokenizers (docs/zh-CN/training-zh-v1-plan.md).
 # Same sampling and SentencePiece settings as the vocabulary probe
-# (docs/zh-CN/reports/zh-v13-20261106/tokenizer-vocab.md), on the frozen export,
+# (docs/zh-CN/reports/zh-v1-20261106/tokenizer-vocab.md), on the frozen export,
 # plus a newline user symbol and three reserved control symbols.
 export_dir = "outputs/zh-corpus/export-r1"
 output_dir = "artifacts/tokenizers/zh-v13"

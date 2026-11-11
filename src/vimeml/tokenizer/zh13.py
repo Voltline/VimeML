@@ -1,4 +1,4 @@
-"""Vime 1.3 Chinese tokenizers: sample the frozen export, train Unigram, verify.
+"""vimeml-tiny-zh-v1 tokenizers: sample the frozen export, train Unigram, verify.
 
 Paragraphs are the lines of a document after strip(); empty lines are dropped. The
 sample is taken once, written to train-sample.txt and read whole by every vocabulary.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start all eight Vime 1.3 zh 20M arms on one node, one GPU each, detached from this shell.
+# Start all eight vimeml-tiny-zh-v1 arms on one node, one GPU each, detached from this shell.
 # GPUs default to 0-7; override with VIMEML_ZH13_GPUS="0 1 2 3 4 5 6 7".
 # Rerunning resumes arms whose process has stopped and skips arms still running.
 set -euo pipefail

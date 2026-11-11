@@ -8,10 +8,12 @@ V4.2 epoch 20 / INT8 block-32 is the current deployment release; it replaced V2.
 | --- | --- |
 | [Model card](../MODEL_CARD.md) | Architecture, intended use, releases, metrics, and limitations |
 | [Data](data.md) | Frozen corpora, cleaning, splits, and provenance |
-| [Vime 1.3 Chinese corpus](zh-CN/data-zh-v13.md) (Chinese) | In progress: FineWeb2 cmn_Hani (21 shards) and LCCC; Traditional-to-Simplified, rule filter, spam-site removal, 955K-item human review queue |
-| [Chinese 20M experiment plan](zh-CN/training-zh-v13-plan.md) (Chinese) | Preregistration: eight arms at the same 22.4B characters, fresh data vs 5 vs 20 epochs crossed with 8K vs 12K vocabularies, three seeds of 12K fresh for the noise band |
-| [Chinese 20M eight-arm training record](zh-CN/reports/zh13-20261110/training.md) (Chinese) | 2026-11-10: all eight arms completed with no preemption or failure; final-checkpoint BPC and the memorization probe |
-| [Chinese tokenizer vocabulary probe](zh-CN/reports/zh-v13-20261106/tokenizer-vocab.md) (Chinese) | Tokenizer-only comparison of 8K–32K Unigram vocabularies and coverage 0.9995 / 0.9999: the 20M model will compare only 8K and 12K at 0.9995; 16K–32K are deferred to a 200M model |
+| [vimeml-tiny-zh-v1 corpus](zh-CN/data-zh-v1.md) (Chinese) | In progress: FineWeb2 cmn_Hani (21 shards) and LCCC; Traditional-to-Simplified, rule filter, spam-site removal, 955K-item human review queue |
+| [vimeml-tiny-zh-v1 experiment plan](zh-CN/training-zh-v1-plan.md) (Chinese) | Preregistration: eight arms at the same 22.4B characters, fresh data vs 5 vs 20 epochs crossed with 8K vs 12K vocabularies, three seeds of 12K fresh for the noise band |
+| [vimeml-tiny-zh-v1 eight-arm training record](zh-CN/reports/zh-v1-20261110/training.md) (Chinese) | 2026-11-10: all eight arms completed with no preemption or failure; final-checkpoint BPC and the memorization probe |
+| [vimeml-tiny-zh-v1 eight-arm IME benchmark and judgement](zh-CN/reports/zh-v1-20261110/ime-benchmark.md) (Chinese) | Pinyin development Top-1 93.3%-94.4% for the eight arms vs 68.8% for Rime; none of the five contrasts was effective, so the preregistered defaults apply (fresh data, 12K) |
+| [vimeml-tiny-zh-v1 blind confirmation plan](zh-CN/benchmarks/confirmation-zh-v1-plan.md) (Chinese) | Preregistration: `12k-fresh-s1` against Rime on the blind pinyin track, run once; blind not opened yet |
+| [Chinese tokenizer vocabulary probe](zh-CN/reports/zh-v1-20261106/tokenizer-vocab.md) (Chinese) | Tokenizer-only comparison of 8K–32K Unigram vocabularies and coverage 0.9995 / 0.9999: the 20M model will compare only 8K and 12K at 0.9995; 16K–32K are deferred to a 200M model |
 | [V1 training](training.md) | Original baseline and reproducibility |
 | [V2 training](training-v2.md) / [V2 design](plan_v2.md) | Architecture, tokenization, cropping, and schedules |
 | [V3 experiments](plan_v3.md) | Adaptation and joint retraining scope |

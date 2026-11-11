@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cluster launcher for one Vime 1.3 zh 20M arm: builds (or verifies) the arm's frozen
+# Cluster launcher for one vimeml-tiny-zh-v1 arm: builds (or verifies) the arm's frozen
 # mixture, then trains, auto-resuming from last.pt when resubmitted.
 # Usage: cluster_zh13.sh <arm> [gpu]; without [gpu] the scheduler's CUDA_VISIBLE_DEVICES is kept.
 # Token stores must exist first.
