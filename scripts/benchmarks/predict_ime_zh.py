@@ -34,7 +34,7 @@ FROZEN_SHA = {
     "manifest.json": "002dc9a39113e1831b5d2352187a079e15705770310dc81de6e06a87e68f6415",
 }
 RIME = ROOT / "datasets/ime-standard-zh-v1/engine/rime-ice"
-NGRAM = ROOT / "outputs/benchmarks/ime-predict-zh-v1/baselines/char5-kn.pkl"
+NGRAM = ROOT / "outputs/benchmarks/ime-predict-zh-v1/baselines/char5-kn.npz"
 QUANTILES = [q / 100 for q in range(5, 100, 5)]
 MODES = (("first_syllable", "syllable", "keys_first_syllable"), ("initials", "initials", "keys_initials"))
 

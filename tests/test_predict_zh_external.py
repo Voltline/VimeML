@@ -49,7 +49,8 @@ class Hf(unittest.TestCase):
     def test_cached_logprobs_match_full_forward(self):
         context = self.lm.context(["好的"], "我们明天")
         sequences = [context, context + [5], context + [6, 7], context + [9, 10, 11]]
-        for batch in ([sequences[0]], sequences[1:], sequences):
+        one = self.lm.context([], "我")
+        for batch in ([sequences[0]], sequences[1:], sequences, [one], [one + [4], one + [5, 6]]):
             got = self.lm.logprobs(batch)
             for row, s in enumerate(batch):
                 with torch.no_grad():
@@ -74,6 +75,12 @@ class Ngram(unittest.TestCase):
             self.assertAlmostEqual(float(lm.distribution(history).exp().sum()), 1.0, places=5)
         self.assertEqual(P.predict(lm, [], "一起去")[0][0], "吃饭")
         self.assertIsNone(lm.vocabulary.texts[0])
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            lm.save(Path(tmp) / "m.npz")
+            again = CharNgramLM.load(Path(tmp) / "m.npz")
+        history = lm.context(["好的"], "我们")
+        self.assertTrue(torch.equal(again.distribution(history), lm.distribution(history)))
 
     def test_sample_fraction(self):
         keys = [str(i) for i in range(20000)]
