@@ -42,9 +42,18 @@ def main():
         cwd=destination,
         check=True,
     )
-    subprocess.run(
-        ["git", "switch", "-c", manifest["mac_branch"]], cwd=destination, check=True
-    )
+    if manifest["mac_branch"] != manifest["source_branch"]:
+        subprocess.run(
+            ["git", "switch", "-c", manifest["mac_branch"]], cwd=destination, check=True
+        )
+    else:
+        # Work directly on the cloned branch; track the remote branch of the same name.
+        subprocess.run(["git", "fetch", "origin"], cwd=destination, check=False)
+        subprocess.run(
+            ["git", "branch", "--set-upstream-to", f"origin/{manifest['source_branch']}"],
+            cwd=destination,
+            check=False,
+        )
     for entry in manifest["payload_files"]:
         relative = PurePosixPath(entry["path"])
         if (
