@@ -102,6 +102,15 @@ python -X utf8 scripts/benchmarks/predict_ime_zh.py run --out outputs/benchmarks
 python -X utf8 scripts/benchmarks/predict_ime_zh.py score --run outputs/benchmarks/ime-predict-zh-v1/runs/<名字>
 ```
 
+第 0 步的外部系统用同一个入口，只换适配器（规则见[计划的偏离记录](predict-zh-plan.md#偏离记录)第 3 条）：
+
+```bash
+python -X utf8 scripts/benchmarks/predict_ime_zh.py build-ngram    # 字符 5-gram，写到 outputs/benchmarks/ime-predict-zh-v1/baselines/
+python -X utf8 scripts/benchmarks/predict_ime_zh.py run --model char5 --out .../runs/char5-kn
+python -X utf8 scripts/benchmarks/predict_ime_zh.py run --model hf --name Qwen/Qwen2.5-0.5B --out .../runs/qwen2.5-0.5b
+python -X utf8 scripts/benchmarks/predict_ime_zh.py run --model hf --name Qwen/Qwen2.5-3B --dtype bfloat16 --out .../runs/qwen2.5-3b
+```
+
 `run` 先核对四个冻结文件的 SHA256，只读 development，结果写成每条一行的 jsonl，并在 `meta.json` 里记录模型和分词器的 SHA256、解码参数、rime-ice 版本和读音表的 SHA256、jieba 和 pypinyin 的版本。
 
 ## 文件

@@ -1,7 +1,9 @@
 """Run and score the Chinese prediction benchmark ime-predict-zh-v1-r1 on development.
 
-  run    decode tracks A, C (both key modes) and B for one model; development only
-  score  Top-k rates (A, C), keystroke savings with the tuned threshold (B), coverage (D)
+  run          decode tracks A, C (both key modes) and B for one model; development only
+               adapters: vime (vimeml-tiny-zh), hf (Hugging Face causal LM), char5 (5-gram)
+  build-ngram  the character 5-gram baseline from a fixed sample of export-r1/train
+  score        Top-k rates (A, C), keystroke savings with the tuned threshold (B), coverage (D)
 
 Protocol: docs/zh-CN/benchmarks/predict-zh-plan.md. Decoder: vimeml.benchmarks.predict_zh.
 The blind split is never read here.
@@ -32,6 +34,7 @@ FROZEN_SHA = {
     "manifest.json": "002dc9a39113e1831b5d2352187a079e15705770310dc81de6e06a87e68f6415",
 }
 RIME = ROOT / "datasets/ime-standard-zh-v1/engine/rime-ice"
+NGRAM = ROOT / "outputs/benchmarks/ime-predict-zh-v1/baselines/char5-kn.pkl"
 QUANTILES = [q / 100 for q in range(5, 100, 5)]
 MODES = (("first_syllable", "syllable", "keys_first_syllable"), ("initials", "initials", "keys_initials"))
 
@@ -63,12 +66,44 @@ def quantile(values, q):
 
 
 def load_model(args):
-    if args.model != "vime":
-        raise SystemExit(f"Unknown model adapter {args.model}")
-    from vimeml.benchmarks.zh13_lm_scores import load
-    from vimeml.training.joint_zh13 import SPECIAL
-    model, processor, meta = load(args.checkpoint, args.tokenizer, args.device)
-    return P.VimeLM(model, processor, args.device, SPECIAL), meta
+    if args.model == "vime":
+        from vimeml.benchmarks.zh13_lm_scores import load
+        from vimeml.training.joint_zh13 import SPECIAL
+        model, processor, meta = load(args.checkpoint, args.tokenizer, args.device)
+        return P.VimeLM(model, processor, args.device, SPECIAL), {**meta, "dtype": "float32"}
+    if args.model == "hf":
+        from huggingface_hub import HfApi
+        from vimeml.benchmarks.predict_zh_external import HFLM
+        revision = args.revision or HfApi().model_info(args.name).sha
+        dtype = {"float32": torch.float32, "bfloat16": torch.bfloat16}[args.dtype]
+        lm = HFLM.from_pretrained(args.name, revision, args.device, dtype, args.context_length)
+        return lm, {"name": args.name, "revision": revision, "dtype": args.dtype,
+                    "parameters": sum(p.numel() for p in lm.model.parameters()),
+                    "reachable_tokens": len(lm.vocabulary.han_ids)}
+    if args.model == "char5":
+        from vimeml.benchmarks.predict_zh_external import CharNgramLM
+        lm = CharNgramLM.load(args.ngram)
+        info = json.loads(Path(args.ngram).with_suffix(".json").read_text(encoding="utf-8"))
+        return lm, {"ngram": str(args.ngram), "ngram_sha256": file_sha(args.ngram), **info, "dtype": "float32"}
+    raise SystemExit(f"Unknown model adapter {args.model}")
+
+
+def build_ngram(args):
+    from vimeml.benchmarks.predict_zh_external import CharNgramLM, char_ngram_documents
+    out = Path(args.out)
+    if out.exists():
+        raise SystemExit(f"{out} exists")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    export = Path(args.export)
+    documents, stats = char_ngram_documents(export, args.web_chars, args.chat_chars, log)
+    lm = CharNgramLM.build(documents, log)
+    lm.save(out)
+    info = {"export_manifest_sha256": file_sha(export / "manifest.json"), "sample": stats,
+            "web_target_han": args.web_chars, "chat_target_chars": args.chat_chars,
+            "order": lm.ORDER, "min_count": lm.MIN_COUNT, "vocabulary": len(lm.chars),
+            "discounts": {str(k): v for k, v in lm.discounts.items()}}
+    write_json(out.with_suffix(".json"), info)
+    log("saved", out, info)
 
 
 def run(args):
@@ -89,7 +124,7 @@ def run(args):
                                  text=True).stdout.strip()
     meta = {
         "version": VERSION, "split": "development", "limit_per_source": args.limit,
-        "model": {"adapter": args.model, **model_meta, "device": args.device, "dtype": "float32"},
+        "model": {"adapter": args.model, **model_meta, "device": args.device},
         "decoder": {"beam": P.BEAM, "max_chars": P.MAX_CHARS, "min_chars": P.MIN_CHARS, "top": P.TOP,
                     "show": P.SHOW, "reserve": P.RESERVE, "context_length": lm.context_length},
         "frozen_sha256": FROZEN_SHA,
@@ -207,16 +242,26 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
     r = sub.add_parser("run")
-    r.add_argument("--model", default="vime")
+    r.add_argument("--model", default="vime", choices=("vime", "hf", "char5"))
     r.add_argument("--checkpoint", default=str(ROOT / "artifacts/models/tiny-zh13-12k-fresh-s1-d384-l9/final.pt"))
     r.add_argument("--tokenizer", default=str(ROOT / "artifacts/tokenizers/zh-v13/zh-unigram-12288/tokenizer.model"))
+    r.add_argument("--name", help="hf: model repository, e.g. Qwen/Qwen2.5-0.5B")
+    r.add_argument("--revision", help="hf: commit; default the current one, recorded in meta.json")
+    r.add_argument("--dtype", default="float32", choices=("float32", "bfloat16"))
+    r.add_argument("--context-length", type=int, default=512, help="hf: context tokens")
+    r.add_argument("--ngram", default=str(NGRAM), help="char5: model built by build-ngram")
     r.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     r.add_argument("--limit", type=int, default=0, help="items per source, for smoke runs")
     r.add_argument("--out", required=True)
+    g = sub.add_parser("build-ngram", help="character 5-gram from a fixed sample of export-r1/train")
+    g.add_argument("--export", default=str(ROOT / "outputs/zh-corpus/export-r1"))
+    g.add_argument("--web-chars", type=int, default=9_500_000, help="target Chinese characters of web text")
+    g.add_argument("--chat-chars", type=int, default=500_000, help="target characters of LCCC dialogues")
+    g.add_argument("--out", default=str(NGRAM))
     s = sub.add_parser("score")
     s.add_argument("--run", required=True)
     args = parser.parse_args()
-    run(args) if args.command == "run" else score(args)
+    {"run": run, "score": score, "build-ngram": build_ngram}[args.command](args)
 
 
 if __name__ == "__main__":
