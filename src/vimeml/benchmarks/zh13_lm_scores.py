@@ -1,4 +1,4 @@
-"""LM rerank scores of the Standard Chinese IME benchmark for Vime 1.3 zh checkpoints.
+"""LM rerank scores of the Standard Chinese IME benchmark for vimeml-tiny-zh-v1 checkpoints.
 
 Scoring is V4.2's (evaluate_ime.score_candidates): BOS + left context + candidate
 is tokenized jointly; the scored region starts at the common token prefix of the
@@ -6,7 +6,7 @@ context alone and every candidate sequence, so when the last context piece merge
 with a candidate's first characters, that piece is rescored for every candidate
 from the first divergence; no candidate-final EOS. The score is the sum of
 full-vocabulary FP32 log-probabilities over the region. Only split=='development'
-items are read; there is no blind option here.
+items are read unless run() is given split='blind' and a verified committed plan.
 """
 import json
 import math
@@ -30,7 +30,7 @@ def load(checkpoint, tokenizer, device="cpu"):
     import sentencepiece as spm
     saved = torch.load(checkpoint, map_location="cpu", weights_only=True)
     if saved.get("format") != FORMAT or saved.get("architecture") != ARCHITECTURE:
-        raise ValueError("Not a Vime 1.3 zh checkpoint")
+        raise ValueError("Not a vimeml-tiny-zh-v1 checkpoint")
     identity = saved["tokenizer_identity"]
     if file_sha(tokenizer) != identity["tokenizer_model_sha256"] or identity["special_ids"] != SPECIAL:
         raise ValueError("Tokenizer differs from the checkpoint's tokenizer identity")
@@ -86,7 +86,11 @@ def score_item(model, processor, context, candidates, device="cpu"):
             "boundary_retokenized": any(s[:len(context_ids)] != context_ids for s in sequences)}
 
 
-def run(checkpoint, tokenizer, frozen, out, track="full", device="cpu"):
+def run(checkpoint, tokenizer, frozen, out, track="full", device="cpu", split="development", blind_plan=None):
+    if split not in ("development", "blind"):
+        raise ValueError(f"Unknown split {split}")
+    if split == "blind" and not blind_plan:
+        raise ValueError("blind needs a verified committed plan")
     frozen, out = Path(frozen), Path(out)
     if out.exists():
         raise ValueError(f"{out} exists; choose a new file")
@@ -94,14 +98,14 @@ def run(checkpoint, tokenizer, frozen, out, track="full", device="cpu"):
     if manifest["version"] != VERSION:
         raise ValueError(f"Expected {VERSION}")
     items = {i["id"]: i for i in read_jsonl(frozen / "items.jsonl")
-             if i["split"] == "development" and (track == "full" or i["keys_abbrev"] is not None)}
+             if i["split"] == split and (track == "full" or i["keys_abbrev"] is not None)}
     pools = {p["id"]: p for p in read_jsonl(frozen / f"pool-{track}.jsonl") if p["id"] in items}
     if set(pools) != set(items):
-        raise ValueError(f"pool-{track}.jsonl does not cover every development item")
+        raise ValueError(f"pool-{track}.jsonl does not cover every {split} item")
     model, processor, meta = load(checkpoint, tokenizer, device)
     with torch.autocast(torch.device(device).type, enabled=False):
         torch.backends.cuda.matmul.allow_tf32 = False
-        retokenized = empty = 0
+        retokenized = empty = fallbacks = 0
         out.parent.mkdir(parents=True, exist_ok=True)
         temporary = out.with_suffix(out.suffix + ".tmp")
         with open(temporary, "w", encoding="utf-8", newline="\n") as stream:
@@ -111,12 +115,19 @@ def run(checkpoint, tokenizer, frozen, out, track="full", device="cpu"):
                     empty += 1
                     result = {"scores": []}
                 else:
-                    result = score_item(model, processor, items[item_id]["left_context"], texts, device)
+                    try:
+                        result = score_item(model, processor, items[item_id]["left_context"], texts, device)
+                    except ValueError:
+                        if split != "blind":
+                            raise
+                        fallbacks += 1  # the benchmark rule: this item keeps the pool order
+                        result = {"scores": None, "boundary_retokenized": False}
                     retokenized += result["boundary_retokenized"]
                 stream.write(json.dumps({"id": item_id, "candidates": texts, **result}, ensure_ascii=False) + "\n")
         temporary.replace(out)
-    summary = {**meta, "version": VERSION, "track": track, "split": "development", "items": len(items),
-               "boundary_retokenized_items": retokenized, "empty_pools": empty, "scores_sha256": file_sha(out),
-               "scoring": "joint tokenization, common-prefix suffix log-probability sum, FP32, no EOS"}
+    summary = {**meta, "version": VERSION, "track": track, "split": split, "items": len(items),
+               "boundary_retokenized_items": retokenized, "empty_pools": empty, "fallbacks": fallbacks, "scores_sha256": file_sha(out),
+               "scoring": "joint tokenization, common-prefix suffix log-probability sum, FP32, no EOS",
+               **({"blind_plan": blind_plan} if blind_plan else {})}
     out.with_suffix(".meta.json").write_text(json.dumps(summary, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     return summary
