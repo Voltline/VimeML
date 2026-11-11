@@ -1,4 +1,4 @@
-# Vime 1.3 Chinese 20M token data (docs/zh-CN/training-zh-v13-plan.md).
+# vimeml-tiny-zh-v1 token data (docs/zh-CN/training-zh-v1-plan.md).
 # measure: per-document pool hash and paragraph characters -> thresholds q, q/5, q/20.
 # encode: one web store (P1 only, per-paragraph tier) and one chat store per vocabulary.
 export_dir = "outputs/zh-corpus/export-r1"

@@ -1,4 +1,4 @@
-# Vime 1.3 Chinese 20M arm 12k-ep20 (docs/zh-CN/training-zh-v13-plan.md): 12K vocabulary, L9,
+# vimeml-tiny-zh-v1 arm 12k-ep20 (docs/zh-CN/training-zh-v1-plan.md): 12K vocabulary, L9,
 # web pool P20 for 20 epoch(s), seed 1591996171. Everything else is the V4.2 recipe.
 # dataset_sha256 is the LF manifest prepare_zh13.py writes; pin it after the first build.
 stage = "zh-v1.3"

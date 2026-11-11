@@ -1,6 +1,6 @@
-# Vime 1.3 中文 20M 八臂训练记录（2026-11-10）
+# vimeml-tiny-zh-v1 八臂训练记录（2026-11-10）
 
-[预注册计划](../../training-zh-v13-plan.md)的八臂全部按计划完成训练。本文只记录训练过程与 LM 验证结果；IME 打分与 `judge_zh13.py` 判定另行报告，blind 未读取。
+[预注册计划](../../training-zh-v1-plan.md)的八臂全部按计划完成训练。本文只记录训练过程与 LM 验证结果；IME 打分与 `judge_zh13.py` 判定另行报告，blind 未读取。
 
 ## 提交与运行
 
@@ -42,7 +42,7 @@
 - 三个 `12k-fresh` seed 的网页 BPC 极差 0.0023（4.353255–4.355557），run 间噪声在 BPC 上很小；IME Top-1 的噪声带以判定脚本对八臂打分结果的统计为准。
 - 验证 BPC 最低的是 `12k-ep5`（4.346868），`ep20` 两臂均高于同词表的 `fresh`/`ep5`；这与"重复带来记忆但验证不升"的方向一致。记忆抽样（P20 内 10,000 篇训练文档）BPC 与验证 BPC 之差：fresh 约 0.014、ep5 约 0.021、ep20 约 0.049，重复轮数越多训练文档记忆越深。
 - 8K 与 12K 的 BPC 均按字符计，可直接比较；本表里 12K 各臂整体略优。
-- 以上均为 development 上的探索性观察，结论以 [judge_zh13.py](../../../scripts/benchmarks/judge_zh13.py) 的预注册判定为准。
+- 以上均为 development 上的探索性观察，结论以 [judge_zh13.py](../../../../scripts/benchmarks/judge_zh13.py) 的预注册判定为准。
 
 ## 产物
 

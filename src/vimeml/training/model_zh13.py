@@ -1,8 +1,8 @@
-"""Vime 1.3 Chinese 20M decoder: the V4 block family with two registered shapes.
+"""vimeml-tiny-zh-v1 decoder: the V4 block family with two registered shapes.
 
 d384, 6 heads, SwiGLU 960, learned positions 128, tied embeddings; only the
 vocabulary and layer count vary, fixed to the 8K/L10 and 12K/L9 pairs of
-docs/zh-CN/training-zh-v13-plan.md.
+docs/zh-CN/training-zh-v1-plan.md.
 """
 import math
 from dataclasses import dataclass
@@ -29,11 +29,11 @@ class GPTZh13Config(GPTV2Config):
     def __post_init__(self):
         super().__post_init__()
         if self.vocab_size not in SHAPES or self.n_layers != SHAPES[self.vocab_size][0]:
-            raise ValueError("Vime 1.3 zh shapes are 8192/L10 and 12288/L9")
+            raise ValueError("vimeml-tiny-zh-v1 shapes are 8192/L10 and 12288/L9")
         fixed = {"context_length": 128, "d_model": 384, "n_heads": 6, "d_ff": 960, "dropout": 0.0}
         for name, value in fixed.items():
             if type(getattr(self, name)) is not type(value) or getattr(self, name) != value:
-                raise ValueError(f"Vime 1.3 zh {name} is fixed to {value}")
+                raise ValueError(f"vimeml-tiny-zh-v1 {name} is fixed to {value}")
 
 
 @dataclass
@@ -49,11 +49,11 @@ class KVCacheZh13:
 class TinyGPTZh13(TinyGPTV2):
     def __init__(self, config=GPTZh13Config()):
         if type(config) is not GPTZh13Config:
-            raise ValueError("Vime 1.3 zh requires GPTZh13Config")
+            raise ValueError("vimeml-tiny-zh-v1 requires GPTZh13Config")
         super().__init__(config)
         if self.parameter_count() != SHAPES[config.vocab_size][1] or any(
                 sum(p.numel() for p in block.parameters()) != LAYER_PARAMETERS for block in self.blocks):
-            raise ValueError("Vime 1.3 zh parameter budget does not match its contract")
+            raise ValueError("vimeml-tiny-zh-v1 parameter budget does not match its contract")
 
     def new_cache(self, batch_size=1):
         if type(batch_size) is not int or batch_size < 1:

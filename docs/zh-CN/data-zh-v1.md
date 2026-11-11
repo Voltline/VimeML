@@ -1,6 +1,6 @@
-# Vime 1.3 中文语料（进行中，2026-11-05）
+# vimeml-tiny-zh-v1语料（进行中，2026-11-05）
 
-Vime 1.3 的中文模型单独训练，计划规模约 20M 参数：d384，上下文 128；词表比较 8K（L10）和 12K（L9），见 [tokenizer 词表对比](reports/zh-v13-20261106/tokenizer-vocab.md)。本页记录语料的来源、规则过滤（stage A）和人工审核队列。质量打分（stage B）和最终导出尚未开始，所以本页数字都是中间状态，不是冻结语料。
+vimeml-tiny-zh-v1 是中文模型，单独训练，计划规模约 20M 参数：d384，上下文 128；词表比较 8K（L10）和 12K（L9），见 [tokenizer 词表对比](reports/zh-v1-20261106/tokenizer-vocab.md)。本页记录语料的来源、规则过滤（stage A）和人工审核队列。质量打分（stage B）和最终导出尚未开始，所以本页数字都是中间状态，不是冻结语料。
 
 ## 来源
 
@@ -137,6 +137,6 @@ review-v2 的规模：
 
 - Stage B 质量打分，参考首批人工标注做校准。
 - 导出审核部分，然后运行 `finish`。审核队列里的文档（含第二档域名）只有在所有票都是保留时才进训练集：只要有一票不保留或不确定就删除，没审到的也删除（2026-11-06 决定）。整个队列只占自动保留文档的约 3%，误删的代价远小于继续复核的成本。人工票和 AI 辅助票（DeepSeek，审核人名单独标注）一视同仁。
-- 正式 tokenizer 和 20M 模型训练。[词表对比](reports/zh-v13-20261106/tokenizer-vocab.md)（只训 tokenizer）已完成：20M 只实验 8K 和 12K（覆盖率 0.9995，12K 最均衡），200M 再开 16K、24K、32K。正式 tokenizer 等审核部分导出后再训，并把 `\n` 设为 user_defined_symbol。20M 的八臂实验见 [实验计划](training-zh-v13-plan.md)。中文评测集已冻结，见 [Standard Chinese IME benchmark](benchmarks/standard-ime-zh.md)；和本语料的重叠筛查已完成，没有发现原数据集被收进语料。
+- 正式 tokenizer 和 20M 模型训练。[词表对比](reports/zh-v1-20261106/tokenizer-vocab.md)（只训 tokenizer）已完成：20M 只实验 8K 和 12K（覆盖率 0.9995，12K 最均衡），200M 再开 16K、24K、32K。正式 tokenizer 等审核部分导出后再训，并把 `\n` 设为 user_defined_symbol。20M 的八臂实验见 [实验计划](training-zh-v1-plan.md)。中文评测集已冻结，见 [Standard Chinese IME benchmark](benchmarks/standard-ime-zh.md)；和本语料的重叠筛查已完成，没有发现原数据集被收进语料。
 
 所有输出都在 `outputs/zh-corpus/`，不进 Git：`stage-a-v2/`、`review-v2/`、`lccc-v2/`。

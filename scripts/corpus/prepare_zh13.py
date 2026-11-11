@@ -1,4 +1,4 @@
-"""Prepare one Vime 1.3 Chinese 20M arm's frozen mixture (docs/zh-CN/training-zh-v13-plan.md).
+"""Prepare one vimeml-tiny-zh-v1 arm's frozen mixture (docs/zh-CN/training-zh-v1-plan.md).
 
 Writes artifacts/training-data/zh13-<arm>-c128/{request.json, epoch-*.npy,
 probe-windows.npy, manifest.json}, LF newlines. A second run rebuilds and must

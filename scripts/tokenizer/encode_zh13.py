@@ -1,4 +1,4 @@
-"""Measure the nested Vime 1.3 pools, then encode token stores per vocabulary.
+"""Measure the nested vimeml-tiny-zh-v1 pools, then encode token stores per vocabulary.
 
 measure writes pools.json (thresholds q, q//5, q//20 and the memorization probe);
 it does not depend on the tokenizer. encode --vocab 8192|12288 writes

@@ -1,4 +1,4 @@
-"""Final export of the Vime 1.3 Chinese corpus for upload (zh-v13-export-r1).
+"""Final export of the vimeml-tiny-zh-v1 corpus for upload (zh-v13-export-r1).
 
   web     stage-a-v2 decision=keep documents, minus exact duplicates and every document on a
           listed spam host or spam farm (same host -> site rule and spam_allow as `zh_stage_a.py

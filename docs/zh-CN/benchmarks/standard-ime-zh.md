@@ -2,7 +2,7 @@
 
 2026-11-06。抽样、逐条 AI 专家审核、人工抽查和 Rime 真实候选都已完成，冻结版本为 `ime-standard-zh-v1-r1`：development 1,456 条，blind 1,445 条。全拼是主轨道；简拼是单独轨道，只收 2–6 字的目标。标签等级为 `ai_expert_reviewed`，不宣称母语人工 gold。脚本和协议进 Git，题目文本、候选和审核记录只放在本地被忽略的目录里。
 
-blind 还没有开启。第一次使用前，必须先提交一份预注册计划，写明比较的模型和评分规则。
+blind 已于 2026-11-11 在 [vimeml-tiny-zh-v1 确认评分](confirmation-zh-v1-plan.md)中首次使用（run-01，通过，结果见[报告](../reports/zh-v1-20261111/blind-and-baselines.md)）。此后它只作为固定参考测试集，不能再称为新盲测，也不能用于调参。
 
 ## 数据组成与角色
 
@@ -98,7 +98,7 @@ Rime 第一候选命中这一列是引擎自身的基线，不是模型分数，
 
 ## 重叠筛查
 
-用 `screen_overlap_zh.py` 在 Vime 1.3 训练语料里查题目原文的逐字重叠。扫描范围：
+用 `screen_overlap_zh.py` 在 vimeml-tiny-zh-v1 训练语料里查题目原文的逐字重叠。扫描范围：
 
 - stage-a-v2 的 21 个非删除分片，包括 keep 和 review 两部分，范围偏保守；
 - LCCC v2 的 train 和 review。

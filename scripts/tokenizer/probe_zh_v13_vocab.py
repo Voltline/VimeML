@@ -1,10 +1,10 @@
-"""Exploratory Chinese tokenizer probe for Vime 1.3: vocab 8K-32K and character coverage.
+"""Exploratory Chinese tokenizer probe for vimeml-tiny-zh-v1: vocab 8K-32K and character coverage.
 
 Tokenizer statistics only; no LM is trained. Inputs: export-r1 train (sample) and validation, and
 the Standard zh benchmark development pools (blind items are filtered out and never processed).
 
 usage: python -I -X utf8 scripts/tokenizer/probe_zh_v13_vocab.py ROOT OUT
-Report: docs/zh-CN/reports/zh-v13-20261106/tokenizer-vocab.md
+Report: docs/zh-CN/reports/zh-v1-20261106/tokenizer-vocab.md
 """
 import hashlib, json, random, re, sys, time
 from pathlib import Path
@@ -21,7 +21,7 @@ WEB_LINES, CHAT_LINES, MAX_BYTES = 1_500_000, 80_000, 16384
 VARIANTS = [(8192, 0.9995), (12288, 0.9995), (16384, 0.9995), (24576, 0.9995), (32768, 0.9995),
             (12288, 0.9999)]
 HAN = re.compile(r'[㐀-䶿一-鿿豈-﫿\U00020000-\U0003134f]')
-# Fixed ~20M architecture family of the Vime 1.3 plan (d384, SwiGLU d_ff 960, tied, learned pos 128).
+# Fixed ~20M architecture family of the vimeml-tiny-zh-v1 plan (d384, SwiGLU d_ff 960, tied, learned pos 128).
 D, DFF, CTX, BUDGET = 384, 960, 128, 20_040_000
 PER_LAYER = 4 * D * D + 3 * D * DFF + 2 * D
 

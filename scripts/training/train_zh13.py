@@ -1,4 +1,4 @@
-"""Vime 1.3 Chinese 20M arm pretraining entry point; W&B without any machine-wide login.
+"""vimeml-tiny-zh-v1 arm pretraining entry point; W&B without any machine-wide login.
 
 Credentials come only from the environment (WANDB_API_KEY, optional WANDB_ENTITY),
 as cluster_zh13.sh sets them from a private file with isolated W&B directories.

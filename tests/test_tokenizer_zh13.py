@@ -1,4 +1,4 @@
-"""Sampling of the Vime 1.3 Chinese tokenizer: web and review files pooled per shard."""
+"""Sampling of the vimeml-tiny-zh-v1 tokenizer: web and review files pooled per shard."""
 import random
 import sys
 import tempfile
