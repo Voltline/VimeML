@@ -1,5 +1,7 @@
 # vimeml-tiny-zh-v1 blind 确认评分计划（预注册）
 
+> 已于 2026-11-11 执行（run-01），判定通过，结果见 [blind 确认与对照基线](../reports/zh-v1-20261111/blind-and-baselines.md)。
+
 2026-11-11 起草。本计划和执行脚本提交后才算注册；提交之前，blind 不打开。基准版本为 `ime-standard-zh-v1-r1`。执行入口是 [confirm_zh_v1.py](../../../scripts/benchmarks/confirm_zh_v1.py)，所有固定项都写在 [zh_v1_confirm.py](../../../src/vimeml/benchmarks/zh_v1_confirm.py) 中。
 
 ## 要回答的问题

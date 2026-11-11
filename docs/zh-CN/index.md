@@ -13,7 +13,9 @@ V2系列实验已完成，此前部署版本为V2.1 extend5 step40000 / INT8 blo
 | [vimeml-tiny-zh-v1 实验计划](training-zh-v1-plan.md) | 预注册：八臂，同为 224 亿字，新数据/5 轮/20 轮 × 8K/12K，12K 新数据三个 seed 测噪声 |
 | [vimeml-tiny-zh-v1 八臂训练记录](reports/zh-v1-20261110/training.md) | 2026-11-10 八臂全部完成，无抢占无失败；第 20 测点 BPC 与记忆抽样 |
 | [vimeml-tiny-zh-v1 八臂 IME 打分与判定](reports/zh-v1-20261110/ime-benchmark.md) | 全拼 development 八臂 93.3%–94.4%，Rime 68.8%；五个对比都不有效，按计划默认新数据和 12K |
-| [vimeml-tiny-zh-v1 blind 确认计划](benchmarks/confirmation-zh-v1-plan.md) | 预注册：选定 `12k-fresh-s1`，在 blind 全拼上对比 Rime，只运行一次；尚未打开 blind |
+| [vimeml-tiny-zh-v1 blind 确认计划](benchmarks/confirmation-zh-v1-plan.md) | 预注册：选定 `12k-fresh-s1`，在 blind 全拼上对比 Rime，只运行一次；2026-11-11 已执行，通过 |
+| [vimeml-tiny-zh-v1 对照基线计划](benchmarks/baselines-zh-v1-plan.md) | 预注册：雾凇、雾凇 + 万象语法模型、朙月拼音、Qwen2.5-0.5B、Qwen3-0.6B-Base，development 与 blind（参考测试） |
+| [vimeml-tiny-zh-v1 blind 确认与对照基线](reports/zh-v1-20261111/blind-and-baselines.md) | blind 全拼 Top-1 93.8%（Rime 72.3%），确认通过；胜过 Qwen2.5-0.5B（91.8%）、Qwen3-0.6B（89.2%）、雾凇 + 万象（82.2%）、朙月（68.9%） |
 | [中文 tokenizer 词表对比](reports/zh-v1-20261106/tokenizer-vocab.md) | 只训 tokenizer：8K–32K 与覆盖率 0.9995/0.9999；20M 只实验 8K 和 12K，200M 再开 16K–32K |
 | [V4 基础训练](training-v4.md) | 固定 8K 架构、已完成 A/B 调度、结果与恢复 |
 | [V4 后训练](posttraining-v4.md) / [转换数据](data-v4-c1.md) | 已完成 C1/C1r2、冻结数据、条件评分与后训练设置 |
