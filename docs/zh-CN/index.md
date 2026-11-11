@@ -73,6 +73,6 @@ V4-a 本地工作：[Tokenizer 初始化、训练与词表对照](reports/v4-202
 
 [FP32结果](reference/results.md)、[Core ML实测](reference/coreml-v1.md)、[模拟器内存](reports/mac-20261006/simulator-memory.md)、[真实扩展](reports/mac-20261006/iphone-keyboard-memory.md)、[快照归档](reports/mac-20261006/handoff.md)、[导入核对](reports/mac-20261006/merge-verification.md)。
 
-详细方法：[语料流水线](reference/data-pipeline.md)、[AJIMEE导出](reference/ajimee-benchmark.md)、[开发集生成](reference/development-generation.md)、[组合排序](reference/hybrid-ranking.md)、[联想](reference/phrase-demo.md)。
+详细方法：[语料流水线](reference/data-pipeline.md)、[AJIMEE导出](reference/ajimee-benchmark.md)、[开发集生成](reference/development-generation.md)、[组合排序](reference/hybrid-ranking.md)、[联想](reference/phrase-demo.md)、[中文联想测试页](reference/phrase-demo-zh.md)。
 
 `history/`保存V1实测前的[部署设计](history/deployment.md)、[命令参考](history/coreml-guide.md)和[阶段记录](history/workflow.md)，仅描述当时状态。各报告注明日期、版本与测量范围；原始JSON、逐候选分数和trace保存在`outputs/`。

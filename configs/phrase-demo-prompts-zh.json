@@ -1,0 +1,11 @@
+[
+  {"label": "约朋友", "prefix": "我们明天一起去"},
+  {"label": "对话里接话", "turns": ["周末有空吗？"], "prefix": "有啊，你想"},
+  {"label": "请假", "prefix": "老师您好，我今天身体不舒服，想"},
+  {"label": "购物", "prefix": "这件衣服有没有大一点的"},
+  {"label": "订酒店", "turns": ["请问您要住几晚？"], "prefix": "我想订"},
+  {"label": "首音节 chi", "prefix": "饿死了，我们去", "kind": "syllable", "keys": "chi"},
+  {"label": "声母 kdy", "prefix": "今天晚上一起去", "kind": "initials", "keys": "kdy"},
+  {"label": "续写：天气", "mode": "continue", "prefix": "今天天气很好，"},
+  {"label": "打分：去哪儿", "mode": "score", "prefix": "我们明天一起去", "candidates": ["吃饭", "看电影", "爬山", "上班"]}
+]

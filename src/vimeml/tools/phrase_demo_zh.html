@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vime 中文联想</title>
+<style>
+:root{color-scheme:light;--ink:#18232b;--muted:#61717c;--line:#dce3e7;--accent:#b4462f;--soft:#fbeee9;--bg:#f6f5f3}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+.page{max-width:990px;margin:0 auto;padding:38px 24px 60px}header{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px}
+.brand{font-size:24px;font-weight:750;letter-spacing:-.5px}.brand span{font-weight:400;color:var(--muted);font-size:14px;margin-left:14px}
+.live{border:1px solid #e3c7bd;border-radius:20px;padding:4px 12px;color:var(--accent);font-size:12px;background:#fff}.live:before{content:'●';margin-right:7px}
+h1{font-size:30px;line-height:1.25;letter-spacing:-.5px;margin:0 0 10px}p{margin:0 0 20px;color:var(--muted)}
+.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:0 8px 30px #18232b05}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+textarea,input[type=text]{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font:inherit;color:var(--ink);background:#fcfcfb}
+#prefix{font-size:22px;min-height:90px;resize:vertical}#turns,#candidates{min-height:70px;resize:vertical;font-size:16px}
+textarea:focus,select:focus,input:focus{outline:2px solid #e8b4a6;outline-offset:2px}
+.tabs{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap}.tabs button{border-radius:20px;padding:7px 16px}.tabs button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#fff}
+.row{margin-top:16px}.controls{display:flex;align-items:end;gap:16px;flex-wrap:wrap;margin:16px 0 6px}.controls label{margin:0}
+.controls select,.controls input{display:block;margin-top:6px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:9px;font:inherit;color:var(--ink)}
+#keys{width:130px}input[type=number]{width:90px}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:9px;padding:9px 14px}button:hover{border-color:#d5a597;background:#fdf7f5}button:disabled{opacity:.5;cursor:wait}
+.primary{margin-left:auto;background:var(--accent);border-color:var(--accent);color:#fff;padding:11px 23px;font-weight:650}.primary:hover{background:#963823;color:#fff}
+.hint{font-size:12px;margin:8px 0 0}.section-title{margin:26px 0 12px;display:flex;align-items:center;justify-content:space-between;gap:12px}.section-title h2{font-size:18px;margin:0}.status{font-size:13px;color:var(--muted)}
+.placeholder{color:var(--muted);padding:30px;text-align:center;border:1px dashed #d8d2cf;border-radius:14px;background:#faf9f8}
+.item{display:flex;gap:14px;align-items:center;padding:14px 18px;background:#fff;border:1px solid var(--line);border-radius:12px;margin:8px 0}
+.index{font-size:13px;color:var(--accent);background:var(--soft);width:27px;height:27px;border-radius:8px;text-align:center;line-height:27px;flex-shrink:0}
+.content{flex:1;min-width:0}.phrase{font-size:21px;overflow-wrap:anywhere;white-space:pre-wrap}.meta{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.bar{height:4px;border-radius:2px;background:var(--soft);margin-top:6px}.bar i{display:block;height:4px;border-radius:2px;background:var(--accent)}
+.item button{font-size:12px;padding:7px 10px;flex-shrink:0}
+.examples{display:flex;gap:8px;flex-wrap:wrap}.examples button{font-size:13px;border-radius:20px;padding:6px 12px}.examples-title{font-size:13px;color:var(--muted);margin:26px 0 10px}
+.error{background:#fff0ed;border:1px solid #f1d0c7;color:#9c3621;border-radius:9px;padding:12px 16px;margin-top:14px}
+.note{margin-top:26px;font-size:12px;color:var(--muted)}.warn{background:#fff7e6;border:1px solid #f0dcae;color:#7a5a17;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:18px}
+[hidden]{display:none!important}
+@media(max-width:600px){.page{padding:22px 16px}.brand span{display:none}h1{font-size:25px}.card{padding:16px}.primary{width:100%;margin-left:0}.item{padding:12px;gap:10px}.phrase{font-size:18px}}
+</style>
+<main class="page">
+<header><div class="brand">Vime<span>vimeml-tiny-zh-v1 · 本地联想测试</span></div><div class="live" id="model-status">正在连接模型</div></header>
+<h1>输入一段话，看模型接下来想说什么。</h1>
+<p>本机 FP32 推理，与 Hugging Face 发布的权重相同。不调用 API，不保存输入。</p>
+<div class="warn">这里显示的是模型的原始输出，<b>没有经过键盘端的关键词屏蔽</b>，用于检查模型本身会不会给出不当内容。</div>
+<form class="card" id="form">
+<div class="tabs" role="group" aria-label="模式">
+<button type="button" data-mode="predict" aria-pressed="true">联想</button>
+<button type="button" data-mode="continue" aria-pressed="false">自由续写</button>
+<button type="button" data-mode="score" aria-pressed="false">候选打分</button>
+</div>
+<label for="prefix">当前输入（已经上屏的文字）</label>
+<textarea id="prefix" lang="zh-CN" spellcheck="false" rows="2">我们明天一起去</textarea>
+<div class="row" data-for="predict continue"><label for="turns">前文（可选，对话里更早的发言，每行一条，从早到晚）</label><textarea id="turns" lang="zh-CN" spellcheck="false" rows="2"></textarea></div>
+<div class="row" data-for="score"><label for="candidates">候选（每行一个，最多 20 个）</label><textarea id="candidates" lang="zh-CN" spellcheck="false" rows="3">吃饭
+看电影
+爬山</textarea></div>
+<div class="controls">
+<label for="kind" data-for="predict">拼音约束<select id="kind"><option value="">无</option><option value="syllable">只打了首个音节</option><option value="initials">每个字的声母</option></select></label>
+<label for="keys" data-for="predict">已打的字母<input id="keys" type="text" placeholder="如 chi 或 kdy" autocomplete="off"></label>
+<label for="tokens" data-for="continue">续写长度上限（token）<input id="tokens" type="number" min="4" max="48" value="16"></label>
+<button class="primary" type="submit" id="go" disabled>生成</button>
+</div>
+<p class="hint" id="hint"></p>
+<div class="error" id="error" role="alert" hidden></div>
+</form>
+<div class="section-title"><h2 id="result-title">结果</h2><span class="status" id="status" aria-live="polite">等待生成</span></div>
+<div id="results"><div class="placeholder">填写输入，或选择下面的例子，然后点击“生成”。</div></div>
+<div class="examples-title">例子</div>
+<div class="examples" id="examples"></div>
+<div class="note" id="note">耗时是本机 CPU 推理时间（模型已加载），不代表 iPhone 键盘的速度。</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);let mode='predict',ready=false,seed=42,info=null;
+const HINTS={predict:'与联想基准同一套解码：beam 16，候选 2 到 6 个汉字，取分数最高的 5 个互不为前缀的候选。分数是候选的对数概率之和。',
+continue:'第 1 条是贪心解码，其余是采样（temperature 0.8，top-k 50，top-p 0.9）。不限字符，遇到发言结束符停止。',
+score:'只用当前输入作上下文，与候选重排的打分方式相同。“占比”是这些候选之间按概率归一化后的比例。'};
+function setMode(m){mode=m;document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mode===m));document.querySelectorAll('[data-for]').forEach(e=>e.hidden=!e.dataset.for.split(' ').includes(m));$('hint').textContent=HINTS[m];$('result-title').textContent={predict:'联想候选',continue:'续写',score:'候选排序'}[m];error('')}
+function error(m){$('error').textContent=m;$('error').hidden=!m}
+function lines(id){return $(id).value.split('\n').map(s=>s.trim()).filter(Boolean)}
+function fmt(x){return x.toFixed(2)}
+function row(i,text,meta,share,insert){const r=document.createElement('div');r.className='item';const n=document.createElement('div');n.className='index';n.textContent=String(i+1);const c=document.createElement('div');c.className='content';const p=document.createElement('div');p.className='phrase';p.lang='zh-CN';p.textContent=text||'（空）';const m=document.createElement('div');m.className='meta';m.textContent=meta;c.append(p,m);if(share!==undefined){const b=document.createElement('div');b.className='bar';const f=document.createElement('i');f.style.width=(share*100).toFixed(1)+'%';b.append(f);c.append(b)}r.append(n,c);if(insert){const btn=document.createElement('button');btn.type='button';btn.textContent='接上';btn.onclick=()=>{$('prefix').value+=text;$('keys').value='';$('prefix').focus();$('status').textContent='已接上，可以继续生成'};r.append(btn)}return r}
+async function go(e){e?.preventDefault();if(!ready||$('go').disabled)return;error('');$('go').disabled=true;$('go').textContent='计算中…';$('status').textContent='模型正在计算';
+const body={mode,prefix:$('prefix').value.replace(/\n/g,'')};if(mode!=='score')body.turns=lines('turns');if(mode==='predict'){body.kind=$('kind').value;body.keys=$('keys').value}if(mode==='continue'){body.max_tokens=Number($('tokens').value);body.seed=seed++}if(mode==='score')body.candidates=lines('candidates');
+try{const res=await fetch('/api/suggest',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await res.json();if(!res.ok)throw new Error(data.error||'生成失败');
+$('results').replaceChildren();$('status').textContent=`${data.elapsed_ms.toFixed(0)} ms · ${data.results.length} 条 · 上下文 ${data.context_tokens_including_bos} token`;
+if(!data.results.length){const d=document.createElement('div');d.className='placeholder';d.textContent=mode==='predict'&&data.kind?'没有与这些字母相容的候选。':'没有得到结果。';$('results').append(d)}
+data.results.forEach((r,i)=>{let meta;if(mode==='predict')meta=`logP ${fmt(r.logp)} · 每字 ${fmt(r.per_char)}`;else if(mode==='continue')meta=`${r.kind==='greedy'?'贪心':'采样'} · ${r.tokens} token · ${r.stop==='end_of_turn'?'发言结束':'到达长度上限'} · logP ${fmt(r.logp)}`;else meta=`logP ${fmt(r.logp)} · 每字 ${fmt(r.per_char)} · ${r.tokens} token · 占比 ${(r.share*100).toFixed(1)}%`;$('results').append(row(i,r.text,meta,mode==='score'?r.share:undefined,mode!=='score'))})
+}catch(err){error(err.message);$('status').textContent='未生成'}finally{$('go').disabled=false;$('go').textContent='生成'}}
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+$('form').addEventListener('submit',go);for(const id of ['prefix','turns','candidates','keys'])$(id).addEventListener('keydown',e=>{if(!e.isComposing&&(e.ctrlKey||e.metaKey)&&e.key==='Enter')go(e)});
+setMode('predict');
+fetch('/api/info').then(r=>{if(!r.ok)throw new Error('模型未就绪');return r.json()}).then(d=>{info=d;ready=true;$('go').disabled=false;$('model-status').textContent=`${d.model.release_name} 已就绪`;if(!d.pinyin){$('kind').disabled=true;$('keys').disabled=true;$('kind').title='本机没有 rime-ice 读音表'}
+$('note').textContent=`${d.model.release_name}，${(d.parameters/1e6).toFixed(1)}M 参数，checkpoint ${d.model.checkpoint_sha256.slice(0,8)}，FP32 CPU。耗时是本机推理时间（模型已加载），不代表 iPhone 键盘的速度。`;
+for(const ex of d.examples){const b=document.createElement('button');b.type='button';b.textContent=ex.label;b.title=ex.prefix;b.onclick=()=>{setMode(ex.mode||'predict');$('prefix').value=ex.prefix;$('turns').value=(ex.turns||[]).join('\n');if(ex.candidates)$('candidates').value=ex.candidates.join('\n');$('kind').value=ex.kind||'';$('keys').value=ex.keys||'';$('prefix').focus()};$('examples').append(b)}}).catch(e=>{error(e.message);$('model-status').textContent='连接失败'});
+</script>
+</html>
