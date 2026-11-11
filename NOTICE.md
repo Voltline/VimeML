@@ -2,18 +2,19 @@
 
 ## Project and models
 
-Original VimeML code and published V1/V2.1/V4.2 weights, tokenizers and Core ML packages use GPL-3.0-or-later with an additional permission under GPLv3 section 7 for conveyance through application distribution services such as the App Store. The License is in [LICENSE](LICENSE); the copyright notice, additional permission and the source form of model weights are defined in [LICENSE-EXCEPTION](LICENSE-EXCEPTION). Until 2026-10-22 the project used GPL-2.0-only; copies received under those terms keep them.
+Original VimeML code and published V1/V2.1/V4.2 and vimeml-tiny-zh-v1 weights, tokenizers and Core ML packages use GPL-3.0-or-later with an additional permission under GPLv3 section 7 for conveyance through application distribution services such as the App Store. The License is in [LICENSE](LICENSE); the copyright notice, additional permission and the source form of model weights are defined in [LICENSE-EXCEPTION](LICENSE-EXCEPTION). Until 2026-10-22 the project used GPL-2.0-only; copies received under those terms keep them.
 
 V4.2 was trained in part on RealPersonaChat and Multi-Relational Multi-Party Chat Corpus dialogue text (CC BY-SA 4.0, nu-dialogue). Its model card attributes both sources. GPLv3 is a Creative Commons designated compatible license for BY-SA 4.0 adaptations, so V4.2 releases keep that attribution with the GPLv3 terms. A dataset's source license is independent of the project license. This repository does not redistribute the private training corpora or benchmark text.
 
 ## Attribution for deployed models
 
-Applications that bundle V2.1 or V4.2 must show the model license and the following attribution; the Vime client shows it under About Vime → Open Source Licenses.
+Applications that bundle V2.1, V4.2 or vimeml-tiny-zh-v1 must show the model license and the following attribution; the Vime client shows it under About Vime → Open Source Licenses.
 
 | Model | Training sources and terms |
 | --- | --- |
 | V2.1 | FineWeb2-Edu Japanese (Yuichi Tateno; derived from FineWeb2 and Common Crawl), ODC-By 1.0 and Common Crawl Terms of Use; Tatoeba Japanese sentences (Tatoeba contributors), CC BY 2.0 FR unless marked CC0 |
 | V4.2 | The V2.1 sources, plus RealPersonaChat and Multi-Relational Multi-Party Chat Corpus (nu-dialogue), CC BY-SA 4.0 |
+| vimeml-tiny-zh-v1 | FineWeb2 `cmn_Hani` (Hugging Face; derived from Common Crawl), ODC-By 1.0 and Common Crawl Terms of Use; LCCC-base (thu-coai; Wang et al., *A Large-Scale Chinese Short-Text Conversation Dataset*, NLPCC 2020), MIT, with a README disclaimer that the dataset and pretrained dialogue models are for research purposes |
 
 Evaluation-only sources in the table below do not enter model weights.
 
@@ -33,5 +34,9 @@ The vendored [SentencePiece bridge](examples/ios/VimeSentencePiece/UPSTREAM.md) 
 | [AJIMEE-Bench](https://github.com/azooKey/AJIMEE-Bench) | JWTD v2 evaluation text, CC-BY-SA 3.0; official tool code, CC0 1.0 |
 | [WRIME](https://github.com/ids-cv/wrime) | Standard IME evaluation source, CC-BY-NC-ND 4.0 |
 | JMultiWOZ | Standard IME evaluation source, CC-BY-SA 4.0; local source notices record attribution |
+| [FineWeb2](https://huggingface.co/datasets/HuggingFaceFW/fineweb-2) `cmn_Hani` | vimeml-tiny-zh-v1 web text (21 of 370 train files, cleaned and reviewed); ODC-By 1.0, subject to the Common Crawl Terms of Use |
+| [LCCC-base](https://github.com/thu-coai/CDial-GPT) | vimeml-tiny-zh-v1 dialogue text (about 5% of supervised tokens); MIT; the README disclaimer states research-only use of the dataset and pretrained dialogue models |
+| [CrossWOZ](https://github.com/thu-coai/CrossWOZ), [RiSAWOZ](https://github.com/terryqj0107/RiSAWOZ), [KdConv](https://github.com/thu-coai/KdConv) | Chinese IME evaluation sources; Apache-2.0, MIT, Apache-2.0 |
+| [CPED](https://github.com/scutcyr/CPED) | Chinese prediction evaluation source; Apache-2.0 repository license; television dialogue, kept local |
 
 WRIME-derived and JMultiWOZ-derived benchmark texts are restricted to the recorded private research exchange and are not published with this repository or model releases. Local notices and source-level attribution accompany private artifacts. Aggregate scores do not confer permission to redistribute underlying texts or candidate exports. The project GPL license does not relicense upstream datasets or vendored components.
