@@ -86,7 +86,9 @@ def score_item(model, processor, context, candidates, device="cpu"):
             "boundary_retokenized": any(s[:len(context_ids)] != context_ids for s in sequences)}
 
 
-def run(checkpoint, tokenizer, frozen, out, track="full", device="cpu", split="development", blind_plan=None):
+def run(checkpoint, tokenizer, frozen, out, track="full", device="cpu", split="development", blind_plan=None,
+        loaded=None):
+    """`loaded` = (model, processor, meta) scores another forward (e.g. Core ML) with the same rules."""
     if split not in ("development", "blind"):
         raise ValueError(f"Unknown split {split}")
     if split == "blind" and not blind_plan:
@@ -102,7 +104,7 @@ def run(checkpoint, tokenizer, frozen, out, track="full", device="cpu", split="d
     pools = {p["id"]: p for p in read_jsonl(frozen / f"pool-{track}.jsonl") if p["id"] in items}
     if set(pools) != set(items):
         raise ValueError(f"pool-{track}.jsonl does not cover every {split} item")
-    model, processor, meta = load(checkpoint, tokenizer, device)
+    model, processor, meta = loaded or load(checkpoint, tokenizer, device)
     with torch.autocast(torch.device(device).type, enabled=False):
         torch.backends.cuda.matmul.allow_tf32 = False
         retokenized = empty = fallbacks = 0

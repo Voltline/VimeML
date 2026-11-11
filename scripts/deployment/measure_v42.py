@@ -6,7 +6,8 @@ Stages:
   run             Compile every package with `coremlcompiler`, then measure each model
                   in fresh worker processes, interleaved across models. `--set v42` (default)
                   is the recorded V4.2 run; `--set v43` measures V4.3 epochs 30/27 against V4.2
-                  epoch 20 and V2.1 in the same session.
+                  epoch 20 and V2.1 in the same session; `--set zh-v1` measures vimeml-tiny-zh-v1
+                  FP32/INT8 (stateless and chunk KV) against V4.2 epoch 20.
 Mac CPU_ONLY Python host-process numbers; they do not substitute for iPhone measurements.
 """
 import argparse
@@ -57,7 +58,19 @@ V43_MODELS = [
     ("v21-kv-fp32", "V2.1", "kv_chunk", V21_KV["fp32"], 16384, (6, 1, 5, 128, 64)),
     ("v21-kv-int8", "V2.1", "kv_chunk", V21_KV["int8"], 16384, (6, 1, 5, 128, 64)),
 ]
-MODEL_SETS = {"v42": V42_MODELS, "v43": V43_MODELS}
+KV_ZH = (9, 1, 6, 128, 64)
+ZH_V1_MODELS = [
+    # vimeml-tiny-zh-v1 (12K vocabulary, nine layers) against V4.2 epoch 20 in the same session.
+    ("zhv1-fp32", "zh-v1", "stateless", DEPLOY / "tiny-zh-v1-fp32-v1", 12288, None),
+    ("zhv1-int8", "zh-v1", "stateless", DEPLOY / "tiny-zh-v1-int8-b32-v1", 12288, None),
+    ("v42-fp32", "V4.2", "stateless", DEPLOY / "tiny-ja-v4.2-epoch20-fp32-v1", 8192, None),
+    ("v42-int8", "V4.2", "stateless", DEPLOY / "tiny-ja-v4.2-epoch20-int8-b32-v1", 8192, None),
+    ("zhv1-kvchunk-fp32", "zh-v1", "kv_chunk_v4", DEPLOY / "tiny-zh-v1-kvchunk-fp32-v1", 12288, KV_ZH),
+    ("zhv1-kvchunk-int8", "zh-v1", "kv_chunk_v4", DEPLOY / "tiny-zh-v1-kvchunk-int8-b32-v1", 12288, KV_ZH),
+    ("v42-kvchunk-fp32", "V4.2", "kv_chunk_v4", DEPLOY / "tiny-ja-v4.2-epoch20-kvchunk-fp32-v1", 8192, KV4),
+    ("v42-kvchunk-int8", "V4.2", "kv_chunk_v4", DEPLOY / "tiny-ja-v4.2-epoch20-kvchunk-int8-b32-v1", 8192, KV4),
+]
+MODEL_SETS = {"v42": V42_MODELS, "v43": V43_MODELS, "zh-v1": ZH_V1_MODELS}
 MODELS = V42_MODELS
 LENGTHS = (1, 8, 32, 64, 128)
 PREFIXES = (7, 31, 63, 119)
@@ -300,7 +313,7 @@ def run(output, rounds, repeats, warmup, model_set="v42"):
 
     hardware = {key: subprocess.run(["sysctl", "-n", key], capture_output=True, text=True).stdout.strip()
                 for key in ("machdep.cpu.brand_string", "hw.memsize", "hw.perflevel0.physicalcpu", "hw.perflevel1.physicalcpu")}
-    report = {"format": f"vimeml_{model_set}_mac_measurements_v1", "model_set": model_set, "environment": environment(),
+    report = {"format": f"vimeml_{model_set.replace('-', '_')}_mac_measurements_v1", "model_set": model_set, "environment": environment(),
               "macos": platform.mac_ver()[0], "macos_build": subprocess.run(["sw_vers", "-buildVersion"], capture_output=True, text=True).stdout.strip(),
               "xcode": subprocess.run(["xcodebuild", "-version"], capture_output=True, text=True).stdout.strip(),
               "hardware": hardware, "compute_units": "CPU_ONLY",
