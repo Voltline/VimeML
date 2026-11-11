@@ -68,7 +68,7 @@ def clean_turn(raw,rules,th):
 
 def main():
     p=argparse.ArgumentParser(description=__doc__,formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument('--source',default=r'D:\BaiduNetdiskDownload\LCCC-base-split')
+    p.add_argument('--source',required=True,help='directory holding LCCC-base_{train,valid,test}.json')
     p.add_argument('--terms',default=str(ROOT/'configs/zh-filter-terms.toml'))
     p.add_argument('--out',default=str(ROOT/'outputs/zh-corpus/lccc-v2'))
     a=p.parse_args()
@@ -111,7 +111,7 @@ def main():
         counts[split]['written_chars']=sum(len(r['text']) for r in rows)
     with open(out/'review.jsonl','w',encoding='utf-8') as fh:
         for r in review: fh.write(json.dumps(r,ensure_ascii=False)+'\n')
-    manifest=dict(source='LCCC-base (thu-coai), local Baidu Netdisk copy',
+    manifest=dict(source='LCCC-base (thu-coai), local copy',
                   source_files={f'LCCC-base_{n}.json':sha256(src/f'LCCC-base_{n}.json') for n in SPLITS},
                   terms_sha256=sha256(a.terms),script_sha256=sha256(__file__),
                   filter_sha256=sha256(ROOT/'src/vimeml/corpus/zh_filter.py'),

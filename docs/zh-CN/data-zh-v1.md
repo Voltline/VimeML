@@ -7,7 +7,7 @@ vimeml-tiny-zh-v1 是中文模型，单独训练，计划规模约 20M 参数：
 | 来源 | 范围 | 用途 |
 | --- | --- | --- |
 | FineWeb2 `cmn_Hani` | revision `af9c13333eb981300149d5ca60a8e9d659b276b9`；370 个 train 文件中每隔 18 个取一个，从第 9 个开始，共 21 个，84.6 GiB，3559 万篇 | 网页 LM |
-| LCCC-base | thu-coai 的微博对话，本地网盘副本；沿用原有 train/valid/test 划分 | 聊天 |
+| LCCC-base | thu-coai 的微博对话，本地副本；沿用原有 train/valid/test 划分 | 聊天 |
 
 - FineWeb2 下载用 `scripts/corpus/download_zh_fineweb2.py`。脚本会逐个校验 LFS SHA-256，并写入 `datasets/fineweb-2-cmn-hani/manifest.json`。
 - FineWeb2 已按语言做过全局 MinHash 去重，所以这里只做精确去重：比较去掉空白后的全文，21 个分片中重复 7,156 篇。
