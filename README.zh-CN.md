@@ -55,7 +55,7 @@ IME各列为固定AzooKey候选池上的精确Top-1命中数，评分为联合�
 | --- | ---: | --- | ---: | --- |
 | `vimeml-tiny-zh-v1` | 20,036,736 | 12K SentencePiece Unigram，中文词表 | 128 | blind 确认通过；导出、设备测试与发布待完成 |
 
-`vimeml-tiny-zh-v1` 利用左文重排 librime + rime-ice 的拼音候选。模型随机初始化，在 224 亿字经过清洗和审核的 FineWeb2 `cmn_Hani` 网页文本与 LCCC 对话上训练，是预注册八臂实验的发布臂（`12k-fresh-s1`）（[实验计划](docs/zh-CN/training-zh-v1-plan.md)、[训练记录](docs/zh-CN/reports/zh-v1-20261110/training.md)、[打分与判定](docs/zh-CN/reports/zh-v1-20261110/ime-benchmark.md)）。代码和产物路径仍使用内部代号 `zh13`。
+`vimeml-tiny-zh-v1` 利用左文重排 librime + rime-ice 的拼音候选。模型随机初始化，在 224 亿字经过清洗和审核的 FineWeb2 `cmn_Hani` 网页文本与 LCCC 对话上训练，是预注册八臂实验的发布臂（`12k-fresh-s1`）（[实验计划](docs/zh-CN/training-zh-v1-plan.md)、[训练记录](docs/zh-CN/reports/zh-v1-20261110/training.md)、[打分与判定](docs/zh-CN/reports/zh-v1-20261110/ime-benchmark.md)）。代码和产物路径仍使用内部代号 `zh13`。权重和 iOS 用的 Core ML 包发布在 [Hugging Face](https://huggingface.co/Voltline/vimeml-tiny-zh-v1)（[发布核对](docs/zh-CN/reports/zh-v1-20261111/ios-release.md)）。
 
 `ime-standard-zh-v1-r1` 上的精确 Top-1（CrossWOZ、RiSAWOZ、KdConv 对话；标签经 AI 专家审核，不是母语人工 gold）。blind 已用于预注册确认评分并通过（对 Rime +329/−19，p = 3.6e-74），对照比较在此之后进行，blind 只作参考测试集（[报告](docs/zh-CN/reports/zh-v1-20261111/blind-and-baselines.md)）。
 
