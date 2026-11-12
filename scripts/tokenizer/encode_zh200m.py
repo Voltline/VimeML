@@ -29,6 +29,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--config", type=Path, default=ROOT / "configs/data-zh200m.toml")
     parser.add_argument("--export", type=Path)
+    parser.add_argument("--root", type=Path, help="output base directory (default: the repo artifacts tree); "
+                    "write to fast node-local storage and copy back when small-write latency dominates")
     parser.add_argument("--no-verify-inputs", action="store_true", help="check names in SHA256SUMS but skip hashing")
     parser.add_argument("command", choices=("encode", "index"))
     parser.add_argument("--vocab", type=int, choices=sorted(TAGS))
