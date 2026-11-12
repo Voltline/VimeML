@@ -34,12 +34,15 @@ def main():
     parser.add_argument("--resume", action="store_true",
                         help="encode: continue an interrupted run in the same output directories, "
                         "reusing the files it finished")
+    parser.add_argument("--workers", type=int, help="override the config's worker count")
     parser.add_argument("--no-verify-inputs", action="store_true", help="check names in SHA256SUMS but skip hashing")
     parser.add_argument("command", choices=("encode", "index"))
     parser.add_argument("--vocab", type=int, choices=sorted(TAGS))
     parser.add_argument("--context", type=int, help="window context for the index command")
     args = parser.parse_args()
     config = tomllib.loads(args.config.read_text("utf-8"))
+    if args.workers:
+        config["workers"] = args.workers
     config["pools_dir"] = str(ROOT / config["pools_dir"])
     config["tokenizer_dir"] = str(ROOT / config["tokenizer_dir"])
     export = args.export or ROOT / config["export_dir"]
