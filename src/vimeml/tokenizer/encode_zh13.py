@@ -27,7 +27,7 @@ the wall time goes to run.json beside them, which nothing hashes.
 import hashlib
 import json
 import time
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import numpy as np
@@ -139,13 +139,31 @@ def measure(config, export, pools, export_identity, max_groups=0):
 # ---- encode --------------------------------------------------------------------------------
 
 class PartWriter:
+    # Hand the bytes to the file system in large blocks: one small write per document
+    # costs more than the encoding itself on a network volume.
+    FLUSH_BYTES = 8 << 20
+
     def __init__(self, prefix):
         self.prefix = Path(prefix)
         self.streams = {name: open(f"{self.prefix}.{name}", "wb") for name in ("tokens", "lengths", "sources", "tiers")}
+        self.buffers = {name: bytearray() for name in self.streams}
         self.stats = {"sentences": 0, "stored_tokens": 0, "content_tokens": 0, "characters": 0,
                       "max_sequence_tokens": 0, "dropped_meta_space_paragraphs": 0, "documents": 0,
                       "tiers": {name: {"documents": 0, "sentences": 0, "characters": 0, "prediction_pairs": 0}
                                 for name in TIER_NAMES}}
+
+    def _write(self, name, data):
+        buffer = self.buffers[name]
+        buffer += data
+        if len(buffer) >= self.FLUSH_BYTES:
+            self.streams[name].write(buffer)
+            buffer.clear()
+
+    def _flush(self):
+        for name, buffer in self.buffers.items():
+            if buffer:
+                self.streams[name].write(buffer)
+                buffer.clear()
 
     def add(self, sp, texts, source, tier=None):
         ids = sp.encode(texts)
@@ -159,11 +177,11 @@ class PartWriter:
             flat[at + 1:at + 1 + len(row)] = row
             flat[at + 1 + len(row)] = SPECIAL["eos"]
             at += len(row) + 2
-        self.streams["tokens"].write(flat.tobytes())
-        self.streams["lengths"].write(lengths.astype("<u4").tobytes())
-        self.streams["sources"].write(bytes([source]) * len(ids))
+        self._write("tokens", flat.tobytes())
+        self._write("lengths", lengths.astype("<u4").tobytes())
+        self._write("sources", bytes([source]) * len(ids))
         if tier is not None:
-            self.streams["tiers"].write(bytes([tier]) * len(ids))
+            self._write("tiers", bytes([tier]) * len(ids))
             t = self.stats["tiers"][TIER_NAMES[tier]]
             t["sentences"] += len(ids)
             t["characters"] += sum(map(len, texts))
@@ -177,6 +195,7 @@ class PartWriter:
             s["max_sequence_tokens"] = max(s["max_sequence_tokens"], int(lengths.max()))
 
     def close(self):
+        self._flush()
         for stream in self.streams.values():
             stream.close()
         return self.stats
@@ -296,8 +315,21 @@ def encode(config, export, vocab, outputs, pools_path, export_identity, max_grou
         futures = {(store, split): [pool.submit(_encode_file, job) for job in split_jobs]
                    for store, by_split in jobs.items() for split, split_jobs in by_split.items()}
         for key, items in futures.items():
-            results[key] = [f.result() for f in items]
-            print(json.dumps({"encoded": key, "files": len(items), "sentences": sum(r["sentences"] for r in results[key])}), flush=True)
+            total = len(items)
+            done = 0
+            ordered = [None] * total
+            # Progress per finished file: a whole split can take an hour, so waiting for the
+            # group before printing anything hides every sign of progress.
+            for future in as_completed(items):
+                record = future.result()
+                ordered[items.index(future)] = record
+                done += 1
+                print(json.dumps({"file": record["file"], "sentences": record["sentences"],
+                                  "characters": record["characters"],
+                                  "done": done, "of": total, "split": "/".join(key)}), flush=True)
+            results[key] = ordered
+            print(json.dumps({"encoded": list(key), "files": total,
+                              "sentences": sum(r["sentences"] for r in ordered)}), flush=True)
     manifests = {}
     for store, sources in (("web", WEB_SOURCES), ("chat", CHAT_SOURCES)):
         out = Path(outputs[store])
