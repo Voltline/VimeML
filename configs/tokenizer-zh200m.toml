@@ -1,0 +1,19 @@
+# 200M Chinese desktop model tokenizers (docs/zh-CN/benchmarks/predict-zh-plan.md roadmap;
+# training plan to be preregistered before training starts).
+# Same sampling and SentencePiece settings as the vimeml-tiny-zh-v1 tokenizers
+# (configs/tokenizer-zh13.toml) on the same frozen export and the same seed, so the
+# 16K/24K/32K vocabularies differ from the deployed 8K/12K only in vocab size.
+export_dir = "outputs/zh-corpus/export-r1"
+output_dir = "artifacts/tokenizers/zh-200m"
+seed = 20261106
+web_lines = 1500000
+chat_lines = 80000
+# Web and review files are pooled per stage-a shard, equal quota per shard, row groups
+# drawn with weight = documents (src/vimeml/tokenizer/zh13.py sample_shard).
+max_line_bytes = 16384
+vocab_sizes = [16384, 24576, 32768]
+character_coverage = 0.9995
+# Control symbols are never produced from text; they are reserved for conversion tasks.
+control_symbols = ["<CTX>", "<READ>", "<OUT>"]
+user_defined_symbols = ["\n"]
+num_threads = 16

@@ -19,6 +19,7 @@ V2系列实验已完成，此前部署版本为V2.1 extend5 step40000 / INT8 blo
 | [vimeml-tiny-zh-v1 Mac 结果核对与 iOS 发布](reports/zh-v1-20261111/ios-release.md) | 交接包核对通过；INT8 b32 对 FP32 全拼 +2/−1、简拼 +0/−2；Mac 上约为 V4.2 的 1.3 倍；iPhone 未测；发布到 Hugging Face |
 | [中文联想基准与桌面端模型路线](benchmarks/predict-zh-plan.md) | 预注册：联想基准 `ime-predict-zh-v1`（下一词命中、省键率、前缀补全、置信度），先用现成模型摸底规模收益，再按门槛训 200M、800M 桌面端模型 |
 | [中文联想基准 ime-predict-zh-v1](benchmarks/predict-ime-zh.md) | 2026-11-11 冻结：CrossWOZ、RiSAWOZ、KdConv、CPED 各 1,200 段对话；每个 split 下一词 7,200 题、省键 6,000 条左右发言、前缀补全 2,400 题；blind 关闭 |
+| [zh-200m 六臂训练计划](training-zh-200m-plan.md) | 预注册：d1024，16K/L15、24K/L14、32K/L14 × 上下文 512，另加 24K 上下文 128 对照；每更新 65,536 token，同 v1 数据与配方，三个 seed |
 | [中文 tokenizer 词表对比](reports/zh-v1-20261106/tokenizer-vocab.md) | 只训 tokenizer：8K–32K 与覆盖率 0.9995/0.9999；20M 只实验 8K 和 12K，200M 再开 16K–32K |
 | [V4 基础训练](training-v4.md) | 固定 8K 架构、已完成 A/B 调度、结果与恢复 |
 | [V4 后训练](posttraining-v4.md) / [转换数据](data-v4-c1.md) | 已完成 C1/C1r2、冻结数据、条件评分与后训练设置 |

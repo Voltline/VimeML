@@ -1,0 +1,14 @@
+# zh-200m token data (docs/zh-CN/training-zh-200m-plan.md, 200M Chinese desktop model).
+# encode: one web store (P1 only, per-paragraph tier) and one chat store per new
+# vocabulary (16K/24K/32K), with c512 window indexes; the pools are the frozen
+# vimeml-tiny-zh-v1 ones, so P1 selection and the memorization probe are identical.
+export_dir = "outputs/zh-corpus/export-r1"
+tokenizer_dir = "artifacts/tokenizers/zh-200m"
+pools_dir = "artifacts/training-data/zh13-pools"
+pool_label = "zh-v13-pool"
+memo_label = "zh-v13-memo"
+# P1 is the smallest hash prefix whose paragraph characters reach this target.
+p1_target_characters = 21_280_000_000
+memo_documents = 10000
+workers = 16
+context_length = 512
