@@ -47,7 +47,7 @@ def main():
                  + [export / "train/chat-lccc-train.parquet"])
         check_files(export, files, identity, not args.no_verify_inputs)
         tag = TAGS[args.vocab]
-        base = ROOT / "artifacts"
+        base = Path(args.root).resolve() if args.root else ROOT / "artifacts"
         outputs = {"web": base / f"token-data/zh200m-web-{tag}", "chat": base / f"token-data/zh200m-chat-{tag}",
                    "web_index": base / f"training-data/zh200m-web-{tag}-c{config['context_length']}",
                    "chat_index": base / f"training-data/zh200m-chat-{tag}-c{config['context_length']}"}
