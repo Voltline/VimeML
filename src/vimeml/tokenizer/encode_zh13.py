@@ -26,6 +26,7 @@ the wall time goes to run.json beside them, which nothing hashes.
 """
 import hashlib
 import json
+import os
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
@@ -282,8 +283,50 @@ def _split_stats(parts, tiers):
     return stats
 
 
-def encode(config, export, vocab, outputs, pools_path, export_identity, max_groups=0):
-    """outputs: {'web': token dir, 'chat': token dir, 'web_index': dir, 'chat_index': dir}."""
+PART_FILES = ("tokens", "lengths", "sources", "tiers")
+
+
+def _done_path(prefix):
+    return Path(f"{prefix}.done.json")
+
+
+def _reusable(job, key):
+    """The finished record of a part from an interrupted run with the same inputs, or None.
+
+    A part counts as finished only when its .done.json exists (written after the worker
+    returned), names the same inputs and its four files still have the recorded sizes.
+    """
+    path = _done_path(job[3])
+    if not path.exists():
+        return None
+    try:
+        done = json.loads(path.read_text("utf-8"))
+    except ValueError:
+        return None
+    if done.get("key") != key:
+        return None
+    for name, size in done.get("bytes", {}).items():
+        part = Path(f"{job[3]}.{name}")
+        if not part.exists() or part.stat().st_size != size:
+            return None
+    return done["record"]
+
+
+def _mark_done(record, key):
+    prefix = record["prefix"]
+    data = {"key": key, "record": record,
+            "bytes": {name: Path(f"{prefix}.{name}").stat().st_size for name in PART_FILES}}
+    tmp = Path(f"{prefix}.done.json.tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False), "utf-8")
+    os.replace(tmp, _done_path(prefix))
+
+
+def encode(config, export, vocab, outputs, pools_path, export_identity, max_groups=0, resume=False):
+    """outputs: {'web': token dir, 'chat': token dir, 'web_index': dir, 'chat_index': dir}.
+
+    resume=True continues an interrupted run in the same output directories: parts whose
+    completion record matches the current inputs are reused, every other file is encoded again.
+    """
     import sentencepiece
     from vimeml.training.data import prepare_indexes
     spm_version = sentencepiece.__version__
@@ -297,9 +340,18 @@ def encode(config, export, vocab, outputs, pools_path, export_identity, max_grou
     if pools.get("status") != "complete" or pools["export"] != export_identity:
         raise ValueError("Pools were measured on a different export")
     for key in ("web", "chat"):
-        if Path(outputs[key]).exists() and any(Path(outputs[key]).iterdir()):
-            raise ValueError(f"{outputs[key]} is not empty; use a new directory")
-        (Path(outputs[key]) / "parts").mkdir(parents=True, exist_ok=True)
+        out = Path(outputs[key])
+        if (out / "manifest.json").exists():
+            raise ValueError(f"{out} is already complete; use a new directory")
+        if out.exists() and any(out.iterdir()):
+            if not resume:
+                raise ValueError(f"{out} is not empty; use a new directory, or resume the interrupted run")
+            if any(p.name != "parts" for p in out.iterdir()):
+                raise ValueError(f"{out} has files besides parts/; it stopped while merging, use a new directory")
+        (out / "parts").mkdir(parents=True, exist_ok=True)
+    run_key = {"vocab": vocab, "tokenizer_model_sha256": record["tokenizer_model_sha256"],
+               "pools_sha256": sha256(pools_path), "export": export_identity,
+               "sentencepiece_version": spm_version, "max_row_groups": max_groups}
     began = time.time()
     jobs = {"web": {}, "chat": {}}
     for split, kind, files in (("train", "train", web_files(export)),
@@ -311,21 +363,39 @@ def encode(config, export, vocab, outputs, pools_path, export_identity, max_grou
         path = export / split / f"chat-lccc-{split}.parquet"
         jobs["chat"][split] = [(str(path), "chat", str(model), str(Path(outputs["chat"]) / "parts" / split), pools, max_groups)]
     results = {}
+    def job_key(job):
+        return {**run_key, "file": Path(job[0]).name, "kind": job[1]}
+
     with ProcessPoolExecutor(config["workers"]) as pool:
-        futures = {(store, split): [pool.submit(_encode_file, job) for job in split_jobs]
-                   for store, by_split in jobs.items() for split, split_jobs in by_split.items()}
+        futures, reused = {}, {}
+        for store, by_split in jobs.items():
+            for split, split_jobs in by_split.items():
+                key = (store, split)
+                reused[key] = [_reusable(job, job_key(job)) if resume else None for job in split_jobs]
+                futures[key] = []
+                for job, old in zip(split_jobs, reused[key]):
+                    future = None
+                    if old is None:
+                        future = pool.submit(_encode_file, job)
+                        # mark the part finished as soon as it is, not when its split is reached
+                        future.add_done_callback(
+                            lambda f, k=job_key(job): f.exception() is None and _mark_done(f.result(), k))
+                    futures[key].append(future)
         for key, items in futures.items():
             total = len(items)
-            done = 0
-            ordered = [None] * total
+            ordered = list(reused[key])
+            done = sum(r is not None for r in ordered)
+            if done:
+                print(json.dumps({"reused": done, "of": total, "split": "/".join(key)}), flush=True)
             # Progress per finished file: a whole split can take an hour, so waiting for the
             # group before printing anything hides every sign of progress.
-            for future in as_completed(items):
-                record = future.result()
-                ordered[items.index(future)] = record
+            pending = [f for f in items if f is not None]
+            for future in as_completed(pending):
+                part = future.result()
+                ordered[items.index(future)] = part
                 done += 1
-                print(json.dumps({"file": record["file"], "sentences": record["sentences"],
-                                  "characters": record["characters"],
+                print(json.dumps({"file": part["file"], "sentences": part["sentences"],
+                                  "characters": part["characters"],
                                   "done": done, "of": total, "split": "/".join(key)}), flush=True)
             results[key] = ordered
             print(json.dumps({"encoded": list(key), "files": total,

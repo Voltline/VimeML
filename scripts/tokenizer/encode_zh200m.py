@@ -31,6 +31,9 @@ def main():
     parser.add_argument("--export", type=Path)
     parser.add_argument("--root", type=Path, help="output base directory (default: the repo artifacts tree); "
                     "write to fast node-local storage and copy back when small-write latency dominates")
+    parser.add_argument("--resume", action="store_true",
+                        help="encode: continue an interrupted run in the same output directories, "
+                        "reusing the files it finished")
     parser.add_argument("--no-verify-inputs", action="store_true", help="check names in SHA256SUMS but skip hashing")
     parser.add_argument("command", choices=("encode", "index"))
     parser.add_argument("--vocab", type=int, choices=sorted(TAGS))
@@ -53,7 +56,8 @@ def main():
         outputs = {"web": base / f"token-data/zh200m-web-{tag}", "chat": base / f"token-data/zh200m-chat-{tag}",
                    "web_index": base / f"training-data/zh200m-web-{tag}-c{config['context_length']}",
                    "chat_index": base / f"training-data/zh200m-chat-{tag}-c{config['context_length']}"}
-        result = encode(config, export, args.vocab, outputs, Path(config["pools_dir"]) / "pools.json", public)
+        result = encode(config, export, args.vocab, outputs, Path(config["pools_dir"]) / "pools.json", public,
+                        resume=args.resume)
         print(json.dumps(result, ensure_ascii=False), flush=True)
         return
     if args.vocab is None or args.context is None:

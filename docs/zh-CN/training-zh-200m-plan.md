@@ -41,7 +41,7 @@
 
 ## 运行方式
 
-数据准备沿用 v1 的管线的 zh-200m 扩展：分词器入口 `scripts/tokenizer/train_zh200m.py`（配置 `configs/tokenizer-zh200m.toml`），编码与窗口 `scripts/tokenizer/encode_zh200m.py`（`configs/data-zh200m.toml`，c512；`index --context 128` 为 24K 建 c128 窗口），六臂混合 `scripts/corpus/prepare_zh200m.py`，训练入口 `scripts/training/train_zh200m.py` 与六个 `configs/train-zh200m-*.toml`。混合的 `dataset_sha256` 建好后钉入配置；训练作业按臂提交，存在 `last.pt` 自动续训。测试 `tests/test_zh200m_training.py` 固定臂表与配置守卫。
+数据准备沿用 v1 的管线的 zh-200m 扩展：分词器入口 `scripts/tokenizer/train_zh200m.py`（配置 `configs/tokenizer-zh200m.toml`），编码与窗口 `scripts/tokenizer/encode_zh200m.py`（`configs/data-zh200m.toml`，c512；`index --context 128` 为 24K 建 c128 窗口；中断后在同一输出目录加 `--resume` 续跑，只复用带完成记录且输入一致的文件），六臂混合 `scripts/corpus/prepare_zh200m.py`，训练入口 `scripts/training/train_zh200m.py` 与六个 `configs/train-zh200m-*.toml`。混合的 `dataset_sha256` 建好后钉入配置；训练作业按臂提交，存在 `last.pt` 自动续训。测试 `tests/test_zh200m_training.py` 固定臂表与配置守卫。
 
 ## 开训前要补齐
 
