@@ -6,7 +6,7 @@ arm = "16k-c512"
 architecture = "tiny_gpt_zh200m"
 output_dir = "artifacts/models/tiny-zh200m-16k-c512-d1024"
 log_dir = "runs/training/tiny-zh200m-16k-c512-d1024"
-dataset_sha256 = ""
+dataset_sha256 = "07eb0d59fd59b5638a45bd370e3e1d07007be204b2a38846db0df64f16779cc1"
 
 [initialization]
 mode = "random"

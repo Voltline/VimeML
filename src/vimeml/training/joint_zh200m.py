@@ -306,14 +306,16 @@ def run(config, resume=False, root=ROOT):
     web_train = SentenceWindowDataset(root / web["token_dir"], root / web["index_dir"], "train")
     probe_ids = np.load(root / config["data_mixture"]["directory"] / plan["probe"]["file"], allow_pickle=False)
     options = {"workers": s["num_workers"], "multiplier": s["bucket_multiplier"], "pin_memory": device.type == "cuda"}
-    lm_loader = loader_for(lm_train, s["lm_batch"], seed=s["seed"], **options)
+    lm_loader = loader_for(lm_train, s["lm_batch"], seed=s["seed"], max_width=model.config.context_length,
+                           **options)
     limit = s.get("smoke_validation_windows", 0)
 
     def val_loader(data, indices=None):
         if limit:
             indices = list(range(len(data)))[:limit] if indices is None else list(indices[:limit])
         return loader_for(data, s["validation_batch"], workers=0, seed=s["seed"], shuffle=False,
-                          indices=indices, pin_memory=device.type == "cuda")
+                          indices=indices, pin_memory=device.type == "cuda",
+                          max_width=model.config.context_length)
     web_stats = read(root / web["token_dir"] / "manifest.json")["splits"]["validation"]
     chat_stats = read(root / chat["token_dir"] / "manifest.json")["splits"]["validation"]
     full = {"web": (val_loader(web_val), web_stats["prediction_pairs"], web_stats["characters"]),

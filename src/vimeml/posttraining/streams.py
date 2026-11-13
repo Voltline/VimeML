@@ -31,10 +31,13 @@ class ConversionWindows:
 
 
 class TaskCollator:
+    def __init__(self, max_width=128):
+        self.max_width = max_width
+
     def __call__(self, samples):
         lengths = torch.tensor([len(s["input_ids"]) for s in samples], dtype=torch.long)
         width = math.ceil(int(lengths.max()) / 8) * 8
-        if not 1 <= width <= 128:
+        if not 1 <= width <= self.max_width:
             raise ValueError("Task sample outside the fixed context")
         ids = torch.zeros((len(samples), width), dtype=torch.long)
         labels = torch.full_like(ids, -100)
@@ -70,12 +73,13 @@ class TailLastBucketBatchSampler(LengthBucketBatchSampler):
             yield tail
 
 
-def loader_for(data, batch_size, workers, seed, multiplier=64, indices=None, shuffle=True, pin_memory=False):
+def loader_for(data, batch_size, workers, seed, multiplier=64, indices=None, shuffle=True, pin_memory=False,
+               max_width=128):
     sampler = (BlockShuffleSampler(len(data), seed) if shuffle else range(len(data))) if indices is None else indices
     batches = TailLastBucketBatchSampler(data, sampler, batch_size, multiplier, seed)
     options = {"multiprocessing_context": "spawn", "prefetch_factor": 2} if workers else {}
     return DataLoader(data, batch_sampler=batches, num_workers=workers,
-                      collate_fn=TaskCollator(), pin_memory=pin_memory,
+                      collate_fn=TaskCollator(max_width), pin_memory=pin_memory,
                       persistent_workers=workers > 0, worker_init_fn=worker_init,
                       generator=torch.Generator().manual_seed(seed), **options)
 
