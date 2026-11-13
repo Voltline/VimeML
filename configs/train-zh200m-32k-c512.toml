@@ -1,12 +1,12 @@
 # zh-200m arm 32k-c512 (docs/zh-CN/training-zh-200m-plan.md): 32768 vocabulary, L14, context 512,
 # fresh P1 web data for 1 epoch(s), seed 766903225. Everything else is the vimeml-tiny-zh-v1 recipe.
-# 128 windows x 512 tokens = 65,536 supervised tokens per update.
+# 512 windows per update, the vimeml-tiny-zh-v1 batch size (about 17k supervised tokens).
 stage = "zh-200m"
 arm = "32k-c512"
 architecture = "tiny_gpt_zh200m"
 output_dir = "artifacts/models/tiny-zh200m-32k-c512-d1024"
 log_dir = "runs/training/tiny-zh200m-32k-c512-d1024"
-dataset_sha256 = ""
+dataset_sha256 = "dee0bbd986b508da1c72dc356fd4b43b34c6cf216a30e9ee0d6f813dd238df72"
 
 [initialization]
 mode = "random"
@@ -39,7 +39,7 @@ seed = 766903225
 cpu_threads = 4
 num_workers = 4
 bucket_multiplier = 64
-lm_batch = 128
+lm_batch = 512
 lm_microbatch = 128
 smoke_updates = 0
 learning_rate = 0.0006

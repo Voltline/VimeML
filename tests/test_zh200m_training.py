@@ -6,7 +6,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
-from vimeml.training.joint_zh200m import TOKENS_PER_UPDATE, build_plan
+from vimeml.training.joint_zh200m import WINDOWS_PER_UPDATE, build_plan
 from vimeml.training.model_zh200m import SHAPES
 from vimeml.training.zh200m_data import ARMS, TAGS
 
@@ -54,7 +54,7 @@ class Zh200mArmTests(unittest.TestCase):
             self.assertEqual(config['model']['context_length'], context, arm)
             self.assertEqual(config['model']['n_layers'], SHAPES[(vocab, context)][0], arm)
             self.assertEqual(config['training']['seed'], seed, arm)
-            self.assertEqual(config['training']['lm_batch'] * context, TOKENS_PER_UPDATE, arm)
+            self.assertEqual(config['training']['lm_batch'], WINDOWS_PER_UPDATE, arm)
             self.assertEqual(config['data_mixture']['directory'], f'artifacts/training-data/zh200m-{arm}', arm)
             self.assertRegex(config['dataset_sha256'], r'^(|[0-9a-f]{64})$',
                              f'{arm}: pin the mixture SHA before training')
@@ -75,8 +75,8 @@ class Zh200mArmTests(unittest.TestCase):
         self.assertIn('Unknown zh-200m arm', plan_error({**config, 'arm': '24k-c256'}))
         wrong_layers = {**config, 'model': {**config['model'], 'n_layers': 15}}
         self.assertIn('zh-200m shapes', plan_error(wrong_layers))
-        wrong_batch = {**config, 'training': {**config['training'], 'lm_batch': 512}}
-        self.assertIn('tokens per update', plan_error(wrong_batch))
+        wrong_batch = {**config, 'training': {**config['training'], 'lm_batch': 128}}
+        self.assertIn('windows per update', plan_error(wrong_batch))
         wrong_crop = {**config, 'training': {**config['training'], 'prefix_crop_probability': 0.6}}
         self.assertIn('contract mismatch', plan_error(wrong_crop))
         foreign_stage = {**config, 'stage': 'zh-v1.3'}

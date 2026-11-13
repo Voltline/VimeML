@@ -37,14 +37,17 @@ FORMAT = "vimeml_tiny_gpt_zh200m"
 SPECIAL = {"pad": 0, "unk": 1, "bos": 2, "eos": 3}
 MILESTONES = 20
 KEEP_MILESTONES = (1, 4)
-TOKENS_PER_UPDATE = 65_536
+# Every arm draws the same number of windows per update, matching the vimeml-tiny-zh-v1
+# batch: windows hold whole sentences and are far shorter than the context, so the padded
+# capacity is not the batch size. 512 windows is about 17k supervised tokens at c512.
+WINDOWS_PER_UPDATE = 512
 TASK_CONTRACT = {
     "objective": "single_task_lm_token_normalized",
     "tasks": ["web_lm", "chat_lm"],
     "normalization": "total supervised tokens per update",
     "lm": "ordinary_unmarked_LM_all_valid_targets",
     "ime_validation": "none_in_training; prediction and rerank benchmarks scored after training",
-    "tokens_per_update": TOKENS_PER_UPDATE,
+    "windows_per_update": WINDOWS_PER_UPDATE,
 }
 
 
@@ -70,9 +73,9 @@ def build_plan(config, root=ROOT, verify_files=True):
     if ((model.vocab_size, model.context_length, model.n_layers, s["seed"])
             != (vocab, context, SHAPES[(vocab, context)][0], seed)):
         raise ValueError(f"{arm} configuration differs from its registered arm")
-    if s["lm_batch"] * model.context_length != TOKENS_PER_UPDATE:
-        raise ValueError(f"zh-200m fixes {TOKENS_PER_UPDATE} tokens per update; "
-                         f"{s['lm_batch']} windows x {model.context_length} tokens does not match")
+    if s["lm_batch"] != WINDOWS_PER_UPDATE:
+        raise ValueError(f"zh-200m fixes {WINDOWS_PER_UPDATE} windows per update; "
+                         f"{s['lm_batch']} does not match")
     for key in ("lm_batch", "lm_microbatch", "num_workers", "cpu_threads", "log_every", "eval_every",
                 "checkpoint_every", "validation_batch", "bucket_multiplier", "warmup_steps"):
         if type(s[key]) is not int or s[key] < 1:
