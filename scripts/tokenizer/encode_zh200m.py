@@ -67,9 +67,10 @@ def main():
         parser.error("index needs --vocab and --context")
     from vimeml.training.data import prepare_indexes
     tag = TAGS[args.vocab]
+    base = Path(args.root).resolve() if args.root else ROOT / "artifacts"
     for name in ("web", "chat"):
-        token_dir = ROOT / "artifacts" / f"token-data/zh200m-{name}-{tag}"
-        index_dir = ROOT / "artifacts" / f"training-data/zh200m-{name}-{tag}-c{args.context}"
+        token_dir = base / f"token-data/zh200m-{name}-{tag}"
+        index_dir = base / f"training-data/zh200m-{name}-{tag}-c{args.context}"
         result = prepare_indexes(token_dir, index_dir, args.context, splits=("train", "validation"))
         print(json.dumps({name: {s: result["splits"][s]["windows"] for s in result["splits"]}}), flush=True)
 
