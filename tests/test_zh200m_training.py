@@ -56,7 +56,8 @@ class Zh200mArmTests(unittest.TestCase):
             self.assertEqual(config['training']['seed'], seed, arm)
             self.assertEqual(config['training']['lm_batch'] * context, TOKENS_PER_UPDATE, arm)
             self.assertEqual(config['data_mixture']['directory'], f'artifacts/training-data/zh200m-{arm}', arm)
-            self.assertEqual(config['dataset_sha256'], '', 'pin the mixture SHA before training')
+            self.assertRegex(config['dataset_sha256'], r'^(|[0-9a-f]{64})$',
+                             f'{arm}: pin the mixture SHA before training')
             trimmed = {k: v for k, v in config.items() if k not in IDENTITY | {'data_mixture'}}
             trimmed['model'] = {k: v for k, v in config['model'].items()
                                 if k not in ('vocab_size', 'context_length', 'n_layers')}
@@ -80,6 +81,14 @@ class Zh200mArmTests(unittest.TestCase):
         self.assertIn('contract mismatch', plan_error(wrong_crop))
         foreign_stage = {**config, 'stage': 'zh-v1.3'}
         self.assertIn('explicit random initialization', plan_error(foreign_stage))
+
+    def test_collator_accepts_the_arm_context(self):
+        import torch
+        from vimeml.posttraining.streams import TaskCollator
+        sample = [{"input_ids": list(range(500)), "labels": list(range(500))}]
+        self.assertEqual(TaskCollator(512)(sample)["input_ids"].shape, (1, 504))
+        with self.assertRaises(ValueError):
+            TaskCollator()(sample)  # the pre-200m default still caps at 128
 
 
 if __name__ == '__main__':

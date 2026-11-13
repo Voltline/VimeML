@@ -324,7 +324,8 @@ def run(config, resume=False, root=ROOT):
                       plan["probe"]["characters"])}
     subset = sorted(random.Random(s["seed"] + 1000019).sample(range(len(web_val)), min(4096, len(web_val))))
     subset_loader = loader_for(web_val, s["validation_batch"], workers=0, seed=s["seed"], indices=subset,
-                               shuffle=False, pin_memory=device.type == "cuda")
+                               shuffle=False, pin_memory=device.type == "cuda",
+                               max_width=model.config.context_length)
     writer = SummaryWriter(str(log_dir), purge_step=state["step"] + 1 if resume else None, flush_secs=5)
     metrics = (output / "metrics.jsonl").open("a", encoding="utf-8", buffering=1)
     requested = False
