@@ -1,0 +1,66 @@
+# zh three-task round 2, arm r2-base: restart from the base 12K 20M (12k-fresh-s1 final.pt) on v2 data,
+# same mix as r2-cont, 90000 updates (r2-cont's 30000 + 60000), warmup 2000. Tells whether restarting with the
+# round-2 mix beats continuing round 1.
+# Per update: 512 = plain 160 / full 96 / mixed 128 / initials 96 / error 32 (31/19/25/19/6); per_kind.
+stage = "zh-pinyin-s1"
+architecture = "tiny_gpt_zh13"
+output_dir = "artifacts/models/tiny-zh13-12k-pinyin-r2-base"
+log_dir = "runs/training/tiny-zh13-12k-pinyin-r2-base"
+arm = "pinyin-r2-base"
+
+[initialization]
+mode = "checkpoint"
+checkpoint = "artifacts/models/tiny-zh13-12k-fresh-s1-d384-l9/final.pt"
+checkpoint_sha256 = "44c423a1e7cb0e32161afc94d6167cabb439a3d25fd9de6d1fbb150a927542d4"
+
+[data]
+directory = "artifacts/training-data/zh-pinyin-v2-12k"
+manifest_sha256 = "c449439ba6af405fb4a907c8fcb9e753d4c8eb73428cfe839e9eac0f05cea472"
+mix = { plain = 160, full = 96, mixed = 128, initials = 96, error = 32 }
+
+[model]
+vocab_size = 12288
+context_length = 128
+d_model = 384
+n_heads = 6
+n_layers = 9
+d_ff = 960
+dropout = 0.0
+norm = "rmsnorm"
+norm_eps = 0.00001
+activation = "swiglu"
+bias = false
+tie_embeddings = true
+position_embedding = "learned"
+
+[runtime]
+compile_backbone = true
+
+[training]
+device = "cuda"
+precision = "bf16"
+seed = 20261116
+normalization = "per_kind"
+cpu_threads = 4
+num_workers = 6
+max_steps = 90000
+learning_rate = 0.0003
+min_learning_rate = 0.00003
+warmup_steps = 2000
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+prefix_crop_probability = 0.30
+log_every = 100
+eval_every = 2000
+checkpoint_every = 1000
+keep_every = 6000
+validation_batch = 256
+validation_plain_examples = 8192
+
+[tracking]
+enabled = true
+project = "vimeml"
+group = "zh-pinyin-r2"
+mode = "online"

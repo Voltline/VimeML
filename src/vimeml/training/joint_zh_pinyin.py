@@ -29,6 +29,7 @@ import numpy as np
 import torch
 
 from vimeml.training.data import file_sha, write_json
+from vimeml.training.joint_zh13 import SPECIAL
 from vimeml.training.model_zh13 import SHAPES, GPTZh13Config, TinyGPTZh13
 from vimeml.training.train import optimizer_for, learning_rate, atomic_checkpoint, resolve_precision, amp_context
 from vimeml.posttraining.streams import TaskCollator
@@ -266,13 +267,17 @@ def load_source(model, path):
             "pretraining": saved.get("pretraining", {}).get("stage")}
 
 
+def identity(plan):
+    return {"tokenizer_model_sha256": plan["tokenizer_sha256"], "vocab_size": 12288, "special_ids": SPECIAL}
+
+
 def checkpoint_payload(model, optimizer, state, config, plan, precision, source):
     return {"format": FORMAT, "architecture": ARCHITECTURE, "model": model.state_dict(),
             "model_config": model.configuration(), "optimizer": optimizer.state_dict(), "config": config,
             "signatures": plan["signatures"], "precision": precision, "step": state["step"],
             "training_state": copy.deepcopy(state), "posttraining": {"stage": STAGE, "mix": plan["mix"]},
             "initialization": {"mode": "checkpoint", "source": source, "optimizer": "fresh_AdamW"},
-            "tokenizer_identity": {"tokenizer_model_sha256": plan["tokenizer_sha256"], "vocab_size": 12288},
+            "tokenizer_identity": identity(plan),
             "scheduler": {"step": state["step"], "max_steps": plan["settings"]["max_steps"], "name": "cosine"}}
 
 
@@ -350,7 +355,8 @@ def run(config, resume=False, root=ROOT, log=print):
         atomic_checkpoint(output / f"step-{state['step']:06d}.pt",
                           {"format": FORMAT, "architecture": ARCHITECTURE, "model": model.state_dict(),
                            "model_config": model.configuration(), "step": state["step"],
-                           "posttraining": {"stage": STAGE, "mix": plan["mix"]}, "signatures": plan["signatures"]})
+                           "posttraining": {"stage": STAGE, "mix": plan["mix"]}, "signatures": plan["signatures"],
+                           "tokenizer_identity": identity(plan)})
 
     def evaluation():
         if any(r["step"] == state["step"] for r in state["evaluations"]):

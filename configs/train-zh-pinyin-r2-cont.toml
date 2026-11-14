@@ -1,0 +1,66 @@
+# zh three-task round 2, arm r2-cont: continue stage-1 arm pinyin-s1-task (final.pt, step 30000) on v2 data.
+# Round 1 learned generation but drifted as a plain LM (Standard rerank Top-1 93.6% -> 92.2%; the round-2
+# floor is 85%). Lower peak LR (1.5e-4) and a longer warmup avoid round 1's plain-loss spike at step 2000.
+# Per update: 512 = plain 160 / full 96 / mixed 128 / initials 96 / error 32 (31/19/25/19/6); per_kind.
+stage = "zh-pinyin-s1"
+architecture = "tiny_gpt_zh13"
+output_dir = "artifacts/models/tiny-zh13-12k-pinyin-r2-cont"
+log_dir = "runs/training/tiny-zh13-12k-pinyin-r2-cont"
+arm = "pinyin-r2-cont"
+
+[initialization]
+mode = "checkpoint"
+checkpoint = "artifacts/models/tiny-zh13-12k-pinyin-s1-task/final.pt"
+checkpoint_sha256 = "788e9fbd749a545c4fdc0c5266227f80cb27142bae51eb4998b9ff0827b7d87a"
+
+[data]
+directory = "artifacts/training-data/zh-pinyin-v2-12k"
+manifest_sha256 = "c449439ba6af405fb4a907c8fcb9e753d4c8eb73428cfe839e9eac0f05cea472"
+mix = { plain = 160, full = 96, mixed = 128, initials = 96, error = 32 }
+
+[model]
+vocab_size = 12288
+context_length = 128
+d_model = 384
+n_heads = 6
+n_layers = 9
+d_ff = 960
+dropout = 0.0
+norm = "rmsnorm"
+norm_eps = 0.00001
+activation = "swiglu"
+bias = false
+tie_embeddings = true
+position_embedding = "learned"
+
+[runtime]
+compile_backbone = true
+
+[training]
+device = "cuda"
+precision = "bf16"
+seed = 20261115
+normalization = "per_kind"
+cpu_threads = 4
+num_workers = 6
+max_steps = 60000
+learning_rate = 0.00015
+min_learning_rate = 0.000015
+warmup_steps = 1000
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+prefix_crop_probability = 0.30
+log_every = 100
+eval_every = 2000
+checkpoint_every = 1000
+keep_every = 6000
+validation_batch = 256
+validation_plain_examples = 8192
+
+[tracking]
+enabled = true
+project = "vimeml"
+group = "zh-pinyin-r2"
+mode = "online"
