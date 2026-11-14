@@ -132,7 +132,7 @@ Four arms plus two seeds, same budget, same data:
 > 2. Track B keystroke savings 16.74% → 20.62% (+3.88 points, each at its development-chosen threshold, cluster bootstrap 95% interval over 2,400 dialogues [+3.61, +4.14]);
 > 3. Reranking full-pinyin Top-1 1,363 → 1,370 (+22/−15, McNemar p 0.32), no drop.
 >
-> The step-0 survey is deferred (deviation 4), so step 0's "defer 800M if parameters gain little" condition is not yet evaluated; it will be checked once the survey is done.
+> The step-0 survey was deferred (deviation 4); after track A was run on the training machines the condition was checked: Qwen2.5-3B vs 0.5B track A Top-3 is 47.06% vs 39.87% (+7.19 points, +765/−248, cluster sign-flip p ≈ 5×10⁻⁵, cluster bootstrap [+454, +579] items), far above 2 points, so **800M is not deferred**. 1.5B is in between (44.01%, +4.14 over 0.5B and −3.04 under 3B, both significant). External scores are used for the trend only; the full survey report follows once all four tracks are run.
 
 - If met, train 800M directly, giving three points: 20M, 200M, 800M. 500M is trained only if 800M exceeds the desktop budget and a middle size is needed.
 - If not met, no larger model is trained; instead analyze where the gap comes from (data, context or decoding) in a separate plan.
