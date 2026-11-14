@@ -7,6 +7,10 @@
           Completed shards are skipped, never overwritten. run.json records the inputs.
   dedup   exact duplicates (whitespace-insensitive) across shards, first occurrence kept
           in shard order -> duplicates.parquet
+          --against EXPORT_DIR (later batches, e.g. r2 against export-r1): every web/review
+          document of that export counts as an earlier occurrence, so a document already in it
+          is a duplicate (first_id 'export:<version>'). The export's hashes are cached in
+          <out>/against-<version>.npy.
   report  totals, hosts whose pages mostly hit the term list, and spam farms (many
           hosts under one mixed letter-digit domain) -> report.json, spam-hosts.json.
           Sites in [domains] spam_allow of the terms file (checked by hand) are never listed.
@@ -126,10 +130,64 @@ def cmd_run(args):
             print(s['shard'],s['documents'],s['decisions'],flush=True)
 
 
+def hash_export_file(path):
+    import numpy as np
+    import pyarrow.parquet as pq
+    digests=[]
+    for batch in pq.ParquetFile(path).iter_batches(batch_size=8192,columns=['text']):
+        digests.extend(bytes.fromhex(text_sha(t)) for t in batch.column('text').to_pylist())
+    return np.array(digests,dtype='S16')
+
+
+def export_hashes(export_dir,out,workers):
+    import numpy as np
+    version=json.loads((export_dir/'manifest.json').read_text(encoding='utf-8'))['version']
+    cache=out/f'against-{version}.npy'
+    if cache.exists():
+        return version,np.load(cache)
+    files=sorted(p for p in export_dir.glob('*/*.parquet') if not p.name.startswith('chat-'))
+    with ProcessPoolExecutor(workers) as ex:
+        parts=list(ex.map(hash_export_file,files))
+    hashes=np.concatenate(parts)
+    tmp=out/f'against-{version}.tmp.npy'
+    np.save(tmp,hashes); os.replace(tmp,cache)
+    print(f'{version}: {len(hashes)} documents hashed from {len(files)} files',flush=True)
+    return version,hashes
+
+
+def dedup_against(args,out):
+    import numpy as np
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    version,old=export_hashes(Path(args.against).resolve(),out,args.workers or 8)
+    ids,shards,new=[],[],[]
+    for p in sorted(out.glob('*.parquet')):
+        if p.name.endswith('.dropped.parquet') or p.name=='duplicates.parquet': continue
+        t=pq.read_table(p,columns=['id','text_sha'])
+        ids.append(t.column('id').combine_chunks()); shards.append(pa.array([p.stem]*len(t)))
+        new.append(np.array([bytes.fromhex(h) for h in t.column('text_sha').to_pylist()],dtype='S16'))
+    ids=pa.chunked_array(ids).combine_chunks(); shards=pa.chunked_array(shards).combine_chunks()
+    n_old=len(old)
+    # stable sort: return_index is the first occurrence, export documents before this batch in shard order
+    _,first,inverse=np.unique(np.concatenate([old]+new),return_index=True,return_inverse=True)
+    first=first[inverse.reshape(-1)][n_old:]
+    dup=np.flatnonzero(first!=np.arange(n_old,n_old+len(first)))
+    origin=first[dup]
+    in_export=origin<n_old
+    local=iter(ids.take(pa.array(origin[~in_export]-n_old)).to_pylist())
+    first_id=pa.array(['export:'+version if e else next(local) for e in in_export.tolist()],pa.string())
+    pq.write_table(pa.table(dict(id=ids.take(pa.array(dup)),shard=shards.take(pa.array(dup)),first_id=first_id)),
+                   out/'duplicates.parquet')
+    print(f'{len(first)} documents: {int(in_export.sum())} already in {version}, '
+          f'{int((~in_export).sum())} exact duplicates within this batch',flush=True)
+
+
 def cmd_dedup(args):
     import pyarrow as pa
     import pyarrow.parquet as pq
     _,out=load_config(args.config)
+    if args.against:
+        return dedup_against(args,out)
     seen={}; dup=collections.defaultdict(list)
     for p in sorted(out.glob('*.parquet')):
         if p.name.endswith('.dropped.parquet') or p.name=='duplicates.parquet': continue
@@ -197,6 +255,7 @@ def main():
     p.add_argument('--config',default=str(ROOT/'configs/corpus-zh-stage-a.toml'))
     p.add_argument('--workers',type=int)
     p.add_argument('--shards',type=int,help='run: only the first N shards of the manifest')
+    p.add_argument('--against',help='dedup: an earlier export directory (e.g. outputs/zh-corpus/export-r1)')
     p.add_argument('--min-host-docs',type=int,default=20)
     p.add_argument('--host-term-share',type=float,default=0.3)
     p.add_argument('--farm-hosts',type=int,default=10)

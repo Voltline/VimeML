@@ -5,9 +5,16 @@ evenly spaced over the sorted file list (every STRIDE-th file from OFFSET) rathe
 than a contiguous block. Files are fetched round-robin over the five file groups
 (000_ ... 004_), so a partial download (`--max-files N`) still spans the crawl years.
 
+Batches (--batch):
+  r1  every STRIDE-th file from OFFSET: 21 files, the export-r1 corpus.
+  r2  R2_FILES files spread evenly over the 349 files r1 did not take: file
+      (2i+1)*349 // (2*R2_FILES) of that list for i = 0..R2_FILES-1. The order puts the even i
+      first, so `--max-files 30` is itself an evenly spread half and the rest follows later.
+      Goes to its own directory, so stage A and the export of r2 never see r1 files.
+
 Each file is checked against its LFS SHA-256. Files already present with the right
 hash are kept, so the script can be re-run after an interruption. The manifest
-(datasets/fineweb-2-cmn-hani/manifest.json) lists the files present and verified.
+(<target>/manifest.json) lists the files present and verified.
 
 Proxy: huggingface_hub honours HTTPS_PROXY / HTTP_PROXY; set them before running.
 """
@@ -24,7 +31,8 @@ REPO='HuggingFaceFW/fineweb-2'
 REVISION='af9c13333eb981300149d5ca60a8e9d659b276b9'
 PREFIX='data/cmn_Hani/train/'
 OFFSET,STRIDE=9,18
-TARGET=ROOT/'datasets'/'fineweb-2-cmn-hani'
+R2_FILES=60
+TARGETS=dict(r1=ROOT/'datasets'/'fineweb-2-cmn-hani',r2=ROOT/'datasets'/'fineweb-2-cmn-hani-r2')
 
 
 def sha256(path):
@@ -35,17 +43,25 @@ def sha256(path):
     return h.hexdigest()
 
 
-def selection():
+def selection(batch):
     from huggingface_hub import HfApi
     info=HfApi().dataset_info(REPO,revision=REVISION,files_metadata=True)
     files=sorted((s for s in info.siblings if s.rfilename.startswith(PREFIX)),key=lambda s:s.rfilename)
     if len(files)!=370:
         raise ValueError(f'expected 370 train files at {REVISION}, found {len(files)}')
-    return [dict(path=s.rfilename,size=s.size,sha256=s.lfs.sha256) for s in files[OFFSET::STRIDE]]
+    files=[dict(path=s.rfilename,size=s.size,sha256=s.lfs.sha256) for s in files]
+    r1=files[OFFSET::STRIDE]
+    if batch=='r1':
+        return r1
+    rest=[f for f in files if f not in r1]
+    return [rest[(2*i+1)*len(rest)//(2*R2_FILES)] for i in range(R2_FILES)]
 
 
-def download_order(chosen):
-    """Round-robin over the 000_..004_ groups so any prefix of the order spans them."""
+def download_order(chosen,batch):
+    """r1: round-robin over the 000_..004_ groups so any prefix of the order spans them.
+    r2: even positions of the selection first, then odd, so each half is evenly spread."""
+    if batch=='r2':
+        return chosen[0::2]+chosen[1::2]
     groups={}
     for c in chosen:
         groups.setdefault(Path(c['path']).name[:3],[]).append(c)
@@ -59,10 +75,12 @@ def verified(target,c):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__,formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--batch',choices=sorted(TARGETS),default='r1')
     parser.add_argument('--list',action='store_true',help='print the download order and exit')
     parser.add_argument('--max-files',type=int,default=None,help='stop after the first N files of the order')
     args=parser.parse_args()
-    order=download_order(selection())
+    order=download_order(selection(args.batch),args.batch)
+    TARGET=TARGETS[args.batch]
     if args.max_files is not None:
         order=order[:args.max_files]
     print(f'{len(order)} files, {sum(c["size"] for c in order)/2**30:.1f} GiB',flush=True)
@@ -89,7 +107,8 @@ def main():
     if manifest_path.exists():
         known={f['path']:f for f in json.loads(manifest_path.read_text(encoding='utf-8'))['files']}
     known.update({f['path']:f for f in present})
-    manifest=dict(repo=REPO,revision=REVISION,offset=OFFSET,stride=STRIDE,license='ODC-By 1.0 (FineWeb2)',
+    rule=dict(offset=OFFSET,stride=STRIDE) if args.batch=='r1' else dict(r1_offset=OFFSET,r1_stride=STRIDE,files=R2_FILES)
+    manifest=dict(repo=REPO,revision=REVISION,batch=args.batch,**rule,license='ODC-By 1.0 (FineWeb2)',
                   files=sorted(known.values(),key=lambda f:f['path']))
     manifest_path.write_text(json.dumps(manifest,indent=1),encoding='utf-8')
     print(f'manifest: {len(known)} verified files',flush=True)

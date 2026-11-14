@@ -135,6 +135,27 @@ Web and chat were exported on 2026-11-06:
 
 Shards added later go into a new version (for example r2): export only the new shards and deduplicate exactly across batches against r1. r1 does not change.
 
+### Second batch (zh-v13-export-r2, planned 2026-11-14, not yet run)
+
+More fresh web data for later desktop models (the 800M run waits until at least the distillation line). The target is about 100B tokens for 800M, roughly 125 tokens per parameter; r1 gives about 24B tokens of web train with the 24K tokenizer, so r2 adds 60 shards (about 1.47B kept Han characters per shard in r1, so roughly 85–90B more).
+
+- **Selection.** Same revision. Of the 349 train files r1 did not take, file (2i+1)·349 // 120 for i = 0…59: evenly spread, 12 files in each of the five file groups. The download order puts even i first, so the first 30 files are themselves an evenly spread half and can be processed as a first batch. `download_zh_fineweb2.py --batch r2` writes `datasets/fineweb-2-cmn-hani-r2/`.
+- **Stage A.** Unchanged rules, terms and thresholds; [corpus-zh-stage-a-r2.toml](../configs/corpus-zh-stage-a-r2.toml) differs from the r1 config only in its input and output directories (`outputs/zh-corpus/stage-a-r2/`). `report` computes r2's own spam hosts and farms; the export drops the union of r1's and r2's lists.
+- **Deduplication.** `zh_stage_a.py dedup --against outputs/zh-corpus/export-r1` treats every web and review document of export-r1 as an earlier occurrence: a document already in r1 is dropped, and within r2 the first occurrence in shard order is kept. (stage-a-v2's own Parquet files were deleted after the export, so r1 is read from the export.)
+- **No review.** r2 has no review step: every document stage A sends to the review queue is dropped (about 3% of documents in r1). This follows the r1 rule that unreviewed documents are dropped, and removes the most time-consuming part of the processing.
+- **Export.** `zh_export.py web OUT --batch r2`, then `finish OUT --batch r2`; validation uses the same id hash as r1, so r1's split is unaffected. LCCC is not exported again.
+
+```bash
+python -X utf8 scripts/corpus/download_zh_fineweb2.py --batch r2 [--max-files 30]
+python -X utf8 scripts/corpus/zh_stage_a.py run --config configs/corpus-zh-stage-a-r2.toml
+python -X utf8 scripts/corpus/zh_stage_a.py report --config configs/corpus-zh-stage-a-r2.toml
+python -X utf8 scripts/corpus/zh_stage_a.py dedup --config configs/corpus-zh-stage-a-r2.toml --against outputs/zh-corpus/export-r1
+python -I -X utf8 scripts/corpus/zh_export.py web outputs/zh-corpus/export-r2 --batch r2
+python -I -X utf8 scripts/corpus/zh_export.py finish outputs/zh-corpus/export-r2 --batch r2
+```
+
+If the first 30 files are processed alone, stage A `run` can go ahead (finished shards are skipped), but `report`, `dedup` and the export wait until all 60 are in; the export starts from an empty directory.
+
 ## Follow-ups
 
 - **Review part and `finish`: done 2026-11-10.** A document from the review queue (tier-2 domains included) enters training only if every vote is keep: one don't-keep or unsure vote drops it, and unreviewed documents are dropped too (decided 2026-11-06). The whole queue is only about 3% of the automatically kept documents, so wrongly dropping some costs far less than further rechecking. Human votes and AI-assisted votes (DeepSeek, labeled with a separate reviewer name) count equally. After a first review and a second review of political content, 381,935 documents passed (train 381,744, validation 191). export-r1 then had 104 data files, 45.0 GB, uploaded whole to private storage.

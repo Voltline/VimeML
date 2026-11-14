@@ -135,6 +135,27 @@ review-v2 的规模：
 
 以后追加分片时，另建新版本（例如 r2）：只导新分片，并对 r1 做跨批次精确去重。r1 不改。
 
+### 第二批（zh-v13-export-r2，2026-11-14 规划，尚未运行）
+
+给之后的桌面模型补充新鲜网页数据（800M 至少等到蒸馏线之后）。800M 的目标约 100B token，约每参数 125 个；r1 的网页 train 用 24K tokenizer 约 24B token，因此 r2 追加 60 个分片（r1 平均每个分片保留约 1.47B 汉字，合计约多 85–90B 汉字）。
+
+- **选取。** 同一 revision。在 r1 没取的 349 个 train 文件里，取第 (2i+1)·349 // 120 个，i = 0…59：均匀分布，五个文件组各 12 个。下载顺序先排偶数 i，所以前 30 个本身就是均匀的一半，可以先作为第一批处理。`download_zh_fineweb2.py --batch r2` 写入 `datasets/fineweb-2-cmn-hani-r2/`。
+- **Stage A。** 规则、词表和阈值都不变；[corpus-zh-stage-a-r2.toml](../../configs/corpus-zh-stage-a-r2.toml) 和 r1 配置只有输入、输出目录不同（`outputs/zh-corpus/stage-a-r2/`）。`report` 算出 r2 自己的垃圾站点和站群；导出时删除 r1 与 r2 两份名单的并集。
+- **去重。** `zh_stage_a.py dedup --against outputs/zh-corpus/export-r1` 把 export-r1 的全部网页和审核文档当作更早出现的副本：已在 r1 里的文档删除，r2 内部按分片顺序保留第一次出现。（stage-a-v2 自己的 Parquet 在导出后已删除，所以 r1 从导出读取。）
+- **不审核。** r2 没有审核环节：stage A 送进审核队列的文档全部删除（r1 中约占文档的 3%）。这延续了 r1“没审到的也删除”的规则，同时去掉了处理中最耗时的部分。
+- **导出。** `zh_export.py web OUT --batch r2`，然后 `finish OUT --batch r2`；验证集用和 r1 相同的 id 哈希，r1 的划分不受影响。LCCC 不重复导出。
+
+```bash
+python -X utf8 scripts/corpus/download_zh_fineweb2.py --batch r2 [--max-files 30]
+python -X utf8 scripts/corpus/zh_stage_a.py run --config configs/corpus-zh-stage-a-r2.toml
+python -X utf8 scripts/corpus/zh_stage_a.py report --config configs/corpus-zh-stage-a-r2.toml
+python -X utf8 scripts/corpus/zh_stage_a.py dedup --config configs/corpus-zh-stage-a-r2.toml --against outputs/zh-corpus/export-r1
+python -I -X utf8 scripts/corpus/zh_export.py web outputs/zh-corpus/export-r2 --batch r2
+python -I -X utf8 scripts/corpus/zh_export.py finish outputs/zh-corpus/export-r2 --batch r2
+```
+
+如果先单独处理前 30 个文件：stage A 可以先跑（已完成的分片会跳过），但 `report`、`dedup` 和导出要等 60 个都到齐后再跑，导出从空目录开始。
+
 ## 待做
 
 - Stage B 质量打分，参考首批人工标注做校准。
