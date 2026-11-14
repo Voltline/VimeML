@@ -32,6 +32,20 @@ def read_jsonl(path):
 def load(checkpoint, tokenizer, device="cpu"):
     import sentencepiece as spm
     saved = torch.load(checkpoint, map_location="cpu", weights_only=True)
+    if (saved.get("format"), saved.get("architecture")) == ("vimeml_tiny_gpt_zh200m", "tiny_gpt_zh200m"):
+        # zh-200m arms: same special ids and scoring, larger shape and its own 16K/24K/32K tokenizer
+        from vimeml.training.model_zh200m import GPTZh200mConfig, TinyGPTZh200m
+        identity = saved["tokenizer_identity"]
+        if file_sha(tokenizer) != identity["tokenizer_model_sha256"] or identity["special_ids"] != SPECIAL:
+            raise ValueError("Tokenizer differs from the checkpoint's tokenizer identity")
+        model = TinyGPTZh200m(GPTZh200mConfig(**saved["model_config"]))
+        model.load_state_dict(saved["model"], strict=True)
+        model.to(device).eval()
+        processor = spm.SentencePieceProcessor(model_file=str(tokenizer))
+        meta = {"checkpoint": str(checkpoint), "checkpoint_sha256": file_sha(checkpoint), "step": saved["step"],
+                "arm": (saved.get("config") or {}).get("arm"), "posttraining": None,
+                "tokenizer_model_sha256": identity["tokenizer_model_sha256"]}
+        return model, processor, meta
     if saved.get("format") != FORMAT or saved.get("architecture") != ARCHITECTURE:
         raise ValueError("Not a vimeml-tiny-zh-v1 checkpoint")
     stage = (saved.get("posttraining") or {}).get("stage")
