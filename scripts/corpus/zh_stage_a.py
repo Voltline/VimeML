@@ -120,9 +120,13 @@ def cmd_run(args):
                 thresholds=cfg['thresholds'])
     if run_path.exists():
         old=json.loads(run_path.read_text(encoding='utf-8'))
-        changed=[k for k in record if k!='config' and old.get(k)!=record[k]]
+        # the input manifest may grow (a batch downloaded in parts); every version run on is kept
+        changed=[k for k in record if k not in ('config','input_manifest_sha256') and old.get(k)!=record[k]]
         if changed:
             raise SystemExit(f'{out} was produced with different {changed}; use a new output dir')
+        seen=old['input_manifest_sha256']
+        seen=seen if isinstance(seen,list) else [seen]
+        record['input_manifest_sha256']=seen+[m for m in [record['input_manifest_sha256']] if m not in seen]
     run_path.write_text(json.dumps(record,indent=1),encoding='utf-8')
     jobs=[(f,out,terms,cfg['thresholds'],cfg['run']['batch_rows']) for f in files]
     with ProcessPoolExecutor(args.workers or cfg['run']['workers']) as ex:
