@@ -13,7 +13,7 @@ uv pip install --python .venv/Scripts/python.exe torch==2.10.0 --index-url https
 uv pip install --python .venv/Scripts/python.exe -r requirements.txt
 ```
 
-不要把整份 requirements 的下载源设成 PyTorch 专用源。Mac 上只做 CPU 推理时直接 `pip install -r requirements.txt`；Core ML 用另一个环境，见 [Core ML 部署](coreml.md#环境)。训练器支持 CPU / CUDA，不支持 MPS。
+不要把整份 requirements 的下载源设成 PyTorch 专用源。Mac 上只做 CPU 推理时直接 `pip install -r requirements.txt`；Core ML 用另一个环境，见 [Core ML 部署](coreml.md#接口与环境)。训练器支持 CPU / CUDA，不支持 MPS。
 
 主要版本：pyarrow 25.0.1、sentencepiece 0.2.1、tensorboard 2.20.0、torch 2.10.0+cu128。
 

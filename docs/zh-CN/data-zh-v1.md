@@ -1,6 +1,8 @@
-# vimeml-tiny-zh-v1语料（进行中，2026-11-05）
+# vimeml-tiny-zh-v1语料（已冻结为 export-r1，2026-11-10）
 
-vimeml-tiny-zh-v1 是中文模型，单独训练，计划规模约 20M 参数：d384，上下文 128；词表比较 8K（L10）和 12K（L9），见 [tokenizer 词表对比](reports/zh-v1-20261106/tokenizer-vocab.md)。本页记录语料的来源、规则过滤（stage A）和人工审核队列。质量打分（stage B）和最终导出尚未开始，所以本页数字都是中间状态，不是冻结语料。
+> **状态：已冻结。** 2026-11-10 导出审核部分并运行 `finish` 后，语料冻结为 `zh-v13-export-r1`：104 个数据文件、45.0GB，存于私有存储。Stage B 质量打分没有做，冻结语料即 stage A 加审核队列。下文写于进行期间，保留当时的中间数字；最终导出见“最终导出”与“待做”两节。
+
+vimeml-tiny-zh-v1 是中文模型，单独训练，计划规模约 20M 参数：d384，上下文 128；词表比较 8K（L10）和 12K（L9），见 [tokenizer 词表对比](reports/zh-v1-20261106/tokenizer-vocab.md)。本页记录语料的来源、规则过滤（stage A）和人工审核队列。质量打分（stage B）没有做。
 
 ## 来源
 

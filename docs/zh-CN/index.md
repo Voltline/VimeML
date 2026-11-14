@@ -1,6 +1,6 @@
 # 文档索引
 
-英文主要文档见[Documentation index](../index.md)，当前中文概览见[README.zh-CN.md](../../README.zh-CN.md)与[模型卡](model-card.md)。此目录保留对应方法和历史实验的中文记录；英文入口汇总发布与当前实验状态。
+英文主要文档见[Documentation index](../index.md)（英文版与本目录路径一一对应），当前中文概览见[README.zh-CN.md](../../README.zh-CN.md)与[模型卡](model-card.md)。此目录保留对应方法和历史实验的中文记录；英文入口汇总发布与当前实验状态。
 
 V2系列实验已完成，此前部署版本为V2.1 extend5 step40000 / INT8 block32，当前部署版本为V4.2第20轮 / INT8 block32；V1保留作基线和回退。总体结果与实验取舍见[V2系列总结](reports/v2-summary.md)。V3 A/B、V4-B、V4.1未形成稳定替换收益；V4.2第20轮在Standard开发集领先，固定reference仅比V2.1多6条且不显著，已完成Core ML、分段KV与iPhone测试宿主测量，已替换V2.1部署；预注册的Standard v2 blind上+22，作者簇p=0.0508，未达到证实标准。
 
@@ -9,7 +9,7 @@ V2系列实验已完成，此前部署版本为V2.1 extend5 step40000 / INT8 blo
 | 文档 | 内容 |
 | --- | --- |
 | [数据](data.md) | 冻结语料、来源、清洗和split |
-| [vimeml-tiny-zh-v1语料](data-zh-v1.md) | 进行中：FineWeb2 cmn_Hani 21 分片与 LCCC，繁转简、规则过滤、垃圾站剔除、95.5 万条人工审核队列 |
+| [vimeml-tiny-zh-v1语料](data-zh-v1.md) | 已冻结为 export-r1（2026-11-10）：FineWeb2 cmn_Hani 21 分片与 LCCC，繁转简、规则过滤、垃圾站剔除、95.5 万条人工审核队列 |
 | [vimeml-tiny-zh-v1 实验计划](training-zh-v1-plan.md) | 预注册：八臂，同为 224 亿字，新数据/5 轮/20 轮 × 8K/12K，12K 新数据三个 seed 测噪声 |
 | [vimeml-tiny-zh-v1 八臂训练记录](reports/zh-v1-20261110/training.md) | 2026-11-10 八臂全部完成，无抢占无失败；第 20 测点 BPC 与记忆抽样 |
 | [vimeml-tiny-zh-v1 八臂 IME 打分与判定](reports/zh-v1-20261110/ime-benchmark.md) | 全拼 development 八臂 93.3%–94.4%，Rime 68.8%；五个对比都不有效，按计划默认新数据和 12K |
@@ -53,7 +53,7 @@ V2系列实验已完成，此前部署版本为V2.1 extend5 step40000 / INT8 blo
 | WSD 调度实验 | [V4.2-50ep 与 V5-50ep 的设计、曲线与结论](training-wsd.md)：BPC 3.0328 / 2.9317（各规模最佳），IME Top-1 无提升，不部署 |
 | V4.4 消融（预注册） | [V4.2 配方上的六臂单因素实验](training-v44-plan.md)：三个 seed 重复测 run 间噪声，聊天 0 / 10%，prefix crop 0.60；只评第 20 轮 |
 | V4.4 消融结果 | [seed 噪声带与处理臂判定](training-v44.md)：处理臂均无效（去掉聊天变差）；Standard seed 带 501–523，V4.2 在顶端，此前单 seed 差异都在带内；探索性四 seed 集成 535 |
-| V4.5 集成蒸馏（预注册） | [四 seed 集成蒸馏进 15M student](training-v45-plan.md)：几何 / 算术两种合并 × 四个孪生 seed，0.5 CE + 0.5 软目标；按 student 减孪生配对判定 |
+| V4.5 集成蒸馏（预注册） | [四 seed 集成蒸馏进 15M student](training-v45-plan.md)（已注册，未执行；日文线暂停）：几何 / 算术两种合并 × 四个孪生 seed，0.5 CE + 0.5 软目标；按 student 减孪生配对判定 |
 | IME 错误分解 | [瓶颈不在 LM 容量](reports/analysis-20261021/ime-errors.md)：池外 48%、书写形式 35–44%、语义 8% |
 | 免训练重打分 | [PMI、长度与引擎分融合](reports/analysis-20261021/rescoring.md)：均未通过独立检验，部署保持纯 LM 打分 |
 | V4.2 Apple 部署 | [Core ML、INT8、分段 KV、Mac 与 iPhone 测量（英文）](../reports/mac-20261020/v42-coreml.md) |

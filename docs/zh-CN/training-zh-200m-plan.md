@@ -47,7 +47,7 @@
 
 ## 开训前要补齐
 
-- [x] 三个分词器（16K/24K/32K）在冻结样本上训练，manifest 与 SHA256 固定。2026-11-12 完成：计算节点上运行 [train_zh200m.py](../tokenizer/train_zh200m.py)，样本 SHA256 与 vimeml-tiny-zh-v1 的 train-sample.txt 完全一致（`f28dc84e…`），三个 tokenizer.model 的 SHA256 已写入 `artifacts/tokenizers/zh-200m/manifest.json`；保留 ID `<CTX>`4/`<READ>`5/`<OUT>`6/`\n`7、256 个字节词片、validation 往返 428,750/428,752（2 条 meta-space 跳过，与 v1 相同）。开发机直接训练因 CPU 限流不可行，改为在计算节点执行（用户指示）。
+- [x] 三个分词器（16K/24K/32K）在冻结样本上训练，manifest 与 SHA256 固定。2026-11-12 完成：计算节点上运行 [train_zh200m.py](../../scripts/tokenizer/train_zh200m.py)，样本 SHA256 与 vimeml-tiny-zh-v1 的 train-sample.txt 完全一致（`f28dc84e…`），三个 tokenizer.model 的 SHA256 已写入 `artifacts/tokenizers/zh-200m/manifest.json`；保留 ID `<CTX>`4/`<READ>`5/`<OUT>`6/`\n`7、256 个字节词片、validation 往返 428,750/428,752（2 条 meta-space 跳过，与 v1 相同）。开发机直接训练因 CPU 限流不可行，改为在计算节点执行（用户指示）。
 - [x] 三词表编码 P1 与 LCCC；c512 窗口（三词表）与 24K 的 c128 窗口建成；六臂混合映射建好，`dataset_sha256` 钉入配置。2026-11-13 完成：三份 token store 逐字节核对（16K 30,075,892,282 / 24K 28,406,081,214 / 32K 27,411,228,006）；上传的窗口索引不完整，由 token store 确定性重建并核对窗口数（16K c512 331,553,667、24K c512 331,436,403、24K c128 353,916,830、32K c512 400,066,540）；六臂混合的 SHA 已钉入配置，逐臂 `matches_pinned_sha` 为 true。
 - [x] CPU 冒烟：每臂少量更新、20 个测点齐全、续训路径通过；`--dry-run` 核对参数量（198,212,608 / 194,540,544 / 202,929,152 / 194,147,328）与步数。改为在训练作业内做全量依赖校验加首批 step 输出（本机算力不足以跑冒烟），六臂全部通过后进入正式训练。
 - [x] GPU 冒烟：microbatch 显存与单步耗时实测；如需调整 microbatch，只改微批大小不动批次策略，记入偏离。训练首小时即确认：c512 臂 `lm_microbatch` 128（梯度累积 4 次，显存与 512 窗口一次前向相当），单步约 0.06 秒；24k-c128 用 512。
