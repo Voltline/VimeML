@@ -5,7 +5,8 @@ Selection
     memorization probe, plus LCCC train utterances; validation: every export validation
     document and LCCC validation utterance. u = doc_hash(label, id) / 2**64 (chat key
     "lccc/<dialogue>/<turn>"): u < plain_fraction -> plain, the next pinyin_fraction ->
-    pinyin. Disjoint documents feed the two, so no paragraph is in both.
+    pinyin. Disjoint documents feed the two, so no paragraph is in both. chat_pinyin_repeats
+    (default 1) gives each train chat utterance that many pinyin samples, seeds "<key>#r".
 
 Stores (one directory each under output_dir)
     plain     BOS + paragraph + EOS cut into <=128-token windows, every target supervised
@@ -151,6 +152,7 @@ def run_job(job):
     else:
         plain_fraction = config["validation_chat_plain_fraction" if source == "chat" else "validation_plain_fraction"]
         pinyin_fraction = config["validation_chat_pinyin_fraction" if source == "chat" else "validation_pinyin_fraction"]
+    repeats = config.get("chat_pinyin_repeats", 1) if split == "train" and source == "chat" else 1
     plain_cut = int(plain_fraction * 2 ** 64)
     pinyin_cut = int((plain_fraction + pinyin_fraction) * 2 ** 64)
     thresholds, memo_threshold = pools["thresholds"], pools["memo_threshold"]
@@ -193,6 +195,12 @@ def run_job(job):
                 for paragraph in paragraphs:
                     stats["pinyin_paragraphs"] += 1
                     _pinyin(part, stats, rng, paragraph)
+                # chat_pinyin_repeats > 1 draws extra samples per train utterance, each from its own seed
+                for r in range(1, repeats):
+                    extra = random.Random(doc_hash(label + "/rng", f"{key}#{r}"))
+                    for paragraph in paragraphs:
+                        stats["pinyin_repeat_paragraphs"] += 1
+                        _pinyin(part, stats, extra, paragraph)
             else:
                 stats["pinyin_skipped_hant_documents"] += 1
     part.save(Path(config["parts_dir"]) / job["name"])

@@ -5,6 +5,13 @@ from prepare_zh13.py; the arm fixes vocabulary, layer count, pool, epochs and
 seed. Milestone k (k = 1..20) is the first update at or after k/20 of max_steps:
 full FP32 web/chat validation and memorization-probe BPC. Checkpoints are kept
 at milestones 1 and 4 (1/20 and 1/5 of the budget) and at the end (final.pt).
+
+Joint pinyin pretraining (stage "zh-pinyin-pt", zh three-task arm 3): a [pinyin] section
+names a registered arm (plain_arm) whose mixture, seed, schedule and budget are reused
+unchanged, plus build_zh_pinyin.py stores. Every update then adds pinyin.mix samples
+(step-indexed, joint_zh_pinyin.Schedule) to the arm's lm_batch windows; the loss is
+"per_kind": (lm_batch / batch) * mean LM loss + sum_k (mix[k] / batch) * mean loss of k.
+Pinyin validation (loss, teacher-forced exact) runs at every milestone and eval_every.
 """
 import copy
 import hashlib
@@ -51,7 +58,13 @@ def milestone_steps(total):
     return [math.ceil(k * total / MILESTONES) for k in range(1, MILESTONES + 1)]
 
 
+PINYIN_STAGE = "zh-pinyin-pt"
+PINYIN_KINDS = ("full", "mixed", "initials", "error")
+
+
 def build_plan(config, root=ROOT, verify_files=True):
+    if "pinyin" in config:
+        return pinyin_plan(config, root, verify_files)
     root = Path(root)
     if (config.get("stage") != STAGE or config.get("architecture") != ARCHITECTURE
             or config.get("initialization") != {"mode": "random"}):
@@ -139,6 +152,84 @@ def build_plan(config, root=ROOT, verify_files=True):
             "task_contract": {**TASK_CONTRACT, "arm": arm, "pool": pool, "epochs": epochs}}
 
 
+def pinyin_plan(config, root=ROOT, verify_files=True):
+    """The registered plain arm's plan, extended with the pinyin stores and mix."""
+    root = Path(root)
+    p = config["pinyin"]
+    if config.get("stage") != PINYIN_STAGE or config.get("arm") in ARMS:
+        raise ValueError("Joint pinyin pretraining needs stage zh-pinyin-pt and its own arm name")
+    base = {k: v for k, v in config.items() if k != "pinyin"}
+    base.update(stage=STAGE, arm=p["plain_arm"])
+    plan = build_plan(base, root, verify_files)
+    mix = {k: int(p["mix"].get(k, 0)) for k in PINYIN_KINDS}
+    if set(p["mix"]) - set(PINYIN_KINDS) or any(v < 0 for v in mix.values()) or not sum(mix.values()):
+        raise ValueError("Invalid pinyin mix")
+    directory = root / p["directory"]
+    manifest = read(directory / "manifest.json")
+    if (file_sha(directory / "manifest.json") != p["manifest_sha256"] or manifest.get("format") != "vimeml_zh_pinyin_v1"
+            or manifest.get("status") != "complete"
+            or manifest["tokenizer_sha256"] != plan["tokenizer_identity"]["tokenizer_model_sha256"]):
+        raise ValueError("Pinyin stores changed or do not match the arm tokenizer")
+    required = {directory / "manifest.json": p["manifest_sha256"]}
+    for split, stores in manifest["stores"].items():
+        for kind in PINYIN_KINDS:
+            for name, digest in stores[kind]["files"].items():
+                required[directory / kind / name] = digest
+    if verify_files:
+        for path, digest in required.items():
+            if file_sha(path) != digest:
+                raise ValueError("Changed training dependency: " + str(path))
+    s = plan["settings"]
+    examples = int(p.get("validation_examples", 4096))
+    if examples < 1 or s["lm_microbatch"] != s["lm_batch"]:
+        raise ValueError("Joint pinyin pretraining takes whole LM batches and a positive validation size")
+    batch = s["lm_batch"] + sum(mix.values())
+    train = {k: manifest["stores"]["train"][k]["examples"] for k in PINYIN_KINDS}
+    plan["signatures"]["pinyin"] = p["manifest_sha256"]
+    plan["required_files"].update({Path(q).resolve().as_posix(): h for q, h in required.items()})
+    plan.update(stage=PINYIN_STAGE, arm=config["arm"])
+    plan["pinyin"] = {"directory": p["directory"], "mix": mix, "batch": batch, "plain_arm": p["plain_arm"],
+                      "weights": {"lm": s["lm_batch"] / batch, **{k: v / batch for k, v in mix.items()}},
+                      "train_examples": train, "validation_examples": examples,
+                      "passes": {k: s["max_steps"] * mix[k] / train[k] for k in PINYIN_KINDS if mix[k]}}
+    plan["task_contract"] = {**plan["task_contract"], "objective": "joint_lm_and_pinyin_per_kind",
+                             "tasks": ["web_lm", "chat_lm", *PINYIN_KINDS], "arm": config["arm"],
+                             "normalization": "per_kind: batch share times mean loss per task",
+                             "pinyin": {"plain_arm": p["plain_arm"], "mix": mix, "manifest_sha256": p["manifest_sha256"]}}
+    return plan
+
+
+def update_joint(model, optimizer, lm_batch, extra, weights, s, device, precision):
+    """One update over the LM batch plus one batch per pinyin kind, per_kind normalized."""
+    batches = {"lm": lm_batch, **extra}
+    tokens = {k: int((b["labels"] != -100).sum()) for k, b in batches.items()}
+    if tokens["lm"] <= 0:
+        raise ValueError("The LM task needs supervised targets")
+    optimizer.zero_grad(set_to_none=True)
+    sums, positions = {}, 0
+    for kind, batch in batches.items():
+        if not tokens[kind]:
+            continue
+        ids = batch["input_ids"].to(device, non_blocking=True)
+        labels = batch["labels"].to(device, non_blocking=True)
+        with amp_context(device, precision):
+            loss_sum = model(ids, labels)["loss_sum"]
+            loss = loss_sum * (weights[kind] / tokens[kind])
+        loss.backward()
+        sums[kind] = float(loss_sum.detach())
+        if kind == "lm":
+            positions = ids.numel()
+    if not all(math.isfinite(v) for v in sums.values()):
+        raise FloatingPointError("Non-finite joint training loss")
+    grad_norm = float(torch.nn.utils.clip_grad_norm_(model.parameters(), s["grad_clip"], error_if_nonfinite=True))
+    optimizer.step()
+    return {"loss": sums["lm"] / tokens["lm"], "supervised_tokens": tokens["lm"],
+            "input_tokens": int(lm_batch["lengths"].sum()), "examples": len(lm_batch["lengths"]),
+            "padded_positions": positions, "grad_norm": grad_norm,
+            "pinyin": {k: {"loss": sums[k] / tokens[k], "supervised_tokens": tokens[k],
+                           "examples": len(batches[k]["lengths"])} for k in sums if k != "lm"}}
+
+
 def initial_state():
     return {"epoch": 0, "epoch_batch": 0, "step": 0, "lm_cursor": {"epoch": 0, "batch": 0, "offset": 0},
             "milestones": [], "training_seconds": 0.,
@@ -219,7 +310,7 @@ def checkpoint_payload(model, optimizer, state, config, plan, precision, initial
             "config": config, "signatures": plan["signatures"], "precision": precision,
             "step": state["step"], "epoch": state["epoch"], "training_state": copy.deepcopy(state),
             "tokenizer_identity": plan["tokenizer_identity"],
-            "pretraining": {"stage": STAGE, "task_contract": plan["task_contract"]},
+            "pretraining": {"stage": plan["stage"], "task_contract": plan["task_contract"]},
             "initialization": initialization, "rng": rng_state(),
             "scheduler": {"step": state["step"], "max_steps": plan["settings"]["max_steps"],
                           "warmup_steps": plan["settings"]["warmup_steps"], "name": "cosine"}}
@@ -296,6 +387,36 @@ def run(config, resume=False, root=ROOT):
     options = {"workers": s["num_workers"], "multiplier": s["bucket_multiplier"], "pin_memory": device.type == "cuda"}
     lm_loader = loader_for(lm_train, s["lm_batch"], seed=s["seed"], **options)
     limit = s.get("smoke_validation_windows", 0)
+    joint = plan.get("pinyin")
+    pinyin_stream = pinyin_sets = None
+    if joint:
+        from torch.utils.data import DataLoader
+        from vimeml.training import joint_zh_pinyin as JP
+        state["totals"].setdefault("pinyin", {k: {"examples": 0, "supervised_tokens": 0, "loss_sum": 0.0}
+                                              for k in joint["mix"] if joint["mix"][k]})
+        pinyin_dir = root / joint["directory"]
+        schedule = JP.Schedule(pinyin_dir, {"plain": 0, **joint["mix"]}, s["seed"], s["prefix_crop_probability"])
+        end = s.get("smoke_updates", 0) or s["max_steps"]
+        extra = {"num_workers": s["num_workers"], "pin_memory": device.type == "cuda"}
+        if s["num_workers"]:
+            extra.update(multiprocessing_context="spawn", prefetch_factor=4, persistent_workers=True)
+        pinyin_stream = iter(DataLoader(schedule, batch_size=None, sampler=range(state["step"], end), **extra))
+        pinyin_sets = {}
+        for kind in PINYIN_KINDS:
+            store = JP.Store(pinyin_dir / kind, "validation")
+            count = min(len(store), joint["validation_examples"])
+            chosen = np.random.default_rng([s["seed"], 11, PINYIN_KINDS.index(kind)]).choice(len(store), count, replace=False)
+            pinyin_sets[kind] = (store, sorted(int(i) for i in chosen))
+
+    def pinyin_validation(step, tag):
+        with fp32_evaluation(model):
+            report = JP.evaluate(model, pinyin_sets, s["validation_batch"], device, limit)
+        for kind, r in report.items():
+            writer.add_scalar(f"{kind}/{tag}_loss", r["loss"], step)
+            writer.add_scalar(f"{kind}/{tag}_tf_exact", r["tf_exact"], step)
+        print(f"[pinyin {tag} step {step}] " + " ".join(
+            f"{k}={r['loss']:.4f}/{r['tf_exact']:.3f}" for k, r in report.items()), flush=True)
+        return report
 
     def val_loader(data, indices=None):
         if limit:
@@ -345,6 +466,8 @@ def run(config, resume=False, root=ROOT):
                     report[name] = validate(model, loader, device)
                 else:
                     report[name] = validate(model, loader, device, pairs, characters)
+        if joint:
+            report["pinyin"] = pinyin_validation(state["step"], "milestone")
         restore_rng(before)
         state["milestones"].append(report)
         write_json(output / "milestones.json", state["milestones"])
@@ -381,7 +504,18 @@ def run(config, resume=False, root=ROOT):
                 rate = learning_rate(state["step"] + 1, s)
                 for group in optimizer.param_groups:
                     group["lr"] = rate
-                result = update_lm(model, optimizer, [lm_batch], s, device, precision)
+                if joint:
+                    result = update_joint(model, optimizer, lm_batch, next(pinyin_stream), joint["weights"], s,
+                                          device, precision)
+                    for kind, r in result.pop("pinyin").items():
+                        totals = state["totals"]["pinyin"][kind]
+                        totals["examples"] += r["examples"]
+                        totals["supervised_tokens"] += r["supervised_tokens"]
+                        totals["loss_sum"] += r["loss"] * r["supervised_tokens"]
+                        if (state["step"] + 1) % s["log_every"] == 0:
+                            writer.add_scalar(f"{kind}/train_loss", r["loss"], state["step"] + 1)
+                else:
+                    result = update_lm(model, optimizer, [lm_batch], s, device, precision)
                 if device.type == "cuda":
                     torch.cuda.synchronize(device)
                 state["step"] += 1
@@ -407,6 +541,10 @@ def run(config, resume=False, root=ROOT):
                     with fp32_evaluation(model):
                         subset_result = validate(model, subset_loader, device)
                     writer.add_scalar("web/fixed_subset_loss", subset_result["loss"], state["step"])
+                    if joint:
+                        before = rng_state()
+                        subset_result["pinyin"] = pinyin_validation(state["step"], "validation")
+                        restore_rng(before)
                     write_json(output / "subset-validation.json", {"step": state["step"], **subset_result})
                 pending()
                 model.train()
