@@ -1,0 +1,72 @@
+# zh three-task arm 3: joint pretraining from scratch (stage zh-pinyin-pt).
+# The base 20M recipe unchanged: arm 12k-fresh-s1's frozen mixture, seed, cosine 6e-4 -> 6e-5,
+# warmup 1000, 512 windows per update for its ~845K updates. On top, every update adds
+# 192 pinyin samples (full 48 / mixed 64 / initials 56 / error 24) from the pretraining-scale
+# stores of configs/data-zh-pinyin-pt.toml (about half a pass). Loss is per_kind:
+# LM 512/704 of the weight, each pinyin kind its sample share. Compared with the base 20M
+# (same plain stream) and with round 2 (continued training) on the same benchmarks.
+stage = "zh-pinyin-pt"
+arm = "pinyin-pt"
+architecture = "tiny_gpt_zh13"
+output_dir = "artifacts/models/tiny-zh13-12k-pinyin-pt"
+log_dir = "runs/training/tiny-zh13-12k-pinyin-pt"
+dataset_sha256 = "03bd8d21cf30b21c160362aa13bddbb47b59ee6657a024df38aa03adc94fec1d"
+
+[initialization]
+mode = "random"
+
+[data_mixture]
+directory = "artifacts/training-data/zh13-12k-fresh-s1-c128"
+
+[pinyin]
+plain_arm = "12k-fresh-s1"
+directory = "artifacts/training-data/zh-pinyin-pt-12k"
+manifest_sha256 = "562e0340234f9040ad949e9f9730f67d4fc18a470a543a02f1c22ce858c9c39b"
+mix = { full = 48, mixed = 64, initials = 56, error = 24 }
+validation_examples = 4096
+[model]
+vocab_size = 12288
+context_length = 128
+d_model = 384
+n_heads = 6
+n_layers = 9
+d_ff = 960
+dropout = 0.0
+norm = "rmsnorm"
+norm_eps = 0.00001
+activation = "swiglu"
+bias = false
+tie_embeddings = true
+position_embedding = "learned"
+
+[runtime]
+compile_backbone = true
+
+[training]
+device = "cuda"
+precision = "bf16"
+seed = 1591996171
+cpu_threads = 4
+num_workers = 4
+bucket_multiplier = 64
+lm_batch = 512
+lm_microbatch = 512
+smoke_updates = 0
+learning_rate = 0.0006
+min_learning_rate = 0.00006
+warmup_steps = 1000
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+prefix_crop_probability = 0.30
+log_every = 100
+eval_every = 5000
+checkpoint_every = 5000
+validation_batch = 256
+
+[tracking]
+enabled = true
+project = "vimeml"
+group = "zh-pinyin-pt"
+mode = "online"
