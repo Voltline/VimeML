@@ -99,6 +99,8 @@ Once the benchmark is frozen, measure these systems on development first:
 
 ### Desktop constraints
 
+> From 2026-11-14, 200M and larger sizes are not deployed on mobile and no Mac INT8 package size, memory or latency is measured; see deviation 5.
+
 The target platform is Apple Silicon Mac. Each size must report INT8 package size, resident memory, and p50 and p95 latency from commit to prediction. The provisional budget is p95 at most 100 ms and resident memory at most 1 GB; these may be revised once after the first 200M measurement, with the revision recorded as a deviation. Sizes over budget are still reported but are not release candidates.
 
 ### 200M
@@ -125,6 +127,13 @@ Four arms plus two seeds, same budget, same data:
 2. the cluster bootstrap interval of track B keystroke savings has a lower bound above 0;
 3. no full-pinyin Top-1 drop with McNemar p < 0.05 on reranking benchmark `ime-standard-zh-v1-r1` development.
 
+> **Decided 2026-11-14: all three met.** 200M default arm `24k-c512-s1` against v1:
+> 1. Track A Top-3 27.60% → 31.64% (+4.04 points, +672/−381, cluster sign-flip p ≈ 5×10⁻⁵, cluster bootstrap [+228, +356] items);
+> 2. Track B keystroke savings 16.74% → 20.62% (+3.88 points, each at its development-chosen threshold, cluster bootstrap 95% interval over 2,400 dialogues [+3.61, +4.14]);
+> 3. Reranking full-pinyin Top-1 1,363 → 1,370 (+22/−15, McNemar p 0.32), no drop.
+>
+> The step-0 survey is deferred (deviation 4), so step 0's "defer 800M if parameters gain little" condition is not yet evaluated; it will be checked once the survey is done.
+
 - If met, train 800M directly, giving three points: 20M, 200M, 800M. 500M is trained only if 800M exceeds the desktop budget and a middle size is needed.
 - If not met, no larger model is trained; instead analyze where the gap comes from (data, context or decoding) in a separate plan.
 - The current 22.4B characters are on the low side for 800M. Whether to add web data is decided before training 800M and written into its plan.
@@ -134,16 +143,16 @@ Four arms plus two seeds, same budget, same data:
 - Development results on the four prediction tracks, paired with v1 and the previous size.
 - Reranking benchmark development results (blind as a reference test only, under the rules of the [baseline plan](baselines-zh-v1-plan.md)).
 - Web and chat validation BPC and the training-document memorization sample. Memorization matters more as models grow, so one more item: for each prediction development item, check whether the model's Top-1 candidate occurs verbatim in the training data, and report the rate.
-- Desktop package size, memory and latency.
+- Desktop package size, memory and latency (not measured from 2026-11-14, see deviation 5).
 
 ## Order of work
 
 1. Commit this plan.
 2. Choose the chit-chat source, filter for leakage, build and freeze `ime-predict-zh-v1`, and write the benchmark description (source versions, licenses, counts, SHA256s).
 3. Write the evaluation scripts and decoder and run them end to end with v1 on development; fix decoder correctness with unit tests.
-4. Step 0: measure the systems above and write the survey report.
+4. Step 0: measure the systems above and write the survey report. (Deferred, see deviation 4.)
 5. Write and commit the 200M training plan, train, decide.
-6. Decide on 800M by the gate.
+6. Decide on 800M by the gate. (2026-11-14: gate met.)
 7. Once a desktop model is chosen, write a blind confirmation plan and open the prediction blind once.
 
 ## Limits
@@ -162,3 +171,5 @@ Four arms plus two seeds, same budget, same data:
    - **The librime prediction plugin is recorded as skipped.** The plugin itself is in the prebuilt librime (33e7814, with `rime/librime-predict` 920bd41), but the prediction database `predict.db` it needs has no public source: the plugin repository ships only a build tool; the Wanxiang project once published one but now learns on the user's machine, and the file is no longer on its release page. A database built from export-r1 would no longer be "the prediction level of an existing IME", so this is not done.
    - **Character 5-gram**: a fixed sample of `export-r1/train`: web and review documents chosen by the first 8 bytes of `sha256(id)`, about 9.5M Han characters, and LCCC dialogues by `sha256("chat:"+dialogue id)`, about 0.5M characters, matching v1 training's roughly 5% chat. Interpolated Kneser-Ney, orders 1 to 5, one discount per order D = n1 / (n1 + 2·n2), unigrams further interpolated with uniform; characters seen fewer than 2 times map to an unknown symbol that decoding cannot output. Each document and dialogue is counted separately with a leading newline; paragraphs and turns are separated by newlines, and left context and the current input are also joined by a newline.
    - **Qwen2.5 base**: left context and current input joined by newlines (base models have no chat format), no BOS; context limit 512 tokens, dropping the earliest whole turns when it does not fit (v1 is limited to 128 by its architecture). Only tokens that decode to all-Han text can enter candidates, so rare characters split into several byte-level BPE tokens cannot be output. 0.5B uses FP32, 1.5B and 3B BF16. Model versions are the current Hugging Face commit at run time, recorded in `meta.json`. The context KV cache is computed once per decode and later beam steps compute only new tokens; a unit test confirms its log-probabilities match a full forward pass.
+4. 2026-11-14: the step-0 scaling survey is deferred and the 800M gate is decided first. The development machine cannot run Qwen2.5-1.5B/3B, and the local 0.5B run did not finish; the character 5-gram and v1 are measured. The survey moves to the training machines (systems, decoding and adapter rules unchanged, see deviation 3); once results exist, the survey report is written and step 0's condition "defer 800M if 3B is less than 2 points above 0.5B or the cluster test is not significant" is checked. The 800M gate was decided before the survey under the original rules and all three conditions are met (see "Gate for going larger"); the gate rules are unchanged.
+5. 2026-11-14: 200M and larger sizes (including 500M and 800M) are not deployed on mobile. The Mac INT8 package size, resident memory and p50/p95 latency measurements in "Desktop constraints" and "Every size reports" are dropped, and p95 ≤ 100 ms / resident ≤ 1 GB is no longer a release-candidate condition. The premise of "500M only if 800M exceeds the desktop budget" no longer exists; whether to train 500M is decided separately. No judged metric is affected.

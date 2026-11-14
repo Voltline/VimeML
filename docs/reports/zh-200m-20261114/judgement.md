@@ -87,7 +87,8 @@ On tracks B, C and D, differences between arms fall within or near the range of 
 ## Not yet done
 
 - The plan asks each arm to report "the rate at which the model's Top-1 prediction appears verbatim in the training data". That needs a search of the P1 pool and LCCC for the candidate strings; not done this time, to be reported later.
-- Desktop INT8 package size, resident memory and p50/p95 latency are measured on the Mac per the plan, outside this report.
+- The desktop INT8 measurements are dropped (200M and larger sizes are not deployed on mobile; plan deviation 3).
+- The 800M gate (200M default arm against v1) is met on all three conditions; recorded in the [roadmap](../../benchmarks/predict-zh-plan.md).
 
 ## How the rules were followed
 
