@@ -15,6 +15,7 @@ Round-1 `s1-task` and `s1-tok` are listed for reference; round 1 has no report o
 - **Generation now beats production's Rime 16 sentences + v1 rerank (Vime #70 logic).**
   - Top-1 on all inputs goes from 26.0% to 29.9% (+3.9, p 5e-5). All of the gain comes from abbreviated input.
   - Full pinyin is 67.2% vs 65.9% (−1.3, p 0.47), which is not significant.
+  - The [public recheck](#public-recheck-ime-pinyin-zh-v1-development) confirms the lead on abbreviated input (+8.0 overall), but generation is significantly worse on full pinyin (−4.0, p 0.02). Production should route by input kind.
 - **The other two tasks pay for it.** Against the references:
   - Standard rerank: −24 against the 12K base (p 0.003).
   - Prediction track A Top-3: −2.8 points against vimeml-tiny-zh-v1 (p 5e-5).
@@ -224,9 +225,73 @@ A 24-input single-thread run gave KV p50 / p95 of 205 / 283 ms.
 
 These are PyTorch numbers on a desktop CPU and do not represent Core ML latency on a phone.
 
+## Public recheck (ime-pinyin-zh-v1 development)
+
+The same comparison was rerun on the development split of the [public pinyin-generation test set](../../benchmarks/pinyin-ime-zh.md):
+
+- 578 sentences and 3,444 inputs: 578 full pinyin, 2,288 mixed, 578 all initials.
+- Same settings as above: beam 32, top 10, task mode; Rime uses Vime #70's 16-sentence configuration.
+- Test was not read.
+
+Generation (%):
+
+| Model | Top-1 all | Full | Mixed | Initials | Top-3 all | Top-10 all | Character error rate |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `s1-task` | 40.1 | 76.0 | 37.4 | 14.9 | 53.3 | 63.6 | 23.3% |
+| `r2-cont` | 39.6 | 77.3 | 36.1 | 15.9 | 54.9 | 65.4 | 23.5% |
+| `r2-base` | 40.9 | 79.4 | 37.2 | 17.0 | 55.1 | 65.4 | 23.1% |
+
+**Paired comparisons.** These cluster by sentence. Inputs with identical keys within a sentence are merged, leaving 3,428 inputs.
+
+| Comparison | Measure | Difference (points) | Gains/losses | p |
+| --- | --- | ---: | --- | ---: |
+| `r2-cont` vs `s1-task` | Top-1 | −0.5 | +198/−216 | 0.54 |
+| `r2-cont` vs `s1-task` | Top-3 | +1.6 | — | 0.026 |
+| `r2-base` vs `r2-cont` | Top-1 | +1.3 | +218/−174 | 0.09 |
+
+**What this means:**
+
+- Round 2's Top-1 gain over round 1 on the private benchmark (+2.3) does not replicate here. Only a small Top-3 gain remains.
+- Continued and restarted training still cannot be told apart.
+
+Rime 16 sentences vs generation (`r2-cont`, Top-1, %):
+
+| Group | Inputs | v1-prod | task | gen | union | gen − v1-prod (cluster p, 95%) |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| All | 3,444 | 31.6 | 30.6 | 39.6 | 39.3 | +8.0 (5e-5, [+5.8, +10.2]) |
+| Full pinyin | 578 | 81.3 | 77.7 | 77.3 | 77.5 | **−4.0 (0.020, [−7.3, −0.9])** |
+| Mixed | 2,288 | 25.0 | 24.5 | 36.1 | 35.5 | +11.0 (5e-5, [+8.3, +13.7]) |
+| Initials | 578 | 7.8 | 7.6 | 15.9 | 15.9 | +8.1 (5e-5, [+5.2, +11.1]) |
+
+**How often the target is among the candidates (%):**
+
+| Group | Rime's 16 sentences | Generated top 10 | Either |
+| --- | ---: | ---: | ---: |
+| All | 36.7 | 65.4 | 67.8 |
+| Full pinyin | 88.1 | 96.0 | 97.6 |
+
+Reading:
+
+- **Abbreviated input: generation's lead is larger on the public set.** Mixed is +11.0 and initials +8.1, both significant.
+- **Full pinyin: generation is significantly below the production logic** (−4.0, p 0.02).
+  - The private benchmark showed the same direction (−1.3) without significance; the public set confirms it.
+  - Reranking the 16 sentences with `r2-cont`'s conditional score (task) is worse in the same way (−3.6, p 0.004).
+  - Scored as a plain LM (lm), `r2-cont` reaches 81.7%, level with v1.
+  - So the problem lies in the three-task model's conditional scoring, not in the Rime pool: on full pinyin, the 16 sentences contain the target 88.1% of the time.
+- **If production adopts generation, it should route by input kind:**
+  - full pinyin keeps Rime 16 sentences + v1 rerank;
+  - inputs with abbreviations use generation.
+
+  Projected from the per-kind results (an extrapolation, not a paired test):
+
+  | Set | Routed | Generation alone |
+  | --- | ---: | ---: |
+  | Private benchmark | about 30.2% | 29.9% |
+  | Public set | about 40.3% | 39.6% |
+
 ## Limitations
 
-- **Development only.** The private benchmark is one author's input and leans towards mixed abbreviation.
+- **Development only.** The private benchmark is one author's input and leans towards mixed abbreviation; the public set's keys are synthetic.
 - **Incomplete coverage.**
   - `r2-base` was not run on prediction.
   - The third arm has not been evaluated yet. It will be filled in with the same scripts.
@@ -238,4 +303,4 @@ These are PyTorch numbers on a desktop CPU and do not represent Core ML latency 
 2. Address the rerank and prediction regressions of the three-task model before deciding whether production switches to generation. Options include:
    - more plain data in the mix;
    - splitting generation into its own head or model.
-3. Recheck the generation results on a public pinyin test set that does not overlap the training data.
+3. The public recheck is done (above); its test split is kept for the final confirmation. The next three-task round has to address the conditional-scoring regression on full pinyin.

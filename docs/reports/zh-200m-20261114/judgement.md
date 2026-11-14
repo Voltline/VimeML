@@ -84,9 +84,33 @@ On tracks B, C and D, differences between arms fall within or near the range of 
 - The gap between the memorization sample and web validation is −0.016 to −0.017 for all six arms; no arm memorizes noticeably more.
 - The BPC vocabulary trend (16K < 24K < 32K) matches the primary metric's direction, but on prediction the differences do not exceed seed noise.
 
+## Top-1 predictions found verbatim in the training data (added 2026-11-14)
+
+The plan asks each arm to report "the rate at which the model's Top-1 prediction appears verbatim in the training data". It is computed by `scripts/benchmarks/verbatim_predict_zh.py`:
+
+- For each of the 7,200 development track A items, the model's Top-1 candidate c (2–6 characters) is prefixed with the last k Han characters of the prefix (k = 0, 4, 8; an item is left out for k when the prefix's final Han run is shorter than k). The string is searched verbatim in all 45,925,410 documents of `export-r1/train`.
+- The reference is the human continuation cut to the length of c, with the same left context and the same search. Only if the model hits the training text more often than the human text does it reproduce training text rather than write common Chinese.
+- `export-r1/train` is a superset of the P1 pool and LCCC, so both rates are slightly high. All seven models' Top-1 candidates are clean Han text.
+
+| Model | k = 0 (7,200 items) model / human | k = 4 (3,966 items) model / human | Difference (cluster p) | k = 8 (1,369 items) model / human | Difference (cluster p) |
+| --- | --- | --- | --- | --- | --- |
+| 16k-c512 | 100.0 / 98.3 | 63.4 / 49.1 | +14.3 (5e-5) | 2.1 / 2.3 | −0.2 (0.61) |
+| 24k-c512-s1 | 100.0 / 97.7 | 62.1 / 48.3 | +13.8 (5e-5) | 2.0 / 2.3 | −0.4 (0.33) |
+| 24k-c512-s2 | 100.0 / 97.8 | 62.9 / 48.4 | +14.5 (5e-5) | 1.9 / 2.3 | −0.4 (0.21) |
+| 24k-c512-s3 | 100.0 / 98.0 | 62.5 / 48.4 | +14.0 (5e-5) | 2.5 / 2.3 | +0.1 (0.82) |
+| 32k-c512 | 100.0 / 98.2 | 62.1 / 48.3 | +13.7 (5e-5) | 2.2 / 2.4 | −0.2 (0.63) |
+| 24k-c128 | 100.0 / 98.0 | 62.5 / 48.6 | +13.9 (5e-5) | 2.3 / 2.3 | −0.1 (1) |
+| vimeml-tiny-zh-v1 (20M) | 100.0 / 98.3 | 64.3 / 49.3 | +15.0 (5e-5) | 1.8 / 2.4 | −0.6 (0.14) |
+
+(Percent; the difference is model minus human in points, clustered by dialogue.)
+
+- **k = 0 does not discriminate:** almost any 2–6-character string occurs somewhere in 30 billion characters.
+- **k = 4:** about 14 points more of the model's continuations than of the human ones are found in the training text. That is the normal pull of a language model towards frequent phrasing, and the 20M v1 shows it too (+15.0). The 200M default arm against v1 is 62.1% vs 64.3% (−2.2, +264/−352, cluster p 0.0004): **200M does not reproduce training text more often than 20M.**
+- **k = 8:** about 2% for both model and human, with no significant difference; the 200M default arm against v1 is 2.0% vs 1.8% (+7/−5, p 0.77). No sign of long verbatim recall.
+- The arms differ by 1–2 points at most; no vocabulary or context length memorizes noticeably more, in line with the memorization-sample BPC above.
+
 ## Not yet done
 
-- The plan asks each arm to report "the rate at which the model's Top-1 prediction appears verbatim in the training data". That needs a search of the P1 pool and LCCC for the candidate strings; not done this time, to be reported later.
 - The desktop INT8 measurements are dropped (200M and larger sizes are not deployed on mobile; plan deviation 3).
 - The 800M gate (200M default arm against v1) is met on all three conditions; recorded in the [roadmap](../../benchmarks/predict-zh-plan.md).
 

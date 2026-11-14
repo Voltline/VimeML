@@ -9,7 +9,7 @@ Primary documents are English; [Chinese documentation](zh-CN/index.md) mirrors t
   - V4.4 measured the seed noise band; V4.5 distillation was registered but not run. The Japanese line is paused.
 - **Chinese.** vimeml-tiny-zh-v1 (20M) passed its blind confirmation against Rime and is released for iOS.
   - The six zh-200m desktop arms are trained and judged: the defaults apply (24K vocabulary, context 512).
-  - The three-task (rerank + predict + pinyin) work is in progress: round-2 pinyin generation beats the production Rime path on the private benchmark, but rerank and prediction still regress against v1.
+  - The three-task (rerank + predict + pinyin) work is in progress: round-2 pinyin generation beats the production Rime path on the private benchmark and on the public recheck (abbreviated input only; full pinyin is 4 points worse on the public set), but rerank and prediction still regress against v1.
 
 ## Model, data, and runtime
 
@@ -38,8 +38,9 @@ Primary documents are English; [Chinese documentation](zh-CN/index.md) mirrors t
 | [Prediction benchmark ime-predict-zh-v1](benchmarks/predict-ime-zh.md) | Frozen 2026-11-11: CrossWOZ, RiSAWOZ, KdConv, CPED, 1,200 dialogues each; blind closed |
 | [zh-200m training plan](training-zh-200m-plan.md) | Preregistration: d1024, 16K/24K/32K at context 512 plus a 24K context-128 control, three 24K seeds |
 | [zh-200m training record](reports/zh-200m-20261113/training.md) | All six arms finished 2026-11-13; web BPC 3.8251–3.9153 vs 4.3533 for zh-v1; window-index, context-cap, and batch-policy fixes |
-| [zh-200m prediction and rerank judgement](reports/zh-200m-20261114/judgement.md) | Track A Top-3 0.2999–0.3164 (seed range 0.0165); no contrast effective, defaults apply (24K, context 512); rerank gate passed |
-| [zh three-task round-2 training](reports/zh-pinyin-r2-20261114/training.md) / [evaluation](reports/zh-pinyin-r2-20261114/evaluation.md) | Continue (60k) and restart (90k) arms on the v2 pinyin stores. Private-benchmark generation Top-1 29.9% beats Rime 16 + v1 rerank (26.0%, p 5e-5); rerank −24 on Standard and prediction −2.8 Top-3 vs v1; KV generation p50 92 ms on CPU |
+| [zh-200m prediction and rerank judgement](reports/zh-200m-20261114/judgement.md) | Track A Top-3 0.2999–0.3164 (seed range 0.0165); no contrast effective, defaults apply (24K, context 512); rerank gate passed; Top-1 verbatim-in-training rate no higher than 20M |
+| [zh three-task round-2 training](reports/zh-pinyin-r2-20261114/training.md) / [evaluation](reports/zh-pinyin-r2-20261114/evaluation.md) | Continue (60k) and restart (90k) arms on the v2 pinyin stores. Private-benchmark generation Top-1 29.9% beats Rime 16 + v1 rerank (26.0%, p 5e-5); rerank −24 on Standard and prediction −2.8 Top-3 vs v1; KV generation p50 92 ms on CPU. Public recheck: +8.0 overall, but −4.0 on full pinyin (p 0.02), so route by input kind |
+| [Public pinyin-generation test set ime-pinyin-zh-v1](benchmarks/pinyin-ime-zh.md) | Frozen 2026-11-14: CrossWOZ, RiSAWOZ, KdConv, CPED; 578/576 sentences, full, mixed and all-initials keys; screened against export-r1; test held back |
 
 ## Japanese line
 
