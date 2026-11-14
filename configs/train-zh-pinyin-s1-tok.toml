@@ -1,0 +1,67 @@
+# zh three-task stage 1: continue the 12K 20M on pinyin-conditioned data.
+# Source: vimeml-tiny-zh-v1 arm 12k-fresh-s1 final.pt; data: build_zh_pinyin.py stores.
+# Per update: 512 samples = plain 256 / full 77 / mixed 77 / initials 77 / error 25 (50/15/15/15/5).
+# 30000 updates is about one pass over every store. normalization = "tokens"
+# (every supervised token weighs the same; plain holds ~88% of them).
+stage = "zh-pinyin-s1"
+architecture = "tiny_gpt_zh13"
+output_dir = "artifacts/models/tiny-zh13-12k-pinyin-s1-tok"
+log_dir = "runs/training/tiny-zh13-12k-pinyin-s1-tok"
+arm = "pinyin-s1-tok"
+
+[initialization]
+mode = "checkpoint"
+checkpoint = "artifacts/models/tiny-zh13-12k-fresh-s1-d384-l9/final.pt"
+checkpoint_sha256 = "44c423a1e7cb0e32161afc94d6167cabb439a3d25fd9de6d1fbb150a927542d4"
+
+[data]
+directory = "artifacts/training-data/zh-pinyin-v1-12k"
+manifest_sha256 = "987b01f77d0804e6a484340d51a2177401e9523d6c0131a8a7966567388e41d1"
+mix = { plain = 256, full = 77, mixed = 77, initials = 77, error = 25 }
+
+[model]
+vocab_size = 12288
+context_length = 128
+d_model = 384
+n_heads = 6
+n_layers = 9
+d_ff = 960
+dropout = 0.0
+norm = "rmsnorm"
+norm_eps = 0.00001
+activation = "swiglu"
+bias = false
+tie_embeddings = true
+position_embedding = "learned"
+
+[runtime]
+compile_backbone = true
+
+[training]
+device = "cuda"
+precision = "bf16"
+seed = 20261114
+normalization = "tokens"
+cpu_threads = 4
+num_workers = 6
+max_steps = 30000
+learning_rate = 0.0003
+min_learning_rate = 0.00003
+warmup_steps = 500
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+prefix_crop_probability = 0.30
+log_every = 100
+eval_every = 2000
+checkpoint_every = 1000
+keep_every = 6000
+validation_batch = 256
+validation_plain_examples = 8192
+
+[tracking]
+enabled = true
+project = "vimeml"
+group = "zh-pinyin-s1"
+mode = "online"
