@@ -19,6 +19,9 @@ from vimeml.training.joint_zh13 import ARCHITECTURE, FORMAT, SPECIAL
 from vimeml.training.model_zh13 import GPTZh13Config, TinyGPTZh13
 
 VERSION = "ime-standard-zh-v1-r1"
+# The zh three-task stage-1 trainer continues the 12K model on this tokenizer (configs/data-zh-pinyin.toml)
+# but its step-*.pt files carry no tokenizer identity and its last/final.pt omit special_ids.
+PINYIN_STAGES = {"zh-pinyin-s1": "68bd37c45bcb018b32b2eef5b241561ab5b6dc1b77c1c3aadcc1b41c4bf47e5a"}
 
 
 def read_jsonl(path):
@@ -31,7 +34,14 @@ def load(checkpoint, tokenizer, device="cpu"):
     saved = torch.load(checkpoint, map_location="cpu", weights_only=True)
     if saved.get("format") != FORMAT or saved.get("architecture") != ARCHITECTURE:
         raise ValueError("Not a vimeml-tiny-zh-v1 checkpoint")
-    identity = saved["tokenizer_identity"]
+    stage = (saved.get("posttraining") or {}).get("stage")
+    identity = saved.get("tokenizer_identity")
+    if identity is None and stage in PINYIN_STAGES:
+        identity = {"tokenizer_model_sha256": PINYIN_STAGES[stage], "special_ids": SPECIAL}
+    if identity is None:
+        raise ValueError("Checkpoint has no tokenizer identity")
+    if stage in PINYIN_STAGES:
+        identity = {"special_ids": SPECIAL, **identity}
     if file_sha(tokenizer) != identity["tokenizer_model_sha256"] or identity["special_ids"] != SPECIAL:
         raise ValueError("Tokenizer differs from the checkpoint's tokenizer identity")
     model = TinyGPTZh13(GPTZh13Config(**saved["model_config"]))
@@ -39,7 +49,8 @@ def load(checkpoint, tokenizer, device="cpu"):
     model.to(device).eval()
     processor = spm.SentencePieceProcessor(model_file=str(tokenizer))
     meta = {"checkpoint": str(checkpoint), "checkpoint_sha256": file_sha(checkpoint), "step": saved["step"],
-            "arm": saved["config"].get("arm"), "tokenizer_model_sha256": identity["tokenizer_model_sha256"]}
+            "arm": (saved.get("config") or {}).get("arm"), "posttraining": stage,
+            "tokenizer_model_sha256": identity["tokenizer_model_sha256"]}
     return model, processor, meta
 
 
