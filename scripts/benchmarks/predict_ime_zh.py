@@ -145,6 +145,12 @@ def run(args):
             log("A", k, len(items))
     write_jsonl(out / "track-a.jsonl", rows_a)
     meta["seconds_a"] = round(time.time() - started, 1)
+    meta["tracks"] = args.tracks
+    if args.tracks == "a":  # the primary metric only; B and C stay descriptive and can be run later
+        meta["seconds_total"] = meta["seconds_a"]
+        write_json(out / "meta.json", meta)
+        log("done (track A only)", meta["seconds_total"], "s")
+        return
 
     rows_c, items = [], development("items-c.jsonl", args.limit)
     for k, item in enumerate(items, 1):
@@ -210,6 +216,14 @@ def score(args):
     result = {"version": meta["version"], "split": meta["split"], "model": meta["model"],
               "track_a": {**P.rates(rows_a, "rank"),
                           "mean_hit_chars_top3": sum(hits3) / len(hits3) if hits3 else None}}
+    if meta.get("tracks") == "a":
+        result["track_d"] = P.coverage_curve([{"id": r["id"], "confidence": r["confidence"], "rank": r["rank"]}
+                                              for r in rows_a])
+        write_json(run_dir / "score.json", result)
+        a = result["track_a"]
+        print(f"A  top1 {a['top1']['micro']:.4f}  top3 {a['top3']['micro']:.4f} (macro {a['top3']['macro']:.4f})"
+              f"  top5 {a['top5']['micro']:.4f}  hit chars {a['mean_hit_chars_top3']:.2f}  (track A only)")
+        return
     rows_c = P.read_jsonl(run_dir / "track-c.jsonl")
     result["track_c"] = {mode: P.rates([r for r in rows_c if r["mode"] == mode], "rank") for mode, _, _ in MODES}
 
@@ -253,6 +267,7 @@ def main():
     r.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     r.add_argument("--limit", type=int, default=0, help="items per source, for smoke runs")
     r.add_argument("--out", required=True)
+    r.add_argument("--tracks", default="all", choices=("all", "a"), help="a: track A (the primary metric) only")
     g = sub.add_parser("build-ngram", help="character 5-gram from a fixed sample of export-r1/train")
     g.add_argument("--export", default=str(ROOT / "outputs/zh-corpus/export-r1"))
     g.add_argument("--web-chars", type=int, default=9_500_000, help="target Chinese characters of web text")
