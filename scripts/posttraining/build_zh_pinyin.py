@@ -42,6 +42,7 @@ def main():
         check_files(export, files, identity, not args.no_verify_inputs)
     public = {k: v for k, v in identity.items() if k != "sums"}
     config["tokenizer"] = str(ROOT / config["tokenizer"])
+    config["readings"] = str(ROOT / config["readings"])
     config["pools_path"] = str(ROOT / config["pools_dir"] / "pools.json")
     if args.workers:
         config["workers"] = args.workers

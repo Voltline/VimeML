@@ -5,7 +5,14 @@ export_dir = "outputs/zh-corpus/export-r1"
 pools_dir = "artifacts/training-data/zh13-pools"
 tokenizer = "artifacts/tokenizers/zh-v13/zh-unigram-12288/tokenizer.model"
 tokenizer_sha256 = "68bd37c45bcb018b32b2eef5b241561ab5b6dc1b77c1c3aadcc1b41c4bf47e5a"
-output_dir = "artifacts/training-data/zh-pinyin-v1-12k"
+# Rime dictionary Vime ships, generated locally by Vime's Scripts/build_rime_dicts.py
+# <dir> --cache <cache> (pinned public sources; CC BY-SA data, never committed).
+readings = "outputs/zh-readings/dict/vime_pinyin.dict.yaml"
+readings_sha256 = "3a1654cd5ce20ecacd88046186c34ad87e748a494f7078f23c1ad15492eb0c8a"
+# v1 used pypinyin + jieba; v2 reads words and readings from the Rime dictionary. The
+# label (document selection and every random draw) is unchanged, so v1 and v2 differ
+# only where the readings or the word splits differ.
+output_dir = "artifacts/training-data/zh-pinyin-v2-12k"
 label = "zh-pinyin-v1"
 context_length = 128
 workers = 16

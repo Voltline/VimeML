@@ -3,27 +3,29 @@
 Sequence (zh-v1 control ids 4/5/6, the layout of the Japanese conversion data):
     [2, 4] + context + [5] + keys + [6] + output + [3]
 Loss covers output and EOS. keys are raw keystrokes written the way they are typed,
-continuously: full pinyin (zhongguorenmin), jieba words cut to their first letters
+continuously: full pinyin (zhongguorenmin), dictionary words cut to their first letters
 (zxiazhouyishangwudeiq), or every syllable cut to its first letter. An apostrophe
 before a vowel-initial syllable (xi'an) is typed with apostrophe_probability. ü is v.
 
 Kinds:
   full      every syllable spelled in full
-  mixed     each jieba word in full or as initials, at least one of each
+  mixed     each word in full or as initials, at least one of each
   initials  every syllable as its first letter (zh/ch/sh kept with keep_zh_probability)
   error     full or mixed keys with misread syllables, output still the correct text.
             Sources: a listed proper-noun / common-word misreading, a polyphone read
-            with its single-character default or another heteronym, a fuzzy-pinyin
+            with its heaviest single-character reading or another common reading
+            (>= common_reading_share of the character's weight), a fuzzy-pinyin
             confusion (z/zh, n/l, an/ang, ...). Misread syllables are always spelled
-            in full, and every misreading must be a standard syllable.
+            in full, and every misreading must be a syllable of the dictionary.
 
-Readings come from pypinyin over the whole Han run (phrase-aware), then are sliced to the
-target span; a run with any character outside the standard syllable set is skipped.
+Readings and words come from the Rime dictionary Vime ships (zh_readings.ReadingTable):
+each Han run is segmented the way Rime builds a sentence and every word takes its
+heaviest reading. A run with a character outside the dictionary (outside 通用规范汉字表)
+cannot be typed in Vime and is skipped.
 """
-from functools import lru_cache
-import logging
 import re
-import warnings
+
+from vimeml.posttraining.zh_readings import ReadingTable
 
 HAN_RUN = re.compile(r"[一-鿿]{2,}")
 VOWELS = ("a", "e", "o")
@@ -33,7 +35,7 @@ CONTROL = (4, 5, 6)
 FUNCTION_CHARS = frozenset("的了着得地和都还么呢吧啊哪那个们子头一不")
 
 # word -> a misreading people type (toneless, space-separated syllables). An entry is
-# used only when pypinyin's phrase reading differs from it and has the same length.
+# used only when the dictionary reading differs from it and has the same length.
 MISREADINGS = {
     "蚌埠": "bang bu", "六安": "liu an", "番禺": "fan yu", "亳州": "hao zhou", "莘县": "xin xian",
     "枞阳": "cong yang", "歙县": "xi xian", "盱眙": "yu tai", "浚县": "jun xian", "洪洞": "hong dong",
@@ -59,64 +61,23 @@ FINAL_SWAPS = (("iang", "ian"), ("ian", "iang"), ("uang", "uan"), ("uan", "uang"
                ("an", "ang"), ("eng", "en"), ("en", "eng"), ("ing", "in"), ("in", "ing"))
 
 
-def quiet_imports():
-    warnings.filterwarnings("ignore", message="pkg_resources is deprecated")
-    import jieba
-    jieba.setLogLevel(logging.WARNING)
-    jieba.initialize()
-    return jieba
-
-
-def standard_syllables():
-    """Every toneless reading pypinyin gives a basic-block character, minus vowel-less ones."""
-    from pypinyin import Style, pinyin
-    found = set()
-    for code in range(0x4E00, 0xA000):
-        for value in pinyin(chr(code), heteronym=True, style=Style.NORMAL, errors="ignore")[:1]:
-            found.update(value)
-    return frozenset(s for s in found if s.isascii() and s.isalpha() and any(v in s for v in "aeiouv"))
-
-
-def common_readings(share, valid):
-    """char -> readings holding >= share of its occurrences in pypinyin's phrase table."""
-    from collections import Counter, defaultdict
-    from pypinyin import Style
-    from pypinyin.phrases_dict import phrases_dict
-    from pypinyin.style import convert
-    counts = defaultdict(Counter)
-    for word, readings in phrases_dict.items():
-        if len(word) == len(readings):
-            for char, reading in zip(word, readings):
-                counts[char][convert(reading[0], Style.NORMAL, strict=False)] += 1
-    out = {}
-    for char, c in counts.items():
-        total = sum(c.values())
-        kept = tuple(sorted(r for r, n in c.items() if n >= share * total and r in valid))
-        if len(kept) > 1:
-            out[char] = kept
-    return out
-
-
 class Pinyin:
-    def __init__(self, config, syllables=None):
-        from pypinyin import Style, lazy_pinyin, pinyin
-        self.jieba = quiet_imports()
-        self.style, self.lazy, self.pinyin = Style.NORMAL, lazy_pinyin, pinyin
-        self.valid = syllables or standard_syllables()
+    def __init__(self, config, table):
+        self.table = table if isinstance(table, ReadingTable) else ReadingTable(table)
+        self.valid = self.table.syllables
         self.config = config
         self.lengths = [(int(a), int(b), float(w)) for a, b, w in config["target_lengths"]]
         self.misreadings = {}
         for word, wrong in MISREADINGS.items():
             wrong = wrong.split()
-            right = self.lazy(word, style=self.style)
-            if len(wrong) == len(word) == len(right) and wrong != right and all(s in self.valid for s in wrong):
+            segments = self.table.segment(word)
+            right = [x for _, _, r in segments for x in r] if segments else None
+            if right and len(wrong) == len(word) == len(right) and wrong != right and all(x in self.valid for x in wrong):
                 self.misreadings[word] = wrong
         self.misread_pattern = re.compile("|".join(sorted(map(re.escape, self.misreadings), key=len, reverse=True)))
-        self.default_reading = lru_cache(maxsize=1 << 16)(self._default_reading)
-        self.common = common_readings(config["common_reading_share"], self.valid)
-
-    def _default_reading(self, char):
-        return self.lazy(char, style=self.style)[0]
+        self.default_reading = self.table.default
+        share = config["common_reading_share"]
+        self.common = {c: r for c in self.table.characters() if len(r := self.table.common(c, share)) > 1}
 
     # ---- span ----------------------------------------------------------------------
 
@@ -130,7 +91,7 @@ class Pinyin:
         return self.lengths[-1][1]
 
     def span(self, rng, text, require=None):
-        """(run start, run text, word boundaries, span start, span end) in run coordinates."""
+        """(run start, run text, segments, span start, span end) in run coordinates, or None."""
         runs = [m for m in HAN_RUN.finditer(text)]
         if require is not None:
             runs = [m for m in runs if m.start() <= require[0] and require[1] <= m.end()]
@@ -145,10 +106,10 @@ class Pinyin:
         else:
             run = max(runs, key=lambda m: m.end() - m.start())
         run_text = run.group()
-        bounds, cursor = [0], 0
-        for word in self.jieba.lcut(run_text):
-            cursor += len(word)
-            bounds.append(cursor)
+        segments = self.table.segment(run_text)
+        if segments is None:
+            return None
+        bounds = [0] + [b for _, b, _ in segments]
         size = min(wanted, len(run_text))
         if require is not None:
             low, high = require[0] - run.start(), require[1] - run.start()
@@ -161,7 +122,7 @@ class Pinyin:
             end = next(b for b in bounds if b >= start + size)
         if end - start < 2:
             return None
-        return run.start(), run_text, bounds, start, end
+        return run.start(), run_text, segments, start, end
 
     # ---- keys ----------------------------------------------------------------------
 
@@ -255,10 +216,9 @@ class Pinyin:
         found = self.span(rng, text, require)
         if found is None:
             return None
-        run_start, run_text, bounds, start, end = found
-        readings = self.lazy(run_text, style=self.style, errors=lambda x: [None] * len(x))
-        if len(readings) != len(run_text) or any(s not in self.valid for s in readings):
-            return None
+        run_start, run_text, segments, start, end = found
+        readings = [x for _, _, r in segments for x in r]
+        bounds = [0] + [b for _, b, _ in segments]
         output = run_text[start:end]
         syllables = readings[start:end]
         words = [(max(a, start) - start, min(b, end) - start) for a, b in zip(bounds, bounds[1:]) if a < end and b > start]

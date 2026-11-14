@@ -33,7 +33,7 @@ import time
 
 import numpy as np
 
-from vimeml.posttraining.zh_pinyin import KINDS, Pinyin, encode, standard_syllables
+from vimeml.posttraining.zh_pinyin import KINDS, Pinyin, encode
 from vimeml.tokenizer.encode_zh13 import clean_paragraphs, doc_hash
 from vimeml.tokenizer.zh13 import META_SPACE, sha256, write_json
 
@@ -64,10 +64,10 @@ def jobs(export, split, per_job, max_groups=0):
     return out
 
 
-def _init(config, syllables):
+def _init(config):
     import sentencepiece as spm
     _state["config"] = config
-    _state["pinyin"] = Pinyin(config["sample"], syllables)
+    _state["pinyin"] = Pinyin(config["sample"], config["readings"])
     _state["sp"] = spm.SentencePieceProcessor(model_file=config["tokenizer"])
     _state["pools"] = json.loads(Path(config["pools_path"]).read_text("utf-8"))
 
@@ -256,10 +256,11 @@ def build(config, export, output_dir, identity, max_groups=0):
     if pools["status"] != "complete" or (identity.get("frozen") and
                                           pools["export"]["manifest_sha256"] != identity["manifest_sha256"]):
         raise ValueError("pools.json does not match the export")
+    if sha256(config["readings"]) != config["readings_sha256"]:
+        raise ValueError("reading table identity mismatch")
     config = dict(config, parts_dir=str(output_dir / "parts"))
-    syllables = standard_syllables()
     manifest = {"format": FORMAT, "status": "partial", "stores": {}, "stats": {}}
-    with ProcessPoolExecutor(config["workers"], initializer=_init, initargs=(config, syllables)) as pool:
+    with ProcessPoolExecutor(config["workers"], initializer=_init, initargs=(config,)) as pool:
         for split in SPLITS:
             todo = jobs(export, split, config["row_groups_per_job"], max_groups)
             names, stats, sources = [], Counter(), {}
@@ -286,8 +287,8 @@ def build(config, export, output_dir, identity, max_groups=0):
         "config": {k: v for k, v in config.items() if k not in ("parts_dir",)},
         "max_row_groups": max_groups,
         "code_sha256": {name: sha256(here / name) for name in ("zh_pinyin.py", "zh_pinyin_data.py")},
-        "libraries": {name: importlib.metadata.version(name) for name in ("pypinyin", "jieba", "sentencepiece")},
-        "syllables": len(syllables),
+        "readings_sha256": config["readings_sha256"],
+        "libraries": {"sentencepiece": importlib.metadata.version("sentencepiece")},
     })
     write_json(output_dir / "manifest.json", manifest)
     write_json(output_dir / "run.json", {"seconds": round(time.time() - started, 1)})
