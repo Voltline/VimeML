@@ -1,6 +1,6 @@
 # zh 三任务第二轮训练记录（2026-11-14）
 
-第一轮（`configs/train-zh-pinyin-s1-*.toml`，v1 数据）已训练并单独评测，结论另行报告。第二轮换 v2 数据（读音取自 Vime 的 Rime 词典）、提高拼音样本占比，并开两组对照：一组从第一轮 `s1-task` 续训，一组从 12K 基座重训。本文只记录训练事实与验证曲线；联想、重排与盲测的判定不在本文范围。
+第一轮（`configs/train-zh-pinyin-s1-*.toml`，v1 数据）已训练，其评测数字作为参考列在[本轮评测](evaluation.md)里。第二轮换 v2 数据（读音取自 Vime 的 Rime 词典）、提高拼音样本占比，并开两组对照：一组从第一轮 `s1-task` 续训，一组从 12K 基座重训。本文只记录训练事实与验证曲线；联想、重排与生成的结果见[评测](evaluation.md)。
 
 ## 数据
 
@@ -124,8 +124,8 @@ v2 的 store 比 v1 小，而步数更长，因此两组都会重复扫过拼音
 - `artifacts/models/tiny-zh13-12k-pinyin-r2-cont/`：`final.pt`、10 个 `step-*.pt`、`evaluations.json`、`summary.json`、`metrics.jsonl`、`plan.json`、`config.json`、`environment.json`
 - `artifacts/models/tiny-zh13-12k-pinyin-r2-base/`：`final.pt`、15 个 `step-*.pt`，其余元数据同上
 
-两组产物另归档了一份副本到共享数据集目录，供本地评测取用。
+两组产物另归档了一份副本到私有存储，供本地评测取用。
 
 ## 下一步（不在本文范围）
 
-联想的 development / blind 打分、重排基准打分、以及"续训对重训"的判定均在本地另行执行，结果单独成文。第三个方面的对照按原计划继续训练。
+development 评测见[评测](evaluation.md)。第三组对照按原计划继续训练。

@@ -21,7 +21,7 @@ V2系列实验已完成，此前部署版本为V2.1 extend5 step40000 / INT8 blo
 | [中文联想基准 ime-predict-zh-v1](benchmarks/predict-ime-zh.md) | 2026-11-11 冻结：CrossWOZ、RiSAWOZ、KdConv、CPED 各 1,200 段对话；每个 split 下一词 7,200 题、省键 6,000 条左右发言、前缀补全 2,400 题；blind 关闭 |
 | [zh-200m 六臂训练计划](training-zh-200m-plan.md) | 预注册：d1024，16K/L15、24K/L14、32K/L14 × 上下文 512，另加 24K 上下文 128 对照；每更新 512 窗口（偏离记录第 2 条），同 v1 数据与配方，三个 seed |
 | [zh-200m 六臂训练记录](reports/zh-200m-20261113/training.md) | 2026-11-13 六臂全部完成；M20 网页 BPC 3.8251–3.9153（v1 为 4.3533）；含窗口索引重建、上下文上限、批次策略三处问题的如实记录 |
-| [zh 三任务第二轮训练记录](reports/zh-pinyin-r2-20261114/training.md) | 2026-11-14 两组完成：从第一轮续训 60,000 步、从 12K 基座重训 90,000 步，v2 拼音数据；终值 plain 4.288 / 4.353，full tf_exact 0.690 / 0.695；含 warmup 附近 plain 凸起与 store 重复轮数 |
+| [zh 三任务第二轮训练记录](reports/zh-pinyin-r2-20261114/training.md) / [评测](reports/zh-pinyin-r2-20261114/evaluation.md) | 2026-11-14 两组：从第一轮续训 60,000 步、从 12K 基座重训 90,000 步，v2 拼音数据。私有基准生成 Top-1 29.9%，超过 Rime 16 句 + v1 重排（26.0%，p 5e-5）；Standard 重排 −24、联想 Top-3 对 v1 −2.8；KV 生成 CPU p50 92 ms |
 | [zh-200m 六臂联想与重排判定](reports/zh-200m-20261114/judgement.md) | 轨道 A Top-3 0.2999–0.3164（seed 极差 0.0165）；三个对比都不有效，按计划默认 24K、上下文 512；重排 Top-1 1,370–1,383，守门通过 |
 | [中文 tokenizer 词表对比](reports/zh-v1-20261106/tokenizer-vocab.md) | 只训 tokenizer：8K–32K 与覆盖率 0.9995/0.9999；20M 只实验 8K 和 12K，200M 再开 16K–32K |
 | [V4 基础训练](training-v4.md) | 固定 8K 架构、已完成 A/B 调度、结果与恢复 |
