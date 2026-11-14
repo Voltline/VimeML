@@ -6,7 +6,9 @@ Both expose what vimeml.benchmarks.predict_zh.predict needs: `vocabulary`, `cont
 HFLM (Qwen2.5 base models)
 - context: earlier turns and the prefix joined by "\\n" (a base model has no chat format);
   the oldest whole turns are dropped when the text does not fit in `context_length` minus
-  RESERVE tokens; no BOS (Qwen2.5 has none);
+  RESERVE tokens; no BOS (Qwen2.5 has none). An empty context (no earlier turns, nothing typed
+  yet: some track C items) becomes the single end-of-text token, the document boundary of
+  Qwen's pretraining, in the role BOS plays for the Vime models;
 - vocabulary: a token can be decoded only if its own text is entirely Chinese characters;
   characters that the byte-level BPE splits across several tokens are unreachable;
 - the context's key/value cache is computed once per decode and reused by every beam step;
@@ -68,6 +70,10 @@ class HFLM:
             text = SEP.join([*turns, prefix])
             ids = self.encode(text)
             if len(ids) <= limit or not turns:
+                if not ids:  # a forward pass needs at least one token
+                    if self.tokenizer.eos_token_id is None:
+                        raise ValueError("empty context and the tokenizer has no end-of-text token")
+                    return [self.tokenizer.eos_token_id]
                 return ids[-limit:]
             turns = turns[1:]
 

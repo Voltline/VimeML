@@ -16,6 +16,7 @@ CHARS = "我们明天一起去吃饭看电影好的"
 class Tokenizer:
     """One token per character; ids 0-2 are special."""
     all_special_ids = [0, 1, 2]
+    eos_token_id = 2
 
     def __len__(self):
         return 3 + len(CHARS)
@@ -61,6 +62,12 @@ class Hf(unittest.TestCase):
         ids = self.lm.context(["好的" * 4, "吃饭"], "我们明天一起")
         self.assertEqual(self.lm.tokenizer.decode(ids), "吃饭�我们明天一起")  # newline is unknown to this tokenizer
         self.assertLessEqual(len(ids), 24 - P.RESERVE)
+
+    def test_empty_context_is_end_of_text(self):
+        self.assertEqual(self.lm.context([], ""), [2])
+        self.assertEqual(self.lm.context(["", ""], ""), [2])
+        out = P.predict(self.lm, [], "")
+        self.assertTrue(out and all(P.all_han(t) for t, _ in out))
 
     def test_decoder_runs(self):
         out = P.predict(self.lm, ["好的"], "我们")
