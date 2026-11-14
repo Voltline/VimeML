@@ -40,9 +40,10 @@ class HFLM:
         self.device, self.context_length = device, context_length
         size = self.model.get_output_embeddings().weight.shape[0]
         special = set(self.tokenizer.all_special_ids)
+        known = len(self.tokenizer)  # computed once: a fast tokenizer rebuilds its vocab on every len()
         texts = []
         for i in range(size):
-            if i >= len(self.tokenizer) or i in special:
+            if i >= known or i in special:
                 texts.append(None)
                 continue
             text = self.tokenizer.decode([i])
