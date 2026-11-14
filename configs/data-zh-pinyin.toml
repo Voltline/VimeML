@@ -1,0 +1,43 @@
+# Pinyin-conditioned data for the zh three-task model, stage 1 (continue the 12K 20M).
+# Each kind is its own store; the trainer sets the mix (plain 50 / full 15 / mixed 15 /
+# initials 15 / error 5). See src/vimeml/posttraining/zh_pinyin.py for the sample layout.
+export_dir = "outputs/zh-corpus/export-r1"
+pools_dir = "artifacts/training-data/zh13-pools"
+tokenizer = "artifacts/tokenizers/zh-v13/zh-unigram-12288/tokenizer.model"
+tokenizer_sha256 = "68bd37c45bcb018b32b2eef5b241561ab5b6dc1b77c1c3aadcc1b41c4bf47e5a"
+output_dir = "artifacts/training-data/zh-pinyin-v1-12k"
+label = "zh-pinyin-v1"
+context_length = 128
+workers = 16
+row_groups_per_job = 8
+
+# Document-level selection by doc_hash(label, id): P1 train documents outside the
+# memorization probe. plain takes both scripts (as the original LM did); pinyin takes
+# simplified only, one sample per paragraph or utterance. Calibrated on a one-row-group
+# smoke: about 8M plain windows (5% chat) and 2.4M per pinyin kind (25% chat), 0.8M error.
+web_plain_fraction = 0.023
+web_pinyin_fraction = 0.022
+chat_plain_fraction = 0.037
+chat_pinyin_fraction = 0.123
+validation_plain_fraction = 0.15
+validation_pinyin_fraction = 0.04
+validation_chat_plain_fraction = 0.06
+validation_chat_pinyin_fraction = 0.12
+plain_minimum_tokens = 8
+# A paragraph containing a listed misreading becomes an error sample with this probability.
+listed_boost_probability = 0.5
+
+[sample]
+kind_weights = { full = 15, mixed = 15, initials = 15, error = 5 }
+# [low, high, weight] in characters
+target_lengths = [[2, 4, 15], [5, 10, 40], [11, 20, 35], [21, 30, 10]]
+empty_context_probability = 0.10
+max_context_characters = 96
+apostrophe_probability = 0.3
+keep_zh_probability = 0.15
+mixed_abbreviation_range = [0.3, 0.7]
+error_full_share = 0.6
+error_listed_probability = 0.9
+error_single_probability = 0.75
+error_polyphone_share = 0.7
+common_reading_share = 0.05
