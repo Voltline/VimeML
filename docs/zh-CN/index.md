@@ -27,6 +27,7 @@ V2系列实验已完成，此前部署版本为V2.1 extend5 step40000 / INT8 blo
 | [公开拼音生成测试集 ime-pinyin-zh-v1](benchmarks/pinyin-ime-zh.md) | 2026-11-14 冻结：CrossWOZ、RiSAWOZ、KdConv、CPED；578/576 句，全拼、混合简拼、全首字母三类按键；已与 export-r1 查重；test 暂不读取 |
 | [zh 三任务第三组：从零联合预训练](reports/zh-pinyin-pt-20261115/record.md) | 2026-11-15 20M 从零把拼音样本混进基座预训练：重排只差 −4（不显著），联想比 r2-cont 高 1.1，但生成私有基准 −2.2、公开集 37.8% 对 39.6%；20M 不适合联合预训练，保留续训路线 |
 | [拼音生成的推理期重打分](reports/zh-pinyin-rescore-20261115/report.md) | 生成前 10 按 genScore + 1.6 × v1 LM 分数重排：r2-cont 私有基准 29.9% → 36.4%，公开集 39.5% → 51.3%；全拼显著高于线上逻辑（公开 +4.2），不再需要按输入类型分流 |
+| [Vime 拼音搜索的束宽扫描](reports/zh-pinyin-beam-20261115/report.md) | v1 LM 模式带上下文、按键位分桶：束宽 16/12/8/4 公开集 Top-1 52.5/51.6/49.1/44.1，私有基准 33.6/32.9/32.0/29.2；每档都显著下降，损失在简拼；默认保持 16；该模式下 v1 重打分无收益 |
 | [zh-v1 批量 KV 解码 Core ML 包](../reports/mac-20261115/zh-v1-kvbatch.md)（英文） | 2026-11-15：一次调用推进整个束桶；INT8 flex（B 1..16）与无状态 INT8 包相差 ≤4.8e-5；M3 Mac p50 B=16 3.35–3.76 ms、B=8 2.69–2.92 ms；束搜索结果与无状态 INT8 逐条一致（125/125）；已加入发布副本；iPhone 未测 |
 | [zh-v1 批量 KV 解码 v2 Core ML 包](../reports/mac-20261115/zh-v1-kvbatch-v2.md)（英文） | 2026-11-15：只读缓存、多 token 预填充、打分输出头；选定 `unified-scored`：提示与解码一个包（不再需要 chunk 包），Core ML 占用约 40 MiB 与 v1 相同，T=1 图 ≥200 MiB；M3 Mac p50 B=16 ≤4.4 ms，搜索 p50 79 ms；搜索结果与 v1 逐条一致（125/125）；已加入 Hugging Face 发布副本；iPhone 未测 |
 | [联想基准第 0 步规模摸底](reports/zh-predict-step0-20261115/survey.md) | Qwen2.5 0.5B/1.5B/3B 四条轨道随规模单调上升，3B 对 0.5B 轨道 A Top-3 +7.18；v1、zh-200m 都显著低于 0.5B；800M 不推迟 |
