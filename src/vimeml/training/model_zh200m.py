@@ -3,7 +3,9 @@
 d1024, 16 heads, SwiGLU 2560, learned positions, tied embeddings; the
 vocabulary, layer count and context length vary, fixed to the pairs of the
 200M training plan (docs/zh-CN/training-zh-200m-plan.md): 16K/L15/c512,
-24K/L14/c512, 32K/L14/c512 and 24K/L14/c128.
+24K/L14/c512, 32K/L14/c512 and 24K/L14/c128. 12K/L15/c128 is the three-task
+joint-pinyin 200M (configs/train-zh200m-12k-pinyin-pt.toml): the 20M's tokenizer,
+so token-level distillation into the 20M stays possible.
 """
 import math
 from dataclasses import dataclass
@@ -18,7 +20,8 @@ LAYER_PARAMETERS = 12_060_672
 SHAPES = {(16_384, 512): (15, 198_212_608),
           (24_576, 512): (14, 194_540_544),
           (32_768, 512): (14, 202_929_152),
-          (24_576, 128): (14, 194_147_328)}
+          (24_576, 128): (14, 194_147_328),
+          (12_288, 128): (15, 193_625_088)}
 
 
 @dataclass(frozen=True)
@@ -35,7 +38,8 @@ class GPTZh200mConfig(GPTV2Config):
         super().__post_init__()
         if ((self.vocab_size, self.context_length) not in SHAPES
                 or self.n_layers != SHAPES[(self.vocab_size, self.context_length)][0]):
-            raise ValueError("zh-200m shapes are 16K/L15/c512, 24K/L14/c512, 32K/L14/c512 and 24K/L14/c128")
+            raise ValueError("zh-200m shapes are 16K/L15/c512, 24K/L14/c512, 32K/L14/c512, 24K/L14/c128 "
+                             "and 12K/L15/c128")
         fixed = {"d_model": 1024, "n_heads": 16, "d_ff": 2560, "dropout": 0.0}
         for name, value in fixed.items():
             if type(getattr(self, name)) is not type(value) or getattr(self, name) != value:

@@ -12,6 +12,10 @@ unchanged, plus build_zh_pinyin.py stores. Every update then adds pinyin.mix sam
 (step-indexed, joint_zh_pinyin.Schedule) to the arm's lm_batch windows; the loss is
 "per_kind": (lm_batch / batch) * mean LM loss + sum_k (mix[k] / batch) * mean loss of k.
 Pinyin validation (loss, teacher-forced exact) runs at every milestone and eval_every.
+
+A joint run may set architecture = "tiny_gpt_zh200m" with a 200M shape of the plain arm's
+vocabulary and context (12K/L15/c128): same data, seed and schedule, the larger model.
+Checkpoints then carry the zh-200m format, so zh-200m loaders read them.
 """
 import copy
 import hashlib
@@ -26,7 +30,10 @@ import numpy as np
 import torch
 
 from vimeml.training.data import SentenceWindowDataset, file_sha, write_json
+from dataclasses import asdict
+
 from vimeml.training.model_zh13 import SHAPES, GPTZh13Config, TinyGPTZh13
+from vimeml.training import model_zh200m
 from vimeml.training.train import (optimizer_for, learning_rate, atomic_checkpoint, rng_state,
                                    restore_rng, resolve_precision, amp_context)
 from vimeml.training.zh13_data import ARMS, training_dataset
@@ -60,6 +67,19 @@ def milestone_steps(total):
 
 PINYIN_STAGE = "zh-pinyin-pt"
 PINYIN_KINDS = ("full", "mixed", "initials", "error")
+# architecture -> (config class, model class, checkpoint format)
+FAMILIES = {ARCHITECTURE: (GPTZh13Config, TinyGPTZh13, FORMAT),
+            "tiny_gpt_zh200m": (model_zh200m.GPTZh200mConfig, model_zh200m.TinyGPTZh200m,
+                                "vimeml_tiny_gpt_zh200m")}
+
+
+def family(plan):
+    return plan.get("architecture", ARCHITECTURE)
+
+
+def build_model(config, plan):
+    configuration, model, _ = FAMILIES[family(plan)]
+    return model(configuration(**config["model"]))
 
 
 def build_plan(config, root=ROOT, verify_files=True):
@@ -158,9 +178,26 @@ def pinyin_plan(config, root=ROOT, verify_files=True):
     p = config["pinyin"]
     if config.get("stage") != PINYIN_STAGE or config.get("arm") in ARMS:
         raise ValueError("Joint pinyin pretraining needs stage zh-pinyin-pt and its own arm name")
+    architecture = config.get("architecture")
+    if architecture not in FAMILIES:
+        raise ValueError("Joint pinyin pretraining takes the zh13 or zh-200m architecture")
     base = {k: v for k, v in config.items() if k != "pinyin"}
     base.update(stage=STAGE, arm=p["plain_arm"])
+    if architecture != ARCHITECTURE:
+        # The plain arm's own checks run on its registered 20M shape; the larger model must
+        # keep the arm's vocabulary and context, so it reads the same stores and windows.
+        vocab = ARMS[p["plain_arm"]][0] if p.get("plain_arm") in ARMS else None
+        if vocab is None:
+            raise ValueError("Unknown plain arm")
+        large = model_zh200m.GPTZh200mConfig(**config["model"])
+        if (large.vocab_size, large.context_length) != (vocab, 128):
+            raise ValueError("The zh-200m model must keep the plain arm's vocabulary and context 128")
+        base.update(architecture=ARCHITECTURE,
+                    model=asdict(GPTZh13Config(vocab_size=vocab, n_layers=SHAPES[vocab][0])))
     plan = build_plan(base, root, verify_files)
+    if architecture != ARCHITECTURE:
+        plan["architecture"] = architecture
+        plan["parameters"] = model_zh200m.SHAPES[(large.vocab_size, large.context_length)][1]
     mix = {k: int(p["mix"].get(k, 0)) for k in PINYIN_KINDS}
     if set(p["mix"]) - set(PINYIN_KINDS) or any(v < 0 for v in mix.values()) or not sum(mix.values()):
         raise ValueError("Invalid pinyin mix")
@@ -196,6 +233,8 @@ def pinyin_plan(config, root=ROOT, verify_files=True):
                              "tasks": ["web_lm", "chat_lm", *PINYIN_KINDS], "arm": config["arm"],
                              "normalization": "per_kind: batch share times mean loss per task",
                              "pinyin": {"plain_arm": p["plain_arm"], "mix": mix, "manifest_sha256": p["manifest_sha256"]}}
+    if architecture != ARCHITECTURE:
+        plan["task_contract"]["architecture"] = architecture
     return plan
 
 
@@ -305,7 +344,7 @@ def update_lm(model, optimizer, batches, s, device, precision):
 
 
 def checkpoint_payload(model, optimizer, state, config, plan, precision, initialization):
-    return {"format": FORMAT, "architecture": ARCHITECTURE, "model": model.state_dict(),
+    return {"format": FAMILIES[family(plan)][2], "architecture": family(plan), "model": model.state_dict(),
             "model_config": model.configuration(), "optimizer": optimizer.state_dict(),
             "config": config, "signatures": plan["signatures"], "precision": precision,
             "step": state["step"], "epoch": state["epoch"], "training_state": copy.deepcopy(state),
@@ -317,7 +356,7 @@ def checkpoint_payload(model, optimizer, state, config, plan, precision, initial
 
 
 def restore_checkpoint(saved, model, optimizer, config, plan, precision):
-    if (saved.get("format") != FORMAT or saved.get("architecture") != ARCHITECTURE
+    if (saved.get("format") != FAMILIES[family(plan)][2] or saved.get("architecture") != family(plan)
             or saved.get("model_config") != model.configuration()
             or saved.get("pretraining", {}).get("task_contract") != plan["task_contract"]
             or saved.get("tokenizer_identity") != plan["tokenizer_identity"]):
@@ -349,7 +388,7 @@ def run(config, resume=False, root=ROOT):
         raise ValueError("A GPU is required for formal training")
     precision = resolve_precision(device, s["precision"])
     torch.set_float32_matmul_precision("high")
-    model = TinyGPTZh13(GPTZh13Config(**config["model"])).to(device)
+    model = build_model(config, plan).to(device)
     optimizer = optimizer_for(model, s, device)
     state = initial_state()
     initialization = {"mode": "random", "seed": s["seed"], "source_checkpoint": None, "optimizer": "fresh_AdamW"}
