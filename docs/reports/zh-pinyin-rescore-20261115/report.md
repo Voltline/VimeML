@@ -22,6 +22,7 @@ The registered text is the Chinese version, [docs/zh-CN/reports/zh-pinyin-rescor
   - private benchmark: 72.7% vs 67.2% (+5.6, p 5e-5);
   - public set: 85.5% vs 81.3% (+4.2, p 0.001).
 - **The public set is a clean check.** λ was tuned on the private benchmark only, and the public set uses the same fixed λ. The gain there is larger than on the private benchmark.
+- **Giving v1 the input-field context (the production rule) adds more.** Public set overall 51.3% → 53.0% (p 0.0001), +4.1 on inputs with a non-empty context; see [Prior with context](#prior-with-context).
 - **Production cost.** It is one more v1 scoring pass over the top 10 candidates. v1 already scores Rime's 16 sentences in production; it would score the 10 generated candidates instead.
 
 ## Method
@@ -39,7 +40,7 @@ The registered text is the Chinese version, [docs/zh-CN/reports/zh-pinyin-rescor
 
 | Prior | Description |
 | --- | --- |
-| v1 | production vimeml-tiny-zh-v1 (20M, 24K vocabulary), the same model #70 reranks with |
+| v1 | production vimeml-tiny-zh-v1 (20M, 12K vocabulary, i.e. `12k-fresh-s1`), the same model #70 reranks with and the starting point of the three-task model |
 | self | the generator itself, scored as a plain LM (no keys) |
 
 **λ grid:** 0 to 2.0 in steps of 0.1.
@@ -96,6 +97,46 @@ Paired comparisons at λ = 1.6, v1 prior:
 - **The λ curve is flat here too.** From 1.0 to 2.0, all inputs stay between 51.1% and 51.4%. In hindsight the best value is 1.4 (51.4%), only 0.1 points above 1.6.
 - **The self prior is again below the v1 prior.** At λ = 1.3 it gives 49.5% overall and 85.3% on full pinyin.
 
+## Prior with context
+
+Production Vime gives v1 the text before the cursor in the input field: the last 64 characters, cut after the last full stop, question mark, exclamation mark or newline (`VimeLanguageModel.sentenceContext`). Here the context is rebuilt by the same rule, and v1 scores the 10 candidates after it, all in one call as Vime's `scores(context:candidates:)` does. Generation itself still has no context.
+
+**Two contexts:**
+
+| Variant | Private benchmark | Public set |
+| --- | --- | --- |
+| in-field (Vime rule) | earlier fragments of the same message, joined by commas | the text before the clause in the same turn |
+| with previous (history) | last 64 characters of the previous message + in-field | previous turn + in-field |
+
+- The in-field context is non-empty for 318 of 4,612 private inputs and 1,463 of 3,428 public inputs.
+- The production logic (Rime 16 + v1) is recomputed with the same context, so both sides of each comparison use the same context.
+- λ = 1.6.
+
+Top-1 (%), all inputs:
+
+| Set | Context | Production | Generation + rescoring | Difference (cluster p) |
+| --- | --- | ---: | ---: | --- |
+| private | none | 26.0 | 36.4 | +10.4 (5e-5) |
+| private | in-field | 26.2 | 36.7 | +10.5 (5e-5) |
+| private | with previous | 26.0 | 37.7 | +11.8 (5e-5) |
+| public | none | 31.6 | 51.3 | +19.7 (5e-5) |
+| public | in-field | 32.3 | 53.0 | +20.7 (5e-5) |
+| public | with previous | 32.1 | 52.9 | +20.7 (5e-5) |
+
+Rescoring with context, paired against rescoring without:
+
+| Set | Subset | In-field | With previous |
+| --- | --- | --- | --- |
+| private | all 4,612 | 36.4 → 36.7 (+23/−7, p 0.07) | 36.4 → 37.7 (+144/−81, p 0.005) |
+| private | in-field non-empty 318 | 44.0 → 49.1 (p 0.07) | 44.0 → 48.4 (p 0.16) |
+| public | all 3,428 | 51.3 → 53.0 (+81/−21, p 0.0001) | 51.3 → 52.9 (+151/−97, p 0.02) |
+| public | in-field non-empty 1,463 | 52.6 → 56.7 (p 0.0001) | 52.6 → 56.5 (p 0.001) |
+
+- **The in-field context helps and costs nothing.** With an empty context the scores are unchanged. With a context, the public set gains 4.1 points (p 0.0001). The private benchmark moves the same way (+5.1), but with only 318 inputs it is not significant.
+- **Context helps generation + rescoring more than the production logic.** On the public set the production logic gains 0.7 and generation + rescoring 1.8. The generated top 10 contains the target more often, so context has more to pick from.
+- **The previous message helps too, but a keyboard cannot see it.** The private benchmark gains 1.4 (p 0.005), since the author's messages run on from each other. Vime only reads the input field, so production uses the in-field context only.
+- **λ stays.** With context, λ is still flat from 1.0 to 2.0; the best value is between 1.3 and 1.9, and 1.6 is within 0.2 points of it.
+
 ## Arm 3 gains too
 
 The same rescoring (v1 prior, λ = 1.6) applied to [arm 3 (joint pretraining from scratch)](../zh-pinyin-pt-20261115/record.md), Top-1 (%):
@@ -117,17 +158,17 @@ The same rescoring (v1 prior, λ = 1.6) applied to [arm 3 (joint pretraining fro
   - The round-2 public recheck already showed this. On full pinyin, the generated top 10 contains the target 96.0% of the time, yet Top-1 is only 77.3%.
   - The three-task model's conditional score favors candidates that fit the keys but read unnaturally.
   - Adding a plain LM's absolute probability restores fluency, so the answer gets picked out of the top 10.
-- **An external prior beats self.** v1 is only an LM; no pinyin task takes its capacity. Its language model is better than the three-task model's own LM mode, which matches the rerank regression seen in round 2 (Standard −24).
+- **The v1 prior beats self.** v1 is the three-task model before pinyin post-training (same 12K vocabulary, same architecture). Post-training eroded its plain LM ability (Standard rerank −24 in round 2), so scoring with v1 brings back the language model from before post-training.
 - **The language part of the generation score is weak.** Adding an LM score on top of the conditional score gives the language prior more weight. The best λ is above 1, which says the generation score alone underweights language.
 
 ## Limitations
 
-- **Only an empty-context prior was tested.** Scoring with the left context, and rescoring a pool that also includes Rime's 16 sentences, are still untested.
+- **Generation itself had no context,** and rescoring a pool that also includes Rime's 16 sentences is still untested.
 - **One public check.** λ was chosen on the private benchmark. The public set is a check, but it has only one set of synthetic keys.
 - **Latency was not measured.** The extra cost is one 20M forward over 10 short candidates, which can be batched.
 
 ## Next steps
 
-1. **Vime client Chinese path:** generated top 10 → v1 scores → rerank by genScore + 1.6 × lmScore. No routing by input kind.
-2. **Test a context-aware prior,** and a pool that also includes the 16 sentences.
+1. **Vime client Chinese path:** generated top 10 → v1 scores after the input-field context → rerank by genScore + 1.6 × lmScore. No routing by input kind.
+2. **Test generation with context,** and a pool that also includes the 16 sentences.
 3. **Evaluate the 12K joint-pinyin 200M the same way** when it arrives, generation and rescoring both. Decide on round 3 after that.
