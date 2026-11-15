@@ -15,7 +15,7 @@ Round-1 `s1-task` and `s1-tok` are listed for reference; round 1 has no report o
 - **Generation now beats production's Rime 16 sentences + v1 rerank (Vime #70 logic).**
   - Top-1 on all inputs goes from 26.0% to 29.9% (+3.9, p 5e-5). All of the gain comes from abbreviated input.
   - Full pinyin is 67.2% vs 65.9% (−1.3, p 0.47), which is not significant.
-  - The [public recheck](#public-recheck-ime-pinyin-zh-v1-development) confirms the lead on abbreviated input (+8.0 overall), but generation is significantly worse on full pinyin (−4.0, p 0.02). Production should route by input kind.
+  - The [public recheck](#public-recheck-ime-pinyin-zh-v1-development) confirms the lead on abbreviated input (+8.0 overall), but generation is significantly worse on full pinyin (−4.0, p 0.02). Production should route by input kind. (Update 2026-11-15: rescoring the generated top 10 with v1 removes the full-pinyin regression, so routing is no longer needed; see the [inference-time rescoring report](../zh-pinyin-rescore-20261115/report.md).)
 - **The other two tasks pay for it.** Against the references:
   - Standard rerank: −24 against the 12K base (p 0.003).
   - Prediction track A Top-3: −2.8 points against vimeml-tiny-zh-v1 (p 5e-5).
@@ -304,3 +304,4 @@ Reading:
    - more plain data in the mix;
    - splitting generation into its own head or model.
 3. The public recheck is done (above); its test split is kept for the final confirmation. The next three-task round has to address the conditional-scoring regression on full pinyin.
+4. The third arm is evaluated; see the [arm-3 record](../zh-pinyin-pt-20261115/record.md). The full-pinyin regression is fixed by [inference-time rescoring](../zh-pinyin-rescore-20261115/report.md).
