@@ -45,6 +45,8 @@
 
 数据准备沿用 v1 的管线的 zh-200m 扩展：分词器入口 `scripts/tokenizer/train_zh200m.py`（配置 `configs/tokenizer-zh200m.toml`），编码与窗口 `scripts/tokenizer/encode_zh200m.py`（`configs/data-zh200m.toml`，c512；`index --context 128` 为 24K 建 c128 窗口；中断后在同一输出目录加 `--resume` 续跑，只复用带完成记录且输入一致的文件），六臂混合 `scripts/corpus/prepare_zh200m.py`，训练入口 `scripts/training/train_zh200m.py` 与六个 `configs/train-zh200m-*.toml`。混合的 `dataset_sha256` 建好后钉入配置；训练作业按臂提交，存在 `last.pt` 自动续训。测试 `tests/test_zh200m_training.py` 固定臂表与配置守卫。
 
+**数据并行（一臂多卡，2026-11-15 起）。** 两个 zh 训练入口可直接用 `torchrun --standalone --nproc_per_node <n>` 启动；集群包装脚本在 `VIMEML_NPROC` 大于 1 时即如此启动。每个进程从同样带种子的加载器取同一个全局批，只训练其中连续的一段行，损失按全局 token 数归一，因此数据顺序、游标、批大小和每次更新的梯度都与单卡相同（仅浮点求和顺序不同）；检查点、日志和验证只由 0 号进程写。续训可以换进程数。实现见 `src/vimeml/training/distributed.py`；`tests/test_training_distributed.py` 验证 2–4 份梯度之和等于单设备梯度，CPU 冒烟在 1、2、4 进程下的损失、token 数、测点与最终权重一致。
+
 ## 开训前要补齐
 
 - [x] 三个分词器（16K/24K/32K）在冻结样本上训练，manifest 与 SHA256 固定。2026-11-12 完成：计算节点上运行 [train_zh200m.py](../../scripts/tokenizer/train_zh200m.py)，样本 SHA256 与 vimeml-tiny-zh-v1 的 train-sample.txt 完全一致（`f28dc84e…`），三个 tokenizer.model 的 SHA256 已写入 `artifacts/tokenizers/zh-200m/manifest.json`；保留 ID `<CTX>`4/`<READ>`5/`<OUT>`6/`\n`7、256 个字节词片、validation 往返 428,750/428,752（2 条 meta-space 跳过，与 v1 相同）。开发机直接训练因 CPU 限流不可行，改为在计算节点执行（用户指示）。

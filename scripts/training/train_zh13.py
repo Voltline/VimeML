@@ -37,7 +37,8 @@ def main():
         parser.error("No checkpoint to resume")
     from vimeml.training.joint_zh13 import run
     tracking = config.get("tracking", {})
-    if not tracking.get("enabled"):
+    # Under torchrun only rank 0 reports to W&B; the other ranks just train.
+    if not tracking.get("enabled") or os.environ.get("RANK", "0") != "0":
         print(run(config, args.resume), flush=True)
         return
     import wandb

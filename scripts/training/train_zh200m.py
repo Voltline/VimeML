@@ -1,4 +1,5 @@
-"""zh-200m arm pretraining entry point; W&B without any machine-wide login.
+"""zh-200m arm and zh-800m pretraining entry point (the stage in the config picks the model); W&B
+without any machine-wide login.
 
 Credentials come only from the environment (WANDB_API_KEY, optional WANDB_ENTITY),
 as cluster_zh200m.sh sets them from a private file with isolated W&B directories.
@@ -9,6 +10,7 @@ usage:
   python -X utf8 scripts/training/train_zh200m.py --config configs/train-zh200m-24k-c512-s1.toml
   python -X utf8 scripts/training/train_zh200m.py --config ... --resume
   python -X utf8 scripts/training/train_zh200m.py --config ... --dry-run
+  python -X utf8 scripts/training/train_zh200m.py --config configs/train-zh800m-12k-c512.toml
 """
 import argparse
 import os
@@ -44,7 +46,8 @@ def main():
         parser.error("No checkpoint to resume")
     from vimeml.training.joint_zh200m import run
     tracking = config.get("tracking", {})
-    if not tracking.get("enabled"):
+    # Under torchrun only rank 0 reports to W&B; the other ranks just train.
+    if not tracking.get("enabled") or os.environ.get("RANK", "0") != "0":
         print(run(config, args.resume), flush=True)
         return
     import wandb
@@ -55,7 +58,7 @@ def main():
     def start(mode):
         return wandb.init(project=tracking.get("project", "vimeml"), entity=os.environ.get("WANDB_ENTITY"),
                           group=tracking["group"], name=config["arm"] + ("-resume" if args.resume else ""),
-                          job_type="pretraining", tags=["zh-200m", config["arm"]], mode=mode, dir=str(directory),
+                          job_type="pretraining", tags=[config["stage"], config["arm"]], mode=mode, dir=str(directory),
                           sync_tensorboard=True, save_code=False, config=config,
                           settings=wandb.Settings(disable_git=True, init_timeout=90))
     mode = tracking.get("mode", "online") if os.environ.get("WANDB_API_KEY") else "offline"

@@ -21,6 +21,7 @@ import copy
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import random
 import signal
@@ -39,6 +40,7 @@ from vimeml.training.train import (optimizer_for, learning_rate, atomic_checkpoi
 from vimeml.training.zh13_data import ARMS, training_dataset
 from vimeml.posttraining.streams import CommittedStream, loader_for, microbatches
 from vimeml.posttraining.train import validate
+from vimeml.training.distributed import Context, NullWriter, setup as setup_parallel
 
 ROOT = Path(__file__).resolve().parents[3]
 STAGE = "zh-v1.3"
@@ -238,26 +240,32 @@ def pinyin_plan(config, root=ROOT, verify_files=True):
     return plan
 
 
-def update_joint(model, optimizer, lm_batch, extra, weights, s, device, precision):
-    """One update over the LM batch plus one batch per pinyin kind, per_kind normalized."""
+def update_joint(model, optimizer, lm_batch, extra, weights, s, device, precision, ctx=None, net=None):
+    """One update over the LM batch plus one batch per pinyin kind, per_kind normalized.
+
+    With data parallelism (ctx, net = the DDP module) each rank runs its share of every
+    global batch; the per-kind denominators stay the global supervised-token counts."""
+    ctx, net = ctx or Context(), net or model
     batches = {"lm": lm_batch, **extra}
     tokens = {k: int((b["labels"] != -100).sum()) for k, b in batches.items()}
     if tokens["lm"] <= 0:
         raise ValueError("The LM task needs supervised targets")
     optimizer.zero_grad(set_to_none=True)
-    sums, positions = {}, 0
-    for kind, batch in batches.items():
-        if not tokens[kind]:
-            continue
+    positions = int(lm_batch["input_ids"].numel())
+    sums = {kind: 0.0 for kind in batches if tokens[kind]}
+    work = [(kind, ctx.share(batches[kind]) if ctx.active else batches[kind]) for kind in sums]
+    work = [(kind, batch) for kind, batch in work if batch is not None]
+    for i, (kind, batch) in enumerate(work):
         ids = batch["input_ids"].to(device, non_blocking=True)
         labels = batch["labels"].to(device, non_blocking=True)
-        with amp_context(device, precision):
-            loss_sum = model(ids, labels)["loss_sum"]
-            loss = loss_sum * (weights[kind] / tokens[kind])
-        loss.backward()
+        with ctx.no_sync(net, i == len(work) - 1):
+            with amp_context(device, precision):
+                loss_sum = net(ids, labels)["loss_sum"]
+                loss = loss_sum * (weights[kind] * ctx.world / tokens[kind])
+            loss.backward()
         sums[kind] = float(loss_sum.detach())
-        if kind == "lm":
-            positions = ids.numel()
+    if ctx.active:
+        sums = dict(zip(sums, ctx.sum(list(sums.values()), device)))
     if not all(math.isfinite(v) for v in sums.values()):
         raise FloatingPointError("Non-finite joint training loss")
     grad_norm = float(torch.nn.utils.clip_grad_norm_(model.parameters(), s["grad_clip"], error_if_nonfinite=True))
@@ -315,26 +323,37 @@ def progress(state, plan, status="running", latest=None):
             "latest_milestone": state["milestones"][-1] if state["milestones"] else None}
 
 
-def update_lm(model, optimizer, batches, s, device, precision):
-    """One atomic logical LM update; never average unequal microbatch means."""
+def update_lm(model, optimizer, batches, s, device, precision, ctx=None, net=None):
+    """One atomic logical LM update; never average unequal microbatch means.
+
+    With data parallelism (ctx, net = the DDP module) each rank runs its share of the global
+    batch; the denominator stays the global supervised-token count."""
+    ctx, net = ctx or Context(), net or model
     denominator = sum(int((b["labels"] != -100).sum()) for b in batches)
     if denominator <= 0:
         raise ValueError("The LM task needs supervised targets")
     optimizer.zero_grad(set_to_none=True)
     inputs = sum(int(b["lengths"].sum()) for b in batches)
     examples = sum(len(b["lengths"]) for b in batches)
+    if ctx.active:
+        batches = [part for part in (ctx.share(b) for b in batches) if part is not None]
+    parts = list(microbatches(batches, s["lm_microbatch"]))
     positions = 0
     pieces = []
-    for batch in microbatches(batches, s["lm_microbatch"]):
+    for i, batch in enumerate(parts):
         ids = batch["input_ids"].to(device, non_blocking=True)
         labels = batch["labels"].to(device, non_blocking=True)
-        with amp_context(device, precision):
-            result = model(ids, labels)
-            loss = result["loss_sum"] / denominator
+        with ctx.no_sync(net, i == len(parts) - 1):
+            with amp_context(device, precision):
+                result = net(ids, labels)
+                loss = result["loss_sum"] * (ctx.world / denominator)
+            loss.backward()
         pieces.append(result["loss_sum"].detach())
-        loss.backward()
         positions += ids.numel()
     value = float(torch.stack(pieces).sum())
+    if ctx.active:
+        value, positions = ctx.sum([value, positions], device)
+        positions = int(positions)
     if not math.isfinite(value):
         raise FloatingPointError("Non-finite LM training loss")
     grad_norm = float(torch.nn.utils.clip_grad_norm_(model.parameters(), s["grad_clip"], error_if_nonfinite=True))
@@ -374,16 +393,24 @@ def run(config, resume=False, root=ROOT):
     from torch.utils.tensorboard import SummaryWriter
     from vimeml.posttraining.infer import fp32_evaluation
     root = Path(root)
+    ctx = setup_parallel(config["training"]["device"])
     output, log_dir = root / config["output_dir"], root / config["log_dir"]
     if not resume and ((output.exists() and any(output.iterdir())) or (log_dir.exists() and any(log_dir.iterdir()))):
         raise ValueError("A fresh arm requires empty output and log directories")
-    print("Verifying the frozen arm mixture, token stores and maps...", flush=True)
-    plan = build_plan(config, root, verify_files=True)
+    ctx.barrier()                       # every rank has seen the empty directories before rank 0 writes
+    if ctx.main:
+        print("Verifying the frozen arm mixture, token stores and maps...", flush=True)
+    plan = build_plan(config, root, verify_files=ctx.main)
+    ctx.barrier()
+
+    def put(path, value):
+        if ctx.main:
+            write_json(path, value)
     s = plan["settings"]
     torch.set_num_threads(s["cpu_threads"])
     random.seed(s["seed"])
     torch.manual_seed(s["seed"])
-    device = torch.device(s["device"])
+    device = ctx.device(s["device"])
     if device.type == "cuda" and not torch.cuda.is_available():
         raise ValueError("A GPU is required for formal training")
     precision = resolve_precision(device, s["precision"])
@@ -401,21 +428,23 @@ def run(config, resume=False, root=ROOT):
         if state["epoch"] == s["epochs"] and len(state["milestones"]) == MILESTONES:
             print("Arm is already complete", flush=True)
             return progress(state, plan, "complete")
-    output.mkdir(parents=True, exist_ok=True)
-    write_json(output / "config.json", config)
-    write_json(output / "plan.json", plan)
+    if ctx.main:
+        output.mkdir(parents=True, exist_ok=True)
+    put(output / "config.json", config)
+    put(output / "plan.json", plan)
     if config["runtime"]["compile_backbone"]:
         from vimeml.training.runtime_v2 import compile_backbone
         compilation = compile_backbone(model)
     else:
         compilation = None
-    environment = {"torch": str(torch.__version__), "cuda": torch.version.cuda, "device": str(device),
+    net = ctx.wrap(model, device)
+    environment = {"data_parallel_ranks": ctx.world, "torch": str(torch.__version__), "cuda": torch.version.cuda, "device": str(device),
                    "precision": precision, "parameters": model.parameter_count(), "initialization": initialization,
                    "compilation": compilation, "validation_precision": "primitive_FP32",
                    "smoke_updates": s.get("smoke_updates", 0)}
     if device.type == "cuda":
         environment["gpu"] = torch.cuda.get_device_name(device)
-    write_json(output / "environment.json", environment)
+    put(output / "environment.json", environment)
     request = plan["request"]
     lm_train = training_dataset(root / config["data_mixture"]["directory"], root)
     web, chat = request["web"], request["chat"]
@@ -471,8 +500,11 @@ def run(config, resume=False, root=ROOT):
     subset = sorted(random.Random(s["seed"] + 1000019).sample(range(len(web_val)), min(4096, len(web_val))))
     subset_loader = loader_for(web_val, s["validation_batch"], workers=0, seed=s["seed"], indices=subset,
                                shuffle=False, pin_memory=device.type == "cuda")
-    writer = SummaryWriter(str(log_dir), purge_step=state["step"] + 1 if resume else None, flush_secs=5)
-    metrics = (output / "metrics.jsonl").open("a", encoding="utf-8", buffering=1)
+    if ctx.main:
+        writer = SummaryWriter(str(log_dir), purge_step=state["step"] + 1 if resume else None, flush_secs=5)
+        metrics = (output / "metrics.jsonl").open("a", encoding="utf-8", buffering=1)
+    else:
+        writer, metrics = NullWriter(), open(os.devnull, "w", encoding="utf-8")
     requested = False
     handlers = {}
 
@@ -487,13 +519,32 @@ def run(config, resume=False, root=ROOT):
         signal.signal(sig, request_stop)
 
     def save(name="last"):
+        if not ctx.main:
+            return
         payload = checkpoint_payload(model, optimizer, state, config, plan, precision, initialization)
         payload["training_regime"] = "random_initialized_zh_lm_chat_pretraining"
         atomic_checkpoint(output / f"{name}.pt", payload)
 
     def milestone(k):
         save()
-        write_json(output / "progress.json", progress(state, plan, "validating"))
+        put(output / "progress.json", progress(state, plan, "validating"))
+        report = measure(k) if ctx.main else None
+        report = ctx.broadcast(report)
+        state["milestones"].append(report)
+        if not ctx.main:
+            return
+        write_json(output / "milestones.json", state["milestones"])
+        for name in full:
+            value = report[name].get("bpc", report[name]["loss"])
+            writer.add_scalar(f"{name}/full_validation_{'bpc' if 'bpc' in report[name] else 'loss'}",
+                              value, state["step"])
+        if k in KEEP_MILESTONES:
+            save(f"milestone-{k:02d}")
+        save()
+        print(f"[milestone {k}] " + " ".join(f"{n}={report[n].get('bpc', report[n]['loss']):.6f}" for n in full),
+              flush=True)
+
+    def measure(k):
         print(f"[milestone {k}/{MILESTONES}] full web, chat and probe validation", flush=True)
         before = rng_state()
         report = {"milestone": k, "step": state["step"], "epoch_position": state["epoch"] + (
@@ -508,17 +559,7 @@ def run(config, resume=False, root=ROOT):
         if joint:
             report["pinyin"] = pinyin_validation(state["step"], "milestone")
         restore_rng(before)
-        state["milestones"].append(report)
-        write_json(output / "milestones.json", state["milestones"])
-        for name in full:
-            value = report[name].get("bpc", report[name]["loss"])
-            writer.add_scalar(f"{name}/full_validation_{'bpc' if 'bpc' in report[name] else 'loss'}",
-                              value, state["step"])
-        if k in KEEP_MILESTONES:
-            save(f"milestone-{k:02d}")
-        save()
-        print(f"[milestone {k}] " + " ".join(f"{n}={report[n].get('bpc', report[n]['loss']):.6f}" for n in full),
-              flush=True)
+        return report
 
     def pending():
         for k in due_milestones(state["step"], plan):
@@ -526,7 +567,7 @@ def run(config, resume=False, root=ROOT):
                 milestone(k)
     if restored is not None:
         restore_rng(restored)
-    write_json(output / "progress.json", progress(state, plan, "running" if resume else "initializing"))
+    put(output / "progress.json", progress(state, plan, "running" if resume else "initializing"))
     smoke = s.get("smoke_updates", 0)
     try:
         if not resume:
@@ -545,7 +586,7 @@ def run(config, resume=False, root=ROOT):
                     group["lr"] = rate
                 if joint:
                     result = update_joint(model, optimizer, lm_batch, next(pinyin_stream), joint["weights"], s,
-                                          device, precision)
+                                          device, precision, ctx, net)
                     for kind, r in result.pop("pinyin").items():
                         totals = state["totals"]["pinyin"][kind]
                         totals["examples"] += r["examples"]
@@ -554,7 +595,7 @@ def run(config, resume=False, root=ROOT):
                         if (state["step"] + 1) % s["log_every"] == 0:
                             writer.add_scalar(f"{kind}/train_loss", r["loss"], state["step"] + 1)
                 else:
-                    result = update_lm(model, optimizer, [lm_batch], s, device, precision)
+                    result = update_lm(model, optimizer, [lm_batch], s, device, precision, ctx, net)
                 if device.type == "cuda":
                     torch.cuda.synchronize(device)
                 state["step"] += 1
@@ -562,21 +603,22 @@ def run(config, resume=False, root=ROOT):
                 state["lm_cursor"] = lm_stream.state_dict()
                 seconds = time.perf_counter() - began
                 state["training_seconds"] += seconds
+                requested = ctx.any(requested, device)      # every rank stops after the same update
                 for field in state["totals"]["lm"]:
                     state["totals"]["lm"][field] += result[field]
-                if state["step"] % s["log_every"] == 0:
+                if state["step"] % s["log_every"] == 0 and ctx.main:
                     latest = {"step": state["step"], "learning_rate": rate, "seconds": seconds, **result}
                     metrics.write(json.dumps(latest) + "\n")
                     writer.add_scalar("lm/train_loss", result["loss"], state["step"])
                     writer.add_scalar("lm/supervised_tokens", state["totals"]["lm"]["supervised_tokens"], state["step"])
                     writer.add_scalar("optimizer/learning_rate", rate, state["step"])
                     writer.add_scalar("optimizer/grad_norm", result["grad_norm"], state["step"])
-                    write_json(output / "progress.json", progress(state, plan, latest=latest))
+                    put(output / "progress.json", progress(state, plan, latest=latest))
                     print(f"step={state['step']}/{s['max_steps']} epoch={e + 1}/{s['epochs']} "
                           f"lm={result['loss']:.4f} seconds={seconds:.3f}", flush=True)
                 if state["step"] % s["checkpoint_every"] == 0:
                     save()
-                if state["step"] % s["eval_every"] == 0:
+                if state["step"] % s["eval_every"] == 0 and ctx.main:
                     with fp32_evaluation(model):
                         subset_result = validate(model, subset_loader, device)
                     writer.add_scalar("web/fixed_subset_loss", subset_result["loss"], state["step"])
@@ -584,9 +626,9 @@ def run(config, resume=False, root=ROOT):
                         before = rng_state()
                         subset_result["pinyin"] = pinyin_validation(state["step"], "validation")
                         restore_rng(before)
-                    write_json(output / "subset-validation.json", {"step": state["step"], **subset_result})
+                    put(output / "subset-validation.json", {"step": state["step"], **subset_result})
                 pending()
-                model.train()
+                net.train()
                 if smoke and state["step"] >= smoke:
                     break
             if (smoke and state["step"] >= smoke) or requested:
@@ -611,11 +653,11 @@ def run(config, resume=False, root=ROOT):
         if device.type == "cuda":
             result["peak_allocated_MiB"] = torch.cuda.max_memory_allocated(device) / 2**20
             result["peak_reserved_MiB"] = torch.cuda.max_memory_reserved(device) / 2**20
-        write_json(output / "summary.json", result)
-        write_json(output / "progress.json", result)
+        put(output / "summary.json", result)
+        put(output / "progress.json", result)
         return result
     except BaseException as error:
-        write_json(output / "failure.json", {"status": "failed", "active": True, "error_type": type(error).__name__,
+        put(output / "failure.json", {"status": "failed", "active": True, "error_type": type(error).__name__,
                                               "error": str(error), "last_committed_in_memory_step": state["step"],
                                               "safe_resume_checkpoint": str(output / "last.pt")})
         raise
@@ -625,5 +667,6 @@ def run(config, resume=False, root=ROOT):
         for sig, handler in handlers.items():
             signal.signal(sig, handler)
         lm_train.close()
+        ctx.close()
         for data in (web_val, chat_val, web_train):
             data.close()

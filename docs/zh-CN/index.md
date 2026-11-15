@@ -20,6 +20,7 @@ V2系列实验已完成，此前部署版本为V2.1 extend5 step40000 / INT8 blo
 | [中文联想基准与桌面端模型路线](benchmarks/predict-zh-plan.md) | 预注册：联想基准 `ime-predict-zh-v1`（下一词命中、省键率、前缀补全、置信度），先用现成模型摸底规模收益，再按门槛训 200M、800M 桌面端模型 |
 | [中文联想基准 ime-predict-zh-v1](benchmarks/predict-ime-zh.md) | 2026-11-11 冻结：CrossWOZ、RiSAWOZ、KdConv、CPED 各 1,200 段对话；每个 split 下一词 7,200 题、省键 6,000 条左右发言、前缀补全 2,400 题；blind 关闭 |
 | [zh-200m 六臂训练计划](training-zh-200m-plan.md) | 预注册：d1024，16K/L15、24K/L14、32K/L14 × 上下文 512，另加 24K 上下文 128 对照；每更新 512 窗口（偏离记录第 2 条），同 v1 数据与配方，三个 seed |
+| [zh-800m 训练计划](training-zh-800m-plan.md) | 预注册：d1536/L27、7.84 亿参数、12K 分词器、上下文 512；export-r1 全部 + export-r2 一遍，LCCC 2%，每更新 2048 窗口 |
 | [zh-200m 六臂训练记录](reports/zh-200m-20261113/training.md) | 2026-11-13 六臂全部完成；M20 网页 BPC 3.8251–3.9153（v1 为 4.3533）；含窗口索引重建、上下文上限、批次策略三处问题的如实记录 |
 | [zh 三任务第二轮训练记录](reports/zh-pinyin-r2-20261114/training.md) / [评测](reports/zh-pinyin-r2-20261114/evaluation.md) | 2026-11-14 两组：从第一轮续训 60,000 步、从 12K 基座重训 90,000 步，v2 拼音数据。私有基准生成 Top-1 29.9%，超过 Rime 16 句 + v1 重排（26.0%，p 5e-5）；Standard 重排 −24、联想 Top-3 对 v1 −2.8；KV 生成 CPU p50 92 ms。公开集复核：全部 +8.0，但全拼 −4.0（p 0.02），应按输入类型分流 |
 | [公开拼音生成测试集 ime-pinyin-zh-v1](benchmarks/pinyin-ime-zh.md) | 2026-11-14 冻结：CrossWOZ、RiSAWOZ、KdConv、CPED；578/576 句，全拼、混合简拼、全首字母三类按键；已与 export-r1 查重；test 暂不读取 |

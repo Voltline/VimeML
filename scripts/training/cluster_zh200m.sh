@@ -2,6 +2,7 @@
 # Cluster launcher for one zh-200m arm: builds (or verifies) the arm's frozen
 # mixture, then trains, auto-resuming from last.pt when resubmitted.
 # Usage: cluster_zh200m.sh <arm> [gpu]; without [gpu] the scheduler's CUDA_VISIBLE_DEVICES is kept.
+# Data parallel: set VIMEML_NPROC to the number of GPUs the job sees (see the end of this file).
 # Token stores must exist first.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -38,5 +39,12 @@ python_bin="${VIMEML_PYTHON:-python3}"
 resume=()
 if [[ -f "$output_dir/last.pt" ]]; then
   resume=(--resume)
+fi
+# VIMEML_NPROC > 1: one process per visible GPU on this machine (torchrun, data parallel; the
+# global batch and data order stay those of one GPU). Unset or 1: one process, as before.
+nproc="${VIMEML_NPROC:-1}"
+if [[ "$nproc" -gt 1 ]]; then
+  exec "$python_bin" -X utf8 -u -m torch.distributed.run --standalone --nproc_per_node "$nproc" \
+    scripts/training/train_zh200m.py --config "$config" "${resume[@]}"
 fi
 exec "$python_bin" -X utf8 -u scripts/training/train_zh200m.py --config "$config" "${resume[@]}"

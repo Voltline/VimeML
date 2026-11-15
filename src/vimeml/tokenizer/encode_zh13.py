@@ -14,6 +14,11 @@ encode (per vocabulary)
     0 probe (in P20), 1 P20, 2 P5 only, 3 P1 only. validation holds every
     validation document. Chat store: each LCCC utterance is one sequence.
 
+    Other selections (zh-800m, docs/zh-CN/training-zh-800m-plan.md) write web-only
+    stores without train.tiers.bin: "rest" keeps the train documents outside P1 (the
+    complement of the P1 store, same pools), "all" keeps every train document of an
+    export that has no pools (a later batch such as export-r2).
+
 Paragraphs are the stripped nonempty lines of a document. A paragraph containing
 U+2581 (SentencePiece meta space, decoded as a space) cannot roundtrip and is
 dropped everywhere, in measure too, and counted. Every stored paragraph is
@@ -210,10 +215,25 @@ def _tier(h, m, thresholds, memo_threshold):
     return 2 if h < thresholds["p5"] else 3
 
 
+SELECTIONS = ("p1", "rest", "all")
+
+
+def _keep(selection, pools, doc_id):
+    """(kept, tier) for one train document under a selection."""
+    if selection == "all":
+        return True, None
+    h = doc_hash(pools["labels"]["pool"], doc_id)
+    if selection == "rest":
+        return h >= pools["thresholds"]["p1"], None
+    tier = _tier(h, doc_hash(pools["labels"]["memo"], doc_id), pools["thresholds"], pools["memo_threshold"])
+    return tier is not None, tier
+
+
 def _encode_file(job):
     import pyarrow.parquet as pq
     import sentencepiece as spm
-    path, kind, model, prefix, pools, max_groups = job
+    path, kind, model, prefix, pools, max_groups = job[:6]
+    selection = job[6] if len(job) > 6 else "p1"
     sp = spm.SentencePieceProcessor(model_file=model)
     writer = PartWriter(prefix)
     handle = pq.ParquetFile(path)
@@ -232,9 +252,8 @@ def _encode_file(job):
             for doc_id, text in zip(table["id"].to_pylist(), table["text"].to_pylist()):
                 tier = None
                 if kind == "train":
-                    tier = _tier(doc_hash(pools["labels"]["pool"], doc_id), doc_hash(pools["labels"]["memo"], doc_id),
-                                 pools["thresholds"], pools["memo_threshold"])
-                    if tier is None:
+                    kept_doc, tier = _keep(selection, pools, doc_id)
+                    if not kept_doc:
                         continue
                 kept, lost = clean_paragraphs(text)
                 writer.stats["dropped_meta_space_paragraphs"] += lost
@@ -284,6 +303,10 @@ def _split_stats(parts, tiers):
 
 
 PART_FILES = ("tokens", "lengths", "sources", "tiers")
+POLICIES = {"p1": ("BOS + stripped nonempty paragraph + EOS; P1 documents only in train, "
+                   "train.tiers.bin per paragraph (0 probe, 1 P20, 2 P5, 3 P1)"),
+            "rest": "BOS + stripped nonempty paragraph + EOS; train documents outside P1 only, no tiers",
+            "all": "BOS + stripped nonempty paragraph + EOS; every train document, no pools, no tiers"}
 
 
 def _done_path(prefix):
@@ -321,12 +344,18 @@ def _mark_done(record, key):
     os.replace(tmp, _done_path(prefix))
 
 
-def encode(config, export, vocab, outputs, pools_path, export_identity, max_groups=0, resume=False):
+def encode(config, export, vocab, outputs, pools_path, export_identity, max_groups=0, resume=False,
+           selection="p1"):
     """outputs: {'web': token dir, 'chat': token dir, 'web_index': dir, 'chat_index': dir}.
 
     resume=True continues an interrupted run in the same output directories: parts whose
     completion record matches the current inputs are reused, every other file is encoded again.
+    selection "p1" (default) writes the tiered P1 web store and the chat store; "rest" and
+    "all" write only a web store (outputs need just 'web' and 'web_index'), see the module notes.
     """
+    if selection not in SELECTIONS:
+        raise ValueError(f"Unknown selection {selection!r}")
+    stores = ("web", "chat") if selection == "p1" else ("web",)
     import sentencepiece
     from vimeml.training.data import prepare_indexes
     spm_version = sentencepiece.__version__
@@ -336,10 +365,15 @@ def encode(config, export, vocab, outputs, pools_path, export_identity, max_grou
     model = Path(config["tokenizer_dir"]) / record["directory"] / "tokenizer.model"
     if sha256(model) != record["tokenizer_model_sha256"]:
         raise ValueError("Tokenizer differs from its manifest")
-    pools = json.loads(Path(pools_path).read_text("utf-8"))
-    if pools.get("status") != "complete" or pools["export"] != export_identity:
-        raise ValueError("Pools were measured on a different export")
-    for key in ("web", "chat"):
+    if selection == "all":
+        if pools_path is not None:
+            raise ValueError("selection 'all' takes no pools")
+        pools = None
+    else:
+        pools = json.loads(Path(pools_path).read_text("utf-8"))
+        if pools.get("status") != "complete" or pools["export"] != export_identity:
+            raise ValueError("Pools were measured on a different export")
+    for key in stores:
         out = Path(outputs[key])
         if (out / "manifest.json").exists():
             raise ValueError(f"{out} is already complete; use a new directory")
@@ -349,17 +383,20 @@ def encode(config, export, vocab, outputs, pools_path, export_identity, max_grou
             if any(p.name != "parts" for p in out.iterdir()):
                 raise ValueError(f"{out} has files besides parts/; it stopped while merging, use a new directory")
         (out / "parts").mkdir(parents=True, exist_ok=True)
+    pools_sha = sha256(pools_path) if pools_path is not None else None
     run_key = {"vocab": vocab, "tokenizer_model_sha256": record["tokenizer_model_sha256"],
-               "pools_sha256": sha256(pools_path), "export": export_identity,
+               "pools_sha256": pools_sha, "export": export_identity,
                "sentencepiece_version": spm_version, "max_row_groups": max_groups}
+    if selection != "p1":
+        run_key["selection"] = selection
     began = time.time()
-    jobs = {"web": {}, "chat": {}}
+    jobs = {store: {} for store in stores}
     for split, kind, files in (("train", "train", web_files(export)),
                                ("validation", "validation", sorted((export / "validation").glob("web-*.parquet"))
                                 + sorted((export / "validation").glob("review-*.parquet")))):
         jobs["web"][split] = [(str(p), kind, str(model), str(Path(outputs["web"]) / "parts" / f"{split}-{p.stem}"),
-                               pools, max_groups) for p in files]
-    for split in ("train", "validation"):
+                               pools, max_groups) + ((selection,) if selection != "p1" else ()) for p in files]
+    for split in ("train", "validation") if "chat" in stores else ():
         path = export / split / f"chat-lccc-{split}.parquet"
         jobs["chat"][split] = [(str(path), "chat", str(model), str(Path(outputs["chat"]) / "parts" / split), pools, max_groups)]
     results = {}
@@ -401,12 +438,12 @@ def encode(config, export, vocab, outputs, pools_path, export_identity, max_grou
             print(json.dumps({"encoded": list(key), "files": total,
                               "sentences": sum(r["sentences"] for r in ordered)}), flush=True)
     manifests = {}
-    for store, sources in (("web", WEB_SOURCES), ("chat", CHAT_SOURCES)):
+    for store, sources in (("web", WEB_SOURCES), ("chat", CHAT_SOURCES))[:len(stores)]:
         out = Path(outputs[store])
         splits, digests = {}, {}
         for split in ("train", "validation"):
             parts = results[(store, split)]
-            with_tiers = store == "web" and split == "train"
+            with_tiers = store == "web" and split == "train" and selection == "p1"
             names = _merge(parts, out, split, with_tiers)
             splits[split] = _split_stats(parts, with_tiers)
             splits[split]["file_bytes"] = {n.split(".", 1)[1]: (out / n).stat().st_size for n in names}
@@ -425,12 +462,13 @@ def encode(config, export, vocab, outputs, pools_path, export_identity, max_grou
                     "tokenizer_model_sha256": record["tokenizer_model_sha256"],
                     "tokenizer_manifest_sha256": sha256(Path(config["tokenizer_dir"]) / "manifest.json"),
                     "source_ids": sources, "splits": splits, "available_splits": ["train", "validation"],
-                    "sequence_policy": ("BOS + stripped nonempty paragraph + EOS; P1 documents only in train, "
-                                        "train.tiers.bin per paragraph (0 probe, 1 P20, 2 P5, 3 P1)"
-                                        if store == "web" else "BOS + stripped LCCC utterance + EOS"),
-                    "export": export_identity, "pools_sha256": sha256(pools_path), "output_sha256": digests,
+                    "sequence_policy": (POLICIES[selection] if store == "web"
+                                        else "BOS + stripped LCCC utterance + EOS"),
+                    "export": export_identity, "pools_sha256": pools_sha, "output_sha256": digests,
                     "sentencepiece_version": spm_version,
                     "test_or_blind_read": False, "max_row_groups": max_groups}
+        if selection != "p1":
+            manifest["selection"] = selection
         write_json(out / "manifest.json", manifest)
         write_json(out / "run.json", {"seconds": round(time.time() - began, 1),
                                       "manifest_sha256": sha256(out / "manifest.json")})

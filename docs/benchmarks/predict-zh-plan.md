@@ -152,7 +152,7 @@ Four arms plus two seeds, same budget, same data:
 3. Write the evaluation scripts and decoder and run them end to end with v1 on development; fix decoder correctness with unit tests.
 4. Step 0: measure the systems above and write the survey report. (Deferred, see deviation 4; done 2026-11-15, [survey report](../reports/zh-predict-step0-20261115/survey.md).)
 5. Write and commit the 200M training plan, train, decide.
-6. Decide on 800M by the gate. (2026-11-14: gate met.)
+6. Decide on 800M by the gate. (2026-11-14: gate met; the training plan, including the web-data extension, is the [zh-800m training plan](../training-zh-800m-plan.md).)
 7. Once a desktop model is chosen, write a blind confirmation plan and open the prediction blind once.
 
 ## Limits
