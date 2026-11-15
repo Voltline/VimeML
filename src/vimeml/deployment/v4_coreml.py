@@ -177,7 +177,7 @@ def convert_kv(bundle, output):
         "cache_shape": list(CACHE_SHAPE), "cache_dtype": "float32", "compute_units": "CPU_ONLY",
         "cache_bytes_per_snapshot": 2 * int(np.prod(CACHE_SHAPE)) * 4,
         "interface": {"input_ids": "int32 [1,1]", "position": "int32 [1], 0<=position<=127; absolute slot",
-                      "key_cache/value_cache": "float32 (7,1,6,128,64); slots >= position are ignored",
+                      "key_cache/value_cache": "float32 (7,1,6,128,64); slots >= position are masked but must be finite (zero new buffers): NaN/Inf there reaches the outputs",
                       "logits": "float32 [1,1,8192] for the new token; no softmax",
                       "new_key_cache/new_value_cache": "inputs with slot `position` replaced"},
         "precision_policy": "All learned parameters, computation and caches FP32.",

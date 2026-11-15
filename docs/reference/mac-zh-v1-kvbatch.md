@@ -26,7 +26,7 @@ Vime will reuse buckets across keystrokes and show generation asynchronously, so
 | --- | --- | --- |
 | `input_ids` | int32 `[B,1]` | one new token per row |
 | `position` | int32 `[B]` | row cache length before this token; `position[b] < S` |
-| `key_cache`, `value_cache` | float32 (or float16) `(9,B,6,S,64)` | row b's slots `>= position[b]` are ignored and may hold junk |
+| `key_cache`, `value_cache` | float32 (or float16) `(9,B,6,S,64)` | row b's slots `>= position[b]` are masked; they may hold any finite value, but NaN/Inf reaches the output (zero new buffers) |
 | → `logits` | float32 `[B,12288]` | the new token only; no softmax |
 | → `new_key`, `new_value` | `(9,B,6,64)` | the new token's key/value; the caller writes them into slot `position[b]` of row b |
 

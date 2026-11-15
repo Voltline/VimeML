@@ -7,7 +7,7 @@ attends only to its own slots 0..position[b].
 Interface (Core ML names):
   input_ids    int32 [B,1]             one new token per row
   position     int32 [B]               row cache length before this token; position[b] < S
-  key_cache    float32 (9,B,6,S,64)    row b slots >= position[b] are ignored (may hold garbage)
+  key_cache    float32 (9,B,6,S,64)    row b slots >= position[b] are masked; any finite value, not NaN/Inf
   value_cache  float32 (9,B,6,S,64)
   -> logits    float32 [B,12288]       last (only) position, no softmax
      new_key   float32 (9,B,6,64)      key/value of the new token; the caller writes them into
@@ -170,7 +170,7 @@ def convert(bundle, output, batch=None, cache_dtype="float32"):
         "interface": {"input_ids": "int32 [B,1]; one new token per row",
                       "position": "int32 [B]; row cache length before this token; position[b] < S",
                       "key_cache/value_cache": f"{cache_dtype} ({LAYERS},B,6,S,64), 1<=S<={CONTEXT}; "
-                                               "row b slots >= position[b] are ignored",
+                                               "row b slots >= position[b] are masked but must be finite (zero new buffers): NaN/Inf there reaches the outputs",
                       "logits": f"float32 [B,{VOCAB}] for the new token; no softmax",
                       "new_key/new_value": f"{cache_dtype} ({LAYERS},B,6,64); the new token's key/value, "
                                            "to be written by the caller into slot position[b] of row b"},

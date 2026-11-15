@@ -241,7 +241,7 @@ def convert_chunk(bundle, output):
         "cache_bytes_per_snapshot": 2 * int(np.prod(CACHE_SHAPE)) * 4,
         "interface": {"input_ids": "int32 [1,T], 1<=T<=128",
                       "position": "int32 [1]; current cache length; caller guarantees position+T<=128",
-                      "key_cache/value_cache": "float32 (9,1,6,128,64); slots >= position+T are ignored",
+                      "key_cache/value_cache": "float32 (9,1,6,128,64); slots >= position+T are masked but must be finite (zero new buffers): NaN/Inf there reaches the outputs",
                       "logits": f"float32 [1,T,{VOCAB}] for the new tokens; no softmax",
                       "new_key_cache/new_value_cache": "inputs with slots position..position+T-1 replaced"},
         "cache_write": "index_put (scatter) as in V2.1 kv_cache.CacheGraph; static causal mask gathered by absolute position",

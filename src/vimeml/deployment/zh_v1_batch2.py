@@ -17,7 +17,7 @@ Changes against `zh_v1_batch` (v1), after Vime's on-device memory report (2026-1
 Interface (Core ML names):
   input_ids    int32 [B,T]            T new tokens per row (T=1 for decode)
   position     int32 [B]              row cache length before these tokens; position[b]+T <= 128
-  key_cache    float32 (9,B,6,S,64)   slots >= position[b] of row b are ignored; S >= max(position), S >= 1
+  key_cache    float32 (9,B,6,S,64)   slots >= position[b] of row b are masked but must be finite (zero new buffers): NaN/Inf there reaches the outputs; S >= max(position), S >= 1
   value_cache  float32 (9,B,6,S,64)
   allowed      int32 [K]              scored head only
   -> logits    float32 [B,12288]      logits head: last new token, no softmax
@@ -261,11 +261,11 @@ def convert(bundle, output, batch="flex", tokens=1, slots="flex", head="logits")
         "cache_dtype": "float32", "compute_units": "CPU_ONLY",
         "interface": {"input_ids": "int32 [B,T]", "position": "int32 [B]; row cache length; position[b]+T <= 128",
                       "key_cache/value_cache": "float32 (9,B,6,S,64); S >= max(position), S >= 1; "
-                                               "row b slots >= position[b] are ignored", **head_io,
+                                               "row b slots >= position[b] are masked but must be finite (zero new buffers): NaN/Inf there reaches the outputs", **head_io,
                       "new_key/new_value": "float32 (9,B,6,T,64); the caller writes them into slots "
                                            "position[b].. of row b"},
         "rows": "independent; padding rows (token 0, position 0) do not affect others",
-        "prompt": "B=1, T=prompt length, position 0, S=1 (any junk)" if tokens != 1 else
+        "prompt": "B=1, T=prompt length, position 0, S=1 (any finite values, e.g. zeros)" if tokens != 1 else
                   "B=1 one token per call, or the batch-1 chunk package",
         "graph": f"vimeml.deployment.zh_v1_batch2.KVBatchGraphZhV2 (read-only caches, {head} head)",
         "precision_policy": "FP32 parameters and compute.", "policy": "Caller owns all cache buffers; inputs are never modified.",

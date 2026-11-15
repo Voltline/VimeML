@@ -279,6 +279,19 @@ Not done in this session, as the brief says; Vime measures it with its own test 
 - T=1 graphs show the same heap growth;
 - `unified-scored`'s ~40 MiB Mac figure maps to Vime's ~27 MiB Core ML figure for v1.
 
+**Device results from Vime (2026-11-15), `unified-scored` vs v1:**
+
+| | iPhone 13 Pro v1 → v2 | iPhone 16 Pro Max v1 → v2 |
+| --- | --- | --- |
+| Prompt prefill 8/16/32 tokens | 21 / 44 / 89 → 4.2 / 4.4 / 6.2 ms | 15 / 41 / 102 → 2.2 / 2.3 / 3.1 ms |
+| Per keystroke p50 / p95 / max | 10.3 / 24.9 / 29.8 → 10.4 / 25.7 / 30.1 ms | 6.5 / 16.0 / 20.2 → 6.5 / 15.6 / 19.4 ms |
+| Added on top of the stateless package | +39.3 → +39.8 MiB | +39.3 → +39.9 MiB |
+
+- The VimeML fixture is within 3e-4 at B=16/7/4/1; the r2 search equals the v1 INT8 search in all 125 cases, in order; 62 simulator tests pass.
+- v2 is faster only at prefill (5–30×). Per-keystroke latency and footprint match v1; the saving is the chunk package that no longer loads. The earlier +35.8 MiB v1 figure came from another run; this run measured v1 at +39.3 MiB.
+- Most of the remaining per-keystroke time is client-side bucket assembly (about 6.7 ms on the 13 Pro).
+- **Masked slots must be finite.** A freshly created `MLMultiArray` is not zeroed. NaN in the prompt's unused cache slot reached the outputs (a masked score still multiplies the value cache, and 0·NaN is NaN). After tens of calls across shapes, every prefill output was NaN. Vime now zeros that input (400 random-shape rounds without NaN). The interface text that said these slots may hold junk was corrected: any finite value, never NaN or Inf. The same applies to the chunked KV package and its client wrapper.
+
 ## Change to zh_v1_batch2.py
 
 The full diff is in `$O/zh_v1_batch2.py.diff`; the changed file is included in the ZIP. It has two parts.
