@@ -103,9 +103,22 @@ def search(backend, sp, index, keys, context="", mode="lm", beam=16, topk=10):
     if not ok[0] or len(base) >= LIMIT:
         return [], stats
     n = len(keys)
-    logits, state = backend.prefill(base)
+    # A backend with `scored = True` takes the bucket's allowed ids and returns log-probs on them only
+    # (a dict id -> log-prob row); otherwise it returns full logits and the search normalizes.
+    scored = getattr(backend, "scored", False)
+
+    def allowed(pos):
+        ids = sorted({tid for tid, _, _ in index.moves(keys, pos, ok)} | ({EOS} if pos == n else set()))
+        return ids
+
+    if scored:
+        ids0 = allowed(0)
+        lp0, state = backend.prefill(base, ids0)
+        root_lp = dict(zip(ids0, lp0.tolist()))
+    else:
+        logits, state = backend.prefill(base)
+        root_lp = log_softmax(logits)
     # bucket entry: (tokens, score, parent log-probs row or None, parent state, last token)
-    root_lp = log_softmax(logits)
     buckets = {0: [((), 0.0, root_lp, state)]}
     done = {}
 
@@ -137,11 +150,16 @@ def search(backend, sp, index, keys, context="", mode="lm", beam=16, topk=10):
         ready = [h for h in kept if h[2] is not None]          # only the root (pos 0) has log-probs already
         pending = [h for h in kept if h[2] is None]
         if pending:
-            out, states = backend.decode([h[3][1] for h in pending], [h[3][0] for h in pending])
+            if scored:
+                ids = allowed(pos)
+                out, states = backend.decode([h[3][1] for h in pending], [h[3][0] for h in pending], ids)
+                lps = [dict(zip(ids, row.tolist())) for row in out]
+            else:
+                out, states = backend.decode([h[3][1] for h in pending], [h[3][0] for h in pending])
+                lps = log_softmax(out)
             stats.calls += 1
             stats.rows += len(pending)
             stats.buckets.append(len(pending))
-            lps = log_softmax(out)
             ready += [(h[0], h[1], lps[r], states[r]) for r, h in enumerate(pending)]
         for toks, score, lp, st in ready:
             if pos == n:

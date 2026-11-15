@@ -7,7 +7,7 @@ import torch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from vimeml.deployment import zh_search as zs, zh_v1_batch as zb  # noqa: E402
+from vimeml.deployment import zh_search as zs, zh_v1_batch as zb, zh_v1_batch2 as z2  # noqa: E402
 from vimeml.training.model_zh13 import GPTZh13Config, TinyGPTZh13  # noqa: E402
 
 
@@ -43,6 +43,38 @@ class BatchGraphTest(unittest.TestCase):
             padded = graph(torch.tensor([[11], [0]], dtype=torch.int32), torch.tensor([4, 0], dtype=torch.int32), k, v)
         for a, b in zip(alone, padded):
             torch.testing.assert_close(a[:1] if a.dim() == 2 else a[:, :1], b[:1] if b.dim() == 2 else b[:, :1])
+
+
+class BatchGraphV2Test(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.model = random_model()
+
+    def test_read_only_caches_match_full_forward(self):
+        for case in ({"batch": 6}, {"batch": 1}, {"batch": 3, "slots": zb.CONTEXT}):
+            stats = zb.check_graph(self.model, z2.step_view(z2.KVBatchGraphZhV2(self.model)), **case)
+            self.assertEqual(stats["rows_outside_tolerance"], 0)
+
+    def test_multi_token_prefill_from_different_positions(self):
+        for case in ({"batch": 3}, {"batch": 1, "tokens": 1}, {"batch": 5, "tokens": 4}):
+            stats = z2.check_prefill(self.model, z2.KVBatchGraphZhV2(self.model), **case)
+            self.assertEqual(stats["rows_outside_tolerance"], 0)
+
+    def test_traced_flexible_tokens(self):
+        traced = z2.trace(self.model, "logits", "flex")
+        stats = z2.check_prefill(self.model, traced, batch=4, tokens=5)
+        self.assertEqual(stats["rows_outside_tolerance"], 0)
+
+    def test_scored_head_is_log_softmax_on_allowed(self):
+        self.assertLess(z2.check_scored(self.model)["max_abs_log_prob"], zb.TOLERANCE)
+
+    def test_cache_is_not_modified(self):
+        k = torch.randn(zb.LAYERS, 2, zb.HEADS, 4, zb.HEAD_DIM)
+        before = k.clone()
+        with torch.inference_mode():
+            z2.KVBatchGraphZhV2(self.model)(torch.tensor([[7], [9]], dtype=torch.int32),
+                                            torch.tensor([1, 3], dtype=torch.int32), k, k)
+        torch.testing.assert_close(k, before)
 
 
 class ToySP:
@@ -96,6 +128,18 @@ class FixedBackend:
         return torch.stack([self.logits() for _ in tokens]), [None] * len(tokens)
 
 
+class ScoredBackend(FixedBackend):
+    """Same scores, delivered as log-probs on the allowed ids only (the v2 scored head)."""
+    scored = True
+
+    def prefill(self, ids, allowed):
+        return self.logits().log_softmax(-1)[allowed], None
+
+    def decode(self, tokens, states, allowed):
+        self.rows += len(tokens)
+        return torch.stack([self.logits().log_softmax(-1)[allowed] for _ in tokens]), [None] * len(tokens)
+
+
 class SearchTest(unittest.TestCase):
     def test_multi_key_token_survives_beam_one(self):
         index = zs.Index(ToySP(), ToyTable())
@@ -114,6 +158,15 @@ class SearchTest(unittest.TestCase):
         for keys in ("zw", "zhw", "zhongw", "zwen"):
             ranked, _ = zs.search(FixedBackend(), ToySP(), index, keys, beam=4, topk=5)
             self.assertIn("中文", [t for t, _, _ in ranked], keys)
+
+    def test_scored_backend_gives_the_same_ranking(self):
+        index = zs.Index(ToySP(), ToyTable())
+        for keys in ("zhongwen", "zw", "zhw"):
+            a, _ = zs.search(FixedBackend(), ToySP(), index, keys, beam=4, topk=5)
+            b, _ = zs.search(ScoredBackend(), ToySP(), index, keys, beam=4, topk=5)
+            self.assertEqual([t for t, _, _ in a], [t for t, _, _ in b])
+            for (_, x, _), (_, y, _) in zip(a, b):
+                self.assertAlmostEqual(x, y, places=5)
 
 
 if __name__ == "__main__":
