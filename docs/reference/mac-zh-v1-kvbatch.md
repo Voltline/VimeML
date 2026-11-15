@@ -122,8 +122,8 @@ All commands are `python scripts/deployment/coreml_zh_v1_batch.py <stage> …`. 
    - The per-row top-5 comes from the package, the INT8 stateless package and PyTorch FP32.
 9. **Search check.**
    - `search out/int8-flex outputs/vime-fixtures/zh-generation-v1-lm-r2/cases.jsonl out/search-r2`.
-   - Expected, per the fixture's `meta.json`: the same text sets, scores within about 0.5, and rare swaps of near-tied neighbours.
-   - Also run it with the FP32 flex package. There the order should be exact and scores within 1e-3.
+   - The fixture's `meta.json` expected the same text sets for INT8. The 2026-11-15 run showed otherwise: INT8 itself (batched or stateless) keeps the same text set in 86/125 cases and Top-1 in 125/125, with drops mostly at ranks 9–10. Compare an INT8 package with a stateless-INT8 search, not with the FP32 fixture.
+   - Also run it with the FP32 flex package and `--chunk` set to an FP32 chunk package. There the order should be exact and scores within 1e-3.
    - Report mean calls/rows per generation and the Mac p50 per generation.
 10. **Client resource.** Pick the INT8 variant to ship from the measurements; default to flex unless it is clearly slower than fixed 16. Then run:
 

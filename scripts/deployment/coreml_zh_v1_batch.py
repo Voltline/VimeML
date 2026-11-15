@@ -108,8 +108,8 @@ def stage_measure(a):
     rng = np.random.default_rng(1115)
     results = []
     for b in a.batches:
-        if not (lo <= b <= hi or lo == hi):
-            continue
+        if not (lo <= b <= hi or (lo == hi and b < hi)):
+            continue                     # a fixed package pads fewer rows; more rows than its batch are not measured
         size = hi if lo == hi else b
         for s in a.slots:
             k = rng.standard_normal((zb.LAYERS, size, zb.HEADS, s, zb.HEAD_DIM)).astype(dtype)
@@ -201,7 +201,7 @@ def stage_search(a):
     be = zb.CoreMLBatchBackend(a.chunk, a.package)
     meta = json.loads((Path(a.cases).parent / "meta.json").read_text(encoding="utf-8"))
     beam, topk = meta["search"]["beam"], meta["search"]["topk"]
-    rows, exact, same_set, worst, times = [], 0, 0, 0.0, []
+    rows, exact, same_set, top1, worst, worst_common, times = [], 0, 0, 0, 0.0, 0.0, []
     for line in open(a.cases, encoding="utf-8"):
         c = json.loads(line)
         t = time.perf_counter()
@@ -210,13 +210,18 @@ def stage_search(a):
         got = [x[0] for x in ranked]
         want = [x["text"] for x in c["top"]]
         diff = max([abs(s - w["gen_score"]) for (_, s, _), w in zip(ranked, c["top"])] or [0.0])
+        ref = {w["text"]: w["gen_score"] for w in c["top"]}
+        common = max([abs(s - ref[t]) for t, s, _ in ranked if t in ref] or [0.0])
         exact += got == want
         same_set += set(got) == set(want)
-        worst = max(worst, diff)
+        top1 += bool(got) and bool(want) and got[0] == want[0]
+        worst, worst_common = max(worst, diff), max(worst_common, common)
         rows.append({"id": c["id"], "exact": got == want, "same_set": set(got) == set(want), "max_score_diff": diff,
+                     "max_score_diff_common_texts": common, "dropped": [t for t in want if t not in got],
                      "calls": st.calls, "rows": st.rows, "ms": round(times[-1], 1)})
     n = len(rows)
-    summary = {"cases": n, "exact_order": exact, "same_text_set": same_set, "max_score_diff": worst,
+    summary = {"cases": n, "exact_order": exact, "same_text_set": same_set, "top1_equal": top1,
+               "max_score_diff": worst, "max_score_diff_common_texts": worst_common,
                "mean_calls": statistics.mean(r["calls"] for r in rows), "mean_rows": statistics.mean(r["rows"] for r in rows),
                "p50_ms": statistics.median(times), "tolerance": meta.get("tolerance")}
     out.mkdir(parents=True)
@@ -248,7 +253,9 @@ def main():
     s = sub.add_parser("fixture"); s.add_argument("package"); s.add_argument("output")
     s.add_argument("--chunk", default=str(CHUNK_INT8)); s.add_argument("--stateless", default=str(STATELESS_INT8))
     s = sub.add_parser("search"); s.add_argument("package"); s.add_argument("cases"); s.add_argument("output")
-    s.add_argument("--chunk", default=str(CHUNK_INT8)); s.add_argument("--readings", default=str(READINGS))
+    s.add_argument("--chunk", default=str(CHUNK_INT8),
+                   help="prompt package; an FP32 batch package needs an FP32 chunk package here to match FP32 exactly")
+    s.add_argument("--readings", default=str(READINGS))
     for name, sp in sub.choices.items():
         sp.add_argument("--bundle", default=str(BUNDLE))
     a = p.parse_args()

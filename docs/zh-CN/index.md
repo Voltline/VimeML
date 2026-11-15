@@ -25,6 +25,7 @@ V2系列实验已完成，此前部署版本为V2.1 extend5 step40000 / INT8 blo
 | [公开拼音生成测试集 ime-pinyin-zh-v1](benchmarks/pinyin-ime-zh.md) | 2026-11-14 冻结：CrossWOZ、RiSAWOZ、KdConv、CPED；578/576 句，全拼、混合简拼、全首字母三类按键；已与 export-r1 查重；test 暂不读取 |
 | [zh 三任务第三组：从零联合预训练](reports/zh-pinyin-pt-20261115/record.md) | 2026-11-15 20M 从零把拼音样本混进基座预训练：重排只差 −4（不显著），联想比 r2-cont 高 1.1，但生成私有基准 −2.2、公开集 37.8% 对 39.6%；20M 不适合联合预训练，保留续训路线 |
 | [拼音生成的推理期重打分](reports/zh-pinyin-rescore-20261115/report.md) | 生成前 10 按 genScore + 1.6 × v1 LM 分数重排：r2-cont 私有基准 29.9% → 36.4%，公开集 39.5% → 51.3%；全拼显著高于线上逻辑（公开 +4.2），不再需要按输入类型分流 |
+| [zh-v1 批量 KV 解码 Core ML 包](../reports/mac-20261115/zh-v1-kvbatch.md)（英文） | 2026-11-15：一次调用推进整个束桶；INT8 flex（B 1..16）与无状态 INT8 包相差 ≤4.8e-5；M3 Mac p50 B=16 3.35–3.76 ms、B=8 2.69–2.92 ms；束搜索结果与无状态 INT8 逐条一致（125/125）；已加入发布副本；iPhone 未测 |
 | [联想基准第 0 步规模摸底](reports/zh-predict-step0-20261115/survey.md) | Qwen2.5 0.5B/1.5B/3B 四条轨道随规模单调上升，3B 对 0.5B 轨道 A Top-3 +7.18；v1、zh-200m 都显著低于 0.5B；800M 不推迟 |
 | [zh-200m 六臂联想与重排判定](reports/zh-200m-20261114/judgement.md) | 轨道 A Top-3 0.2999–0.3164（seed 极差 0.0165）；三个对比都不有效，按计划默认 24K、上下文 512；重排 Top-1 1,370–1,383，守门通过；Top-1 逐字出现在训练数据的比例不高于 20M |
 | [中文 tokenizer 词表对比](reports/zh-v1-20261106/tokenizer-vocab.md) | 只训 tokenizer：8K–32K 与覆盖率 0.9995/0.9999；20M 只实验 8K 和 12K，200M 再开 16K–32K |
