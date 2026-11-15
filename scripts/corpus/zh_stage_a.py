@@ -164,13 +164,15 @@ def dedup_against(args,out):
     import pyarrow as pa
     import pyarrow.parquet as pq
     version,old=export_hashes(Path(args.against).resolve(),out,args.workers or 8)
-    ids,shards,new=[],[],[]
+    ids,codes,names,new=[],[],[],[]
     for p in sorted(out.glob('*.parquet')):
         if p.name.endswith('.dropped.parquet') or p.name=='duplicates.parquet': continue
         t=pq.read_table(p,columns=['id','text_sha'])
-        ids.append(t.column('id').combine_chunks()); shards.append(pa.array([p.stem]*len(t)))
+        # large_string: a whole batch of ids passes the 2 GiB offset limit of string
+        ids.append(t.column('id').combine_chunks().cast(pa.large_string()))
+        codes.append(np.full(len(t),len(names),dtype=np.int32)); names.append(p.stem)
         new.append(np.array([bytes.fromhex(h) for h in t.column('text_sha').to_pylist()],dtype='S16'))
-    ids=pa.chunked_array(ids).combine_chunks(); shards=pa.chunked_array(shards).combine_chunks()
+    ids=pa.chunked_array(ids).combine_chunks(); codes=np.concatenate(codes)
     n_old=len(old)
     # stable sort: return_index is the first occurrence, export documents before this batch in shard order
     _,first,inverse=np.unique(np.concatenate([old]+new),return_index=True,return_inverse=True)
@@ -180,7 +182,8 @@ def dedup_against(args,out):
     in_export=origin<n_old
     local=iter(ids.take(pa.array(origin[~in_export]-n_old)).to_pylist())
     first_id=pa.array(['export:'+version if e else next(local) for e in in_export.tolist()],pa.string())
-    pq.write_table(pa.table(dict(id=ids.take(pa.array(dup)),shard=shards.take(pa.array(dup)),first_id=first_id)),
+    shard=pa.array([names[c] for c in codes[dup].tolist()],pa.string())
+    pq.write_table(pa.table(dict(id=ids.take(pa.array(dup)).cast(pa.string()),shard=shard,first_id=first_id)),
                    out/'duplicates.parquet')
     print(f'{len(first)} documents: {int(in_export.sum())} already in {version}, '
           f'{int((~in_export).sum())} exact duplicates within this batch',flush=True)
