@@ -203,12 +203,16 @@ def shape_spec(ct, batch, tokens, slots):
         if "flex" in bs or "flex" in ss:
             raise ValueError("Do not mix enumerated and flexible dimensions.")
         pairs = [(b, s) for b in bs for s in ss]
-        ids = ct.EnumeratedShapes(shapes=sorted({(b, 1) for b, _ in pairs}), default=(bs[-1], 1))
-        pos = ct.EnumeratedShapes(shapes=sorted({(b,) for b, _ in pairs}), default=(bs[-1],))
+        if len(pairs) < 2:
+            raise ValueError("Enumerated shapes need at least two (batch, slots) pairs; use fixed shapes.")
+        # Mac 2026-11-15: iOS 18 requires every enumerated input to list the same number of shapes (the
+        # i-th shape of each input forms configuration i), so ids/position repeat their shape per pair.
         cache = ct.EnumeratedShapes(shapes=[(LAYERS, b, HEADS, s, HEAD_DIM) for b, s in pairs],
                                     default=(LAYERS, bs[-1], HEADS, ss[0], HEAD_DIM))
-        if len(bs) == 1:
-            ids, pos = (bs[0], 1), (bs[0],)
+        if len(bs) == 1:        # fixed batch: ids/position are plain shapes (EnumeratedShapes needs >= 2)
+            return (bs[0], 1), (bs[0],), cache, cache
+        ids = ct.EnumeratedShapes(shapes=[(b, 1) for b, _ in pairs], default=(bs[-1], 1))
+        pos = ct.EnumeratedShapes(shapes=[(b,) for b, _ in pairs], default=(bs[-1],))
         return ids, pos, cache, cache
     b = dim(batch, 1, MAX_BATCH, MAX_BATCH)
     t = dim(tokens, 1, CONTEXT, 1)
@@ -309,7 +313,12 @@ def shapes_of(manifest):
     else:
         bs = None if lo != hi else [hi]
     slots = manifest["cache_slots"]
-    ss = json.loads(slots.split("enumerated ", 1)[1]) if "enumerated" in slots else None
+    if "enumerated" in slots:
+        ss = json.loads(slots.split("enumerated ", 1)[1])
+    elif "fixed" in slots:      # Mac 2026-11-15: fixed-S fallback packages ("S fixed 32") accept only that S
+        ss = [int(slots.rsplit(" ", 1)[1])]
+    else:
+        ss = None
     return bs, ss
 
 
@@ -481,7 +490,12 @@ class CoreMLBatchBackendV2:
         self.calls = self.rows = self.prefill_calls = 0
 
     def _fit(self, n, options):
-        return n if options is None else min(o for o in options if o >= n)
+        if options is None:
+            return n
+        bigger = [o for o in options if o >= n]
+        if not bigger:
+            raise ValueError(f"{n} rows/slots exceed this package's shapes {options}")
+        return min(bigger)
 
     def _call(self, ids, position, k, v, allowed, rows):
         feed = {"input_ids": ids, "position": position, "key_cache": k, "value_cache": v}

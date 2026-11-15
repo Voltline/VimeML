@@ -9,6 +9,7 @@ Vime has integrated the v1 package on device, and latency meets the target: per 
 1. **Read-only caches.**
    - v1 merged each layer's new key into the cache with `cache*(1-write) + key*write`. That makes a full `(B,6,S,64)` copy of each cache in every layer: 18 cache-sized temporaries, which Core ML may allocate at the largest flexible shape.
    - v2 attends to the cache (slots `>= position[b]` masked) and to the new tokens separately, then combines the two with one softmax normalizer. No cache-sized intermediate exists.
+   - The Mac run did not confirm this: flexible-T packages use ~40 MiB as v1 did, and T=1 graphs use far more. See the [v2 report](../reports/mac-20261115/zh-v1-kvbatch-v2.md).
    - `S` only needs to be `>= max(position)` (and at least 1). The v1 rule, `max(position)+1`, still works.
 2. **T new tokens per row** (`input_ids [B,T]`, causal among themselves).
    - T=1 is the decode step. B=1 with T = prompt length is the prompt prefill, so the chunk package is no longer needed.
