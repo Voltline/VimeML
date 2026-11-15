@@ -107,9 +107,9 @@ def main():
     if manifest_path.exists():
         known={f['path']:f for f in json.loads(manifest_path.read_text(encoding='utf-8'))['files']}
     known.update({f['path']:f for f in present})
-    rule=dict(offset=OFFSET,stride=STRIDE) if args.batch=='r1' else dict(r1_offset=OFFSET,r1_stride=STRIDE,files=R2_FILES)
-    manifest=dict(repo=REPO,revision=REVISION,batch=args.batch,**rule,license='ODC-By 1.0 (FineWeb2)',
-                  files=sorted(known.values(),key=lambda f:f['path']))
+    rule=dict(offset=OFFSET,stride=STRIDE) if args.batch=='r1' else dict(r1_offset=OFFSET,r1_stride=STRIDE,r2_files=R2_FILES)
+    manifest=dict(repo=REPO,revision=REVISION,batch=args.batch,**rule,license='ODC-By 1.0 (FineWeb2)')
+    manifest['files']=sorted(known.values(),key=lambda f:f['path'])
     manifest_path.write_text(json.dumps(manifest,indent=1),encoding='utf-8')
     print(f'manifest: {len(known)} verified files',flush=True)
 
