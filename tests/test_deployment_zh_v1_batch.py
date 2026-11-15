@@ -1,0 +1,120 @@
+"""zh-v1 batched KV step and the per-position beam search (random weights; no checkpoint needed)."""
+import sys
+import unittest
+from pathlib import Path
+
+import torch
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+from vimeml.deployment import zh_search as zs, zh_v1_batch as zb  # noqa: E402
+from vimeml.training.model_zh13 import GPTZh13Config, TinyGPTZh13  # noqa: E402
+
+
+def random_model():
+    torch.manual_seed(1115)
+    return TinyGPTZh13(GPTZh13Config()).float().eval()
+
+
+class BatchGraphTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.model = random_model()
+
+    def test_rows_at_different_positions_match_full_forward(self):
+        for case in ({"batch": 6}, {"batch": 1}, {"batch": 3, "slots": zb.CONTEXT}):
+            stats = zb.check_graph(self.model, zb.KVBatchGraphZh(self.model), **case)
+            self.assertEqual(stats["rows_outside_tolerance"], 0)
+            self.assertEqual(stats["argmax_equal"], stats["rows"])
+
+    def test_traced_graph_keeps_flexible_batch_and_slots(self):
+        traced = torch.jit.trace(zb.KVBatchGraphZh(self.model), (
+            torch.tensor([[7], [9]], dtype=torch.int32), torch.tensor([0, 2], dtype=torch.int32),
+            torch.zeros(zb.LAYERS, 2, zb.HEADS, 3, zb.HEAD_DIM), torch.zeros(zb.LAYERS, 2, zb.HEADS, 3, zb.HEAD_DIM)))
+        stats = zb.check_graph(self.model, traced, batch=4)
+        self.assertEqual(stats["rows_outside_tolerance"], 0)
+
+    def test_padding_row_does_not_change_real_rows(self):
+        graph = zb.KVBatchGraphZh(self.model)
+        k = torch.randn(zb.LAYERS, 2, zb.HEADS, 5, zb.HEAD_DIM)
+        v = torch.randn_like(k)
+        with torch.inference_mode():
+            alone = graph(torch.tensor([[11]], dtype=torch.int32), torch.tensor([4], dtype=torch.int32), k[:, :1], v[:, :1])
+            padded = graph(torch.tensor([[11], [0]], dtype=torch.int32), torch.tensor([4, 0], dtype=torch.int32), k, v)
+        for a, b in zip(alone, padded):
+            torch.testing.assert_close(a[:1] if a.dim() == 2 else a[:, :1], b[:1] if b.dim() == 2 else b[:, :1])
+
+
+class ToySP:
+    """Three pieces: 中 (zhong), 文 (wen), 中文 as one token; ids 10..12."""
+    pieces = {10: "中", 11: "文", 12: "中文"}
+
+    def get_piece_size(self):
+        return 13
+
+    def is_control(self, i):
+        return i < 8
+
+    def is_unknown(self, i):
+        return False
+
+    def is_byte(self, i):
+        return False
+
+    def id_to_piece(self, i):
+        return self.pieces.get(i, "")
+
+    def encode(self, text):
+        return []
+
+    def decode(self, ids):
+        return "".join(self.pieces[i] for i in ids)
+
+
+class ToyTable:
+    words = {"中": [(["zhong"], 1.0)], "文": [(["wen"], 1.0)]}
+
+    def characters(self):
+        return set(self.words)
+
+
+class FixedBackend:
+    """Log-probs that favour single characters, as a plain LM does at the first step."""
+    def __init__(self):
+        self.rows = 0
+
+    def logits(self):
+        x = torch.full((13,), -20.0)
+        x[10], x[11], x[12] = 0.0, 0.0, -1.0
+        return x
+
+    def prefill(self, ids):
+        return self.logits(), None
+
+    def decode(self, tokens, states):
+        self.rows += len(tokens)
+        return torch.stack([self.logits() for _ in tokens]), [None] * len(tokens)
+
+
+class SearchTest(unittest.TestCase):
+    def test_multi_key_token_survives_beam_one(self):
+        index = zs.Index(ToySP(), ToyTable())
+        ranked, stats = zs.search(FixedBackend(), ToySP(), index, "zhongwen", beam=1, topk=5)
+        self.assertEqual([t for t, _, _ in ranked], ["中文"])
+        self.assertEqual(stats.buckets, [1])     # one forward: the 中 hypothesis at position 5
+
+    def test_shared_beam_failure_mode_is_gone(self):
+        """Single-key initials score higher per step; they must not evict the 8-key token."""
+        index = zs.Index(ToySP(), ToyTable())
+        ranked, _ = zs.search(FixedBackend(), ToySP(), index, "zhongwen", beam=2, topk=5)
+        self.assertEqual(ranked[0][0], "中文")
+
+    def test_initials_and_full_readings(self):
+        index = zs.Index(ToySP(), ToyTable())
+        for keys in ("zw", "zhw", "zhongw", "zwen"):
+            ranked, _ = zs.search(FixedBackend(), ToySP(), index, keys, beam=4, topk=5)
+            self.assertIn("中文", [t for t, _, _ in ranked], keys)
+
+
+if __name__ == "__main__":
+    unittest.main()
