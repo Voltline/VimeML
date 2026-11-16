@@ -6,6 +6,9 @@ top 10 are then scored by a prior (vimeml-tiny-zh-v1 by default) after the same 
 production rule (BOS + context + candidate, targets from the shared prefix on; any ineligible
 candidate makes the whole call fail, and the generation order is kept). One JSONL row per input.
 
+reprior: the same rows with the prior scores of another checkpoint (for example the model itself, as a
+single-model deployment would use it); generation is not rerun.
+
 score: Top-1/3/10 by input kind for the generation order and for genScore + λ·prior, and paired
 comparisons on Top-1 against other runs, with a sentence-cluster sign-flip test.
 
@@ -96,9 +99,32 @@ def run(checkpoint, tokenizer, readings, frozen, out, mode="task", beam=16, topk
     write_jsonl(out / "rows.jsonl", rows)
     info = {"checkpoint": str(checkpoint), "checkpoint_sha256": meta["checkpoint_sha256"], "step": meta["step"],
             "mode": mode, "beam": beam, "topk": topk, "context": use_context, "device": device,
-            "prior": None if not prior else {"checkpoint": str(prior), "sha256": prior_meta["checkpoint_sha256"]},
+            "prior": None if not prior else {"checkpoint": Path(prior).name, "sha256": prior_meta["checkpoint_sha256"]},
             "readings_sha256": file_sha(readings), "set_manifest_sha256": file_sha(Path(frozen) / "manifest.json"),
             "inputs": len(rows), "limit": limit, "seconds": round(time.time() - started, 1)}
+    (out / "meta.json").write_text(json.dumps(info, ensure_ascii=False, indent=2) + "\n", "utf-8")
+    return info
+
+
+def reprior(rows_dir, prior, tokenizer, frozen, out, device="cpu"):
+    """Copy a run with its prior column recomputed by `prior` (same contexts, same candidates)."""
+    from vimeml.benchmarks.zh13_lm_scores import load
+    rows_dir, out = Path(rows_dir), Path(out)
+    info = json.loads((rows_dir / "meta.json").read_text("utf-8"))
+    model, processor, meta = load(prior, tokenizer, device)
+    model.float().eval()
+    records, contexts = load_set(frozen)
+    rows, started = read_jsonl(rows_dir / "rows.jsonl"), time.time()
+    for n, row in enumerate(rows, 1):
+        context = contexts.get(row["id"], "") if info["context"] else ""
+        row["prior"] = prior_scores(model, processor, context, row["gen"], device)
+        if n % 500 == 0:
+            print(f"{n}/{len(rows)} {time.time() - started:.0f}s", flush=True)
+    out.mkdir(parents=True, exist_ok=True)
+    write_jsonl(out / "rows.jsonl", rows)
+    info["prior"] = {"checkpoint": Path(prior).name, "parent": Path(prior).parent.name,
+                     "sha256": meta["checkpoint_sha256"]}
+    info["reprior_of"] = f"{rows_dir.parent.name}/{rows_dir.name}"
     (out / "meta.json").write_text(json.dumps(info, ensure_ascii=False, indent=2) + "\n", "utf-8")
     return info
 

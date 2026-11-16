@@ -11,7 +11,7 @@ v2 is the Chinese model line after vimeml-tiny-zh-v1. Every v2 model can **gener
 | Release name | Platform | Size | Tokenizer | Candidate | Status |
 | --- | --- | ---: | --- | --- | --- |
 | `vimeml-zh-v2-20m` | mobile | ~20M | 12K (same as v1) | three-task post-training `r2-cont`, or a later round-3 or distilled version | candidate exists, not final |
-| `vimeml-zh-v2-200m` | desktop | ~200M | 12K | 12K joint pinyin pretraining `zh200m-12k-pinyin-pt` | training, evaluation pending |
+| `vimeml-zh-v2-200m` | desktop | ~200M | 12K | 12K joint pinyin pretraining `zh200m-12k-pinyin-pt`, rescoring with its own scores | passed development evaluation ([report](reports/zh-200m-pinyin-eval-20261116/report.md)); latency and confirmation run pending |
 | `vimeml-zh-v2-800m` | desktop | 784M | 12K | [zh-800m training plan](training-zh-800m-plan.md) plus pinyin ability | data in preparation |
 
 - **20M** is the mobile model and keeps v1's deployment: Core ML INT8, batched KV decoding and bucketed beam search.
@@ -73,6 +73,6 @@ The data requirements for the mainland China launch apply only to **v2-20m**.
 ## Open decisions
 
 - Final `vimeml-zh-v2-20m`: `r2-cont` with v1 rescoring, or a round-3 or distilled version. This depends on the 200M and 800M results.
-- Whether 200M uses joint pretraining or post-training, decided after the 12K joint-pinyin 200M finishes training.
+- ~~Whether 200M uses joint pretraining or post-training~~: decided 2026-11-16, joint pretraining with its own rescoring (see the [evaluation report](reports/zh-200m-pinyin-eval-20261116/report.md)).
 - The source of the 800M's pinyin ability, decided after the 200M evaluation and before 800M training starts.
 - Default beam width, decided when the public-set beam sweep finishes. Beam 16 and beam 12 results are in so far, and 16 is significantly better.

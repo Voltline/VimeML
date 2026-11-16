@@ -38,6 +38,13 @@ def main():
     r.add_argument("--frozen", default=str(ROOT / "outputs/benchmarks/ime-pinyin-zh-v1/frozen-r1"))
     r.add_argument("--device", default="cuda")
     r.add_argument("--limit", type=int, default=0, help="records, for smoke runs")
+    q = sub.add_parser("reprior", help="recompute the prior column of a finished run with another checkpoint")
+    q.add_argument("--rows", required=True, help="directory of a finished run")
+    q.add_argument("--prior", required=True)
+    q.add_argument("--out", required=True)
+    q.add_argument("--tokenizer", default=str(ROOT / "artifacts/tokenizers/zh-v13/zh-unigram-12288/tokenizer.model"))
+    q.add_argument("--frozen", default=str(ROOT / "outputs/benchmarks/ime-pinyin-zh-v1/frozen-r1"))
+    q.add_argument("--device", default="cuda")
     s = sub.add_parser("report")
     s.add_argument("runs", nargs="+", help="NAME=DIR")
     s.add_argument("--base")
@@ -49,6 +56,8 @@ def main():
                       args.topk, None if args.no_prior else args.prior, args.device, args.limit,
                       not args.no_context)
         print(info)
+    elif args.command == "reprior":
+        print(pg.reprior(args.rows, args.prior, args.tokenizer, args.frozen, args.out, args.device))
     else:
         text = pg.report(dict(item.split("=", 1) for item in args.runs), args.lam, args.base)
         print(text)
