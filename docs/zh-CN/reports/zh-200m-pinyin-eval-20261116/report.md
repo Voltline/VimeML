@@ -32,7 +32,7 @@
   - 配对检验按句子做簇 sign-flip，20,000 次置换（最小 p 为 5e-5）。
 - **Standard**：`ime-standard-zh-v1-r1` development 全拼重排，1,456 条。
 - **联想**：`ime-predict-zh-v1-r1` development，轨道 A–D。
-- 生成和打分在 GPU 节点上运行。自身先验的重打分用 `pinyin_gen_zh.py reprior` 在本地补算：只给已有的前 10 个候选重新算先验分，不重跑生成。
+- 自身先验的重打分用 `pinyin_gen_zh.py reprior` 在本地补算：只给已有的前 10 个候选重新算先验分，不重跑生成。
 - v1 这次是 52.7%，[束宽报告](../zh-pinyin-beam-20261115/report.md)里是 52.5%。差别来自后端不同（`ModelBatchBackend` 对 `TorchBatchBackend`）和输入条数不同（3,444 对 3,428）。本文的比较都在同一次运行里进行。
 
 ## 结果

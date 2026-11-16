@@ -35,7 +35,7 @@ This report evaluates `zh200m-12k-pinyin-pt`, the 200M model with a 12K vocabula
   - Paired tests use a sentence-cluster sign-flip with 20,000 permutations (minimum p 5e-5).
 - **Standard**: `ime-standard-zh-v1-r1` development, full-pinyin rerank, 1,456 items.
 - **Prediction**: `ime-predict-zh-v1-r1` development, tracks A–D.
-- **Where it ran**: generation and scoring ran on a GPU node. The self-prior rescoring was computed locally with `pinyin_gen_zh.py reprior`, which recomputes only the prior of the existing top 10 and does not rerun generation.
+- **Self-prior rescoring**: computed afterwards with `pinyin_gen_zh.py reprior`, which recomputes only the prior of the existing top 10 and does not rerun generation.
 - **v1 baseline**: v1 scores 52.7% here and 52.5% in the [beam report](../zh-pinyin-beam-20261115/report.md). The difference comes from the backend (`ModelBatchBackend` vs `TorchBatchBackend`) and the input count (3,444 vs 3,428). All comparisons in this report are within one run.
 
 ## Results
