@@ -45,6 +45,7 @@ WEB_SOURCES = {"fineweb2-web": 0, "fineweb2-review": 1}
 CHAT_SOURCES = {"lccc": 0}
 FIRST_TEXT_ID = 7  # 0-3 special, 4-6 control (<CTX>/<READ>/<OUT>); 7 is "\n"
 TIER_NAMES = ("probe", "p20", "p5", "p1")
+ENCODE_BATCH = 50_000  # web paragraphs per SentencePiece call (whole documents, never split)
 
 
 def doc_hash(label, doc_id):
@@ -172,26 +173,36 @@ class PartWriter:
                 buffer.clear()
 
     def add(self, sp, texts, source, tier=None):
+        self.add_batch(sp, texts, source, None if tier is None else [tier] * len(texts))
+
+    def add_batch(self, sp, texts, source, tiers=None):
+        """Store texts in order, one sequence each; tiers is None or one tier per text.
+
+        One SentencePiece call for the whole batch: per-call overhead, not encoding, dominates
+        when a call carries one document. Each text is still encoded on its own, so the bytes
+        equal those of one add() per document over the same texts.
+        """
         ids = sp.encode(texts)
-        lengths = np.fromiter((len(x) + 2 for x in ids), dtype=np.uint32, count=len(ids))
-        flat = np.empty(int(lengths.sum()), dtype="<u2")
-        at = 0
-        for text, row in zip(texts, ids):
-            if sp.decode(row) != text or min(row) < FIRST_TEXT_ID:
+        decoded = sp.decode(ids) if ids else []
+        for text, back, row in zip(texts, decoded, ids):
+            if back != text or min(row) < FIRST_TEXT_ID:
                 raise ValueError(f"Roundtrip/reserved-ID failure in {self.prefix.name}: {text[:40]!r}")
-            flat[at] = SPECIAL["bos"]
-            flat[at + 1:at + 1 + len(row)] = row
-            flat[at + 1 + len(row)] = SPECIAL["eos"]
-            at += len(row) + 2
-        self._write("tokens", flat.tobytes())
+        lengths = np.fromiter((len(x) + 2 for x in ids), dtype=np.uint32, count=len(ids))
+        flat = []
+        for row in ids:
+            flat.append(SPECIAL["bos"])
+            flat.extend(row)
+            flat.append(SPECIAL["eos"])
+        self._write("tokens", np.array(flat, dtype="<u2").tobytes())
         self._write("lengths", lengths.astype("<u4").tobytes())
         self._write("sources", bytes([source]) * len(ids))
-        if tier is not None:
-            self._write("tiers", bytes([tier]) * len(ids))
-            t = self.stats["tiers"][TIER_NAMES[tier]]
-            t["sentences"] += len(ids)
-            t["characters"] += sum(map(len, texts))
-            t["prediction_pairs"] += int(lengths.sum()) - len(ids)
+        if tiers is not None:
+            self._write("tiers", bytes(tiers))
+            for text, length, tier in zip(texts, lengths.tolist(), tiers):
+                t = self.stats["tiers"][TIER_NAMES[tier]]
+                t["sentences"] += 1
+                t["characters"] += len(text)
+                t["prediction_pairs"] += length - 1
         s = self.stats
         s["sentences"] += len(ids)
         s["stored_tokens"] += int(lengths.sum())
@@ -249,6 +260,7 @@ def _encode_file(job):
                     writer.add(sp, kept[start:start + 4096], CHAT_SOURCES["lccc"])
                 continue
             table = handle.read_row_group(group, columns=["id", "text"])
+            texts, tiers = [], []  # pending paragraphs of this row group, in document order
             for doc_id, text in zip(table["id"].to_pylist(), table["text"].to_pylist()):
                 tier = None
                 if kind == "train":
@@ -261,7 +273,17 @@ def _encode_file(job):
                 if tier is not None:
                     writer.stats["tiers"][TIER_NAMES[tier]]["documents"] += 1
                 if kept:
-                    writer.add(sp, kept, source_of(path), tier)
+                    if (tier is None) != (not tiers) and texts:  # never mix tiered and untiered texts
+                        writer.add_batch(sp, texts, source_of(path), tiers or None)
+                        texts, tiers = [], []
+                    texts.extend(kept)
+                    if tier is not None:
+                        tiers.extend([tier] * len(kept))
+                    if len(texts) >= ENCODE_BATCH:
+                        writer.add_batch(sp, texts, source_of(path), tiers or None)
+                        texts, tiers = [], []
+            if texts:
+                writer.add_batch(sp, texts, source_of(path), tiers or None)
     finally:
         stats = writer.close()
     return {"file": Path(path).name, "prefix": str(prefix), "row_groups": groups, **stats}
