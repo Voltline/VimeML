@@ -16,7 +16,7 @@ v2 is the Chinese model line after vimeml-tiny-zh-v1. Every v2 model can **gener
 
 - **20M** is the mobile model and keeps v1's deployment: Core ML INT8, batched KV decoding and bucketed beam search.
   - Online, v1 rescores the top 10 generated candidates (see [inference-time rescoring](zh-CN/reports/zh-pinyin-rescore-20261115/report.md)).
-  - The release package therefore holds both v2-20m and v1, unless v2-20m no longer needs v1 to rescore its candidates.
+  - **One model on the phone** (decided 2026-11-16): r2-cont needs v1 to rescore its candidates, which means loading two 20M models, and that is not acceptable on a phone. v2-20m must rescore with its own scores and beat v1 alone in LM mode. Pinyin post-training weakens r2-cont's LM ability, so it scores worse as its own prior than v1 does. Distillation from the 200M (same 12K vocabulary) may give generation and LM ability in one model, so the choice of v2-20m waits for the distillation line.
 - **200M** is released too. If the 12K joint pretraining fails its evaluation, the fallback is the 200M base plus pinyin post-training (as r2-cont). That counts as a deviation and is recorded in the evaluation report.
 - **800M** gets its pinyin ability either from post-training or from switching to joint pretraining. The choice follows the 200M evaluation (see the 800M plan's evaluation section).
 - All three models use the 12K tokenizer. They share the pinyin data, `zh_search` and the Vime integration, and the larger models can serve as token-level distillation teachers for the 20M.
