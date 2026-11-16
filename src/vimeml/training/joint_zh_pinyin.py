@@ -12,6 +12,12 @@ left) and supervise every target; pinyin samples supervise output + EOS only.
 normalization "tokens": loss = sum of token losses / supervised tokens in the update
 (every token equal, plain dominates); "per_kind": sum_k (mix[k] / batch) * mean loss of k.
 
+Distillation (optional [distillation] section): a frozen teacher with the same 12K tokenizer (the
+joint-pinyin 200M) runs on the same batch in BF16 without gradients. On every supervised position the
+student's loss is (1 - alpha) * cross-entropy on the label + alpha * T^2 * KL(teacher_T || student_T)
+with both distributions at temperature T; normalization is the same as without distillation. The
+teacher's validation losses are written once, at the start, to teacher_validation.json.
+
 Validation (FP32) at step 0 and every eval_every: loss per store, and for pinyin stores
 tf_exact = share of samples whose every output token (and EOS) is the argmax under
 teacher forcing. Checkpoints: last.pt every checkpoint_every, a weights-only
@@ -44,7 +50,7 @@ CROP_MINIMUM = 8
 SOURCE_FILES = ("src/vimeml/training/joint_zh_pinyin.py", "src/vimeml/training/model_zh13.py",
                 "src/vimeml/training/model_v2.py", "src/vimeml/training/train.py",
                 "src/vimeml/training/runtime_v2.py", "src/vimeml/posttraining/streams.py",
-                "scripts/training/train_zh_pinyin.py")
+                "scripts/training/train_zh_pinyin.py", "src/vimeml/training/model_zh200m.py")
 
 
 def read(path):
@@ -174,13 +180,23 @@ def build_plan(config, root=ROOT, verify_files=True):
         for path, digest in required.items():
             if file_sha(path) != digest:
                 raise ValueError("Changed training dependency: " + str(path))
+    distillation = config.get("distillation")
+    if distillation is not None:
+        if not 0 < distillation["alpha"] <= 1 or distillation["temperature"] <= 0:
+            raise ValueError("distillation needs 0 < alpha <= 1 and temperature > 0")
+        required[root / distillation["teacher"]] = distillation["teacher_sha256"]
+        if verify_files and file_sha(root / distillation["teacher"]) != distillation["teacher_sha256"]:
+            raise ValueError("Changed training dependency: " + str(root / distillation["teacher"]))
     code = {name: file_sha(ROOT / name) for name in SOURCE_FILES}
     signatures = {"data": config["data"]["manifest_sha256"], "source": init["checkpoint_sha256"],
                   "code": hashlib.sha256(json.dumps(code, sort_keys=True).encode()).hexdigest()}
+    if distillation is not None:
+        signatures["teacher"] = distillation["teacher_sha256"]
     batch = sum(mix.values())
     train = {k: manifest["stores"]["train"][k]["examples"] for k in STORES}
     passes = {k: s["max_steps"] * mix[k] / train[k] for k in STORES if mix[k]}
     return {"stage": STAGE, "parameters": SHAPES[12288][1], "settings": s, "mix": mix, "batch": batch,
+            "distillation": distillation,
             "signatures": signatures, "code_sha256": code, "train_examples": train, "passes": passes,
             "tokenizer_sha256": manifest["tokenizer_sha256"],
             "required_files": {Path(p).resolve().as_posix(): h for p, h in required.items()}}
@@ -191,34 +207,53 @@ def initial_state():
             "totals": {k: {"examples": 0, "supervised_tokens": 0, "loss_sum": 0.0} for k in STORES}}
 
 
-def update(model, optimizer, batches, plan, device, precision):
+def distilled_loss(logits, teacher_logits, labels, alpha, temperature):
+    """Sums over supervised positions: (mixed loss, cross-entropy, KL at temperature T scaled by T^2)."""
+    valid = labels != -100
+    student, teacher = logits[valid].float(), teacher_logits[valid].float()
+    ce = torch.nn.functional.cross_entropy(student, labels[valid], reduction="sum")
+    target = torch.log_softmax(teacher / temperature, -1)
+    kl = (target.exp() * (target - torch.log_softmax(student / temperature, -1))).sum() * temperature ** 2
+    return (1 - alpha) * ce + alpha * kl, ce, kl
+
+
+def update(model, optimizer, batches, plan, device, precision, teacher=None):
     s = plan["settings"]
+    d = plan.get("distillation")
     tokens = {k: int((b["labels"] != -100).sum()) for k, b in batches.items()}
     total = sum(tokens.values())
     if total <= 0:
         raise ValueError("No supervised targets")
     optimizer.zero_grad(set_to_none=True)
-    sums = {}
+    sums, kls = {}, {}
     for kind, batch in batches.items():
         if not tokens[kind]:
             continue
         ids = batch["input_ids"].to(device, non_blocking=True)
         labels = batch["labels"].to(device, non_blocking=True)
         with amp_context(device, precision):
-            loss_sum = model(ids, labels)["loss_sum"]
+            if teacher is None:
+                loss_sum = ce_sum = model(ids, labels)["loss_sum"]
+            else:
+                with torch.no_grad():
+                    teacher_logits = teacher(ids)
+                loss_sum, ce_sum, kl_sum = distilled_loss(model(ids), teacher_logits, labels, d["alpha"],
+                                                          d["temperature"])
+                kls[kind] = float(kl_sum.detach())
             if s["normalization"] == "tokens":
                 loss = loss_sum / total
             else:
                 loss = loss_sum * (plan["mix"][kind] / plan["batch"]) / tokens[kind]
         loss.backward()
-        sums[kind] = float(loss_sum.detach())
+        sums[kind] = float(ce_sum.detach())
     if not all(math.isfinite(v) for v in sums.values()):
         raise FloatingPointError("Non-finite training loss")
     grad_norm = float(torch.nn.utils.clip_grad_norm_(model.parameters(), s["grad_clip"], error_if_nonfinite=True))
     optimizer.step()
     return {"loss": sum(sums.values()) / total, "grad_norm": grad_norm, "supervised_tokens": total,
             "kinds": {k: {"loss": sums[k] / tokens[k], "supervised_tokens": tokens[k],
-                          "examples": len(batches[k]["lengths"])} for k in sums}}
+                          "examples": len(batches[k]["lengths"]),
+                          **({"kl": kls[k] / tokens[k]} if k in kls else {})} for k in sums}}
 
 
 def validation_sets(directory, plan, seed):
@@ -267,6 +302,20 @@ def load_source(model, path):
             "pretraining": saved.get("pretraining", {}).get("stage")}
 
 
+def load_teacher(path, plan, device):
+    """The frozen distillation teacher: a 12K tiny_gpt_zh200m with this data's tokenizer."""
+    from vimeml.training.model_zh200m import GPTZh200mConfig, TinyGPTZh200m
+    saved = torch.load(path, map_location="cpu", weights_only=True)
+    if saved.get("architecture") != "tiny_gpt_zh200m":
+        raise ValueError("The teacher is not a tiny_gpt_zh200m checkpoint")
+    if (saved.get("tokenizer_identity") or {}).get("tokenizer_model_sha256") != plan["tokenizer_sha256"]:
+        raise ValueError("The teacher's tokenizer differs from the data's")
+    teacher = TinyGPTZh200m(GPTZh200mConfig(**saved["model_config"]))
+    teacher.load_state_dict(saved["model"], strict=True)
+    teacher.to(device).eval().requires_grad_(False)
+    return teacher, {"step": saved.get("step"), "parameters": sum(p.numel() for p in teacher.parameters())}
+
+
 def identity(plan):
     return {"tokenizer_model_sha256": plan["tokenizer_sha256"], "vocab_size": 12288, "special_ids": SPECIAL}
 
@@ -275,7 +324,8 @@ def checkpoint_payload(model, optimizer, state, config, plan, precision, source)
     return {"format": FORMAT, "architecture": ARCHITECTURE, "model": model.state_dict(),
             "model_config": model.configuration(), "optimizer": optimizer.state_dict(), "config": config,
             "signatures": plan["signatures"], "precision": precision, "step": state["step"],
-            "training_state": copy.deepcopy(state), "posttraining": {"stage": STAGE, "mix": plan["mix"]},
+            "training_state": copy.deepcopy(state),
+            "posttraining": {"stage": STAGE, "mix": plan["mix"], "distillation": plan.get("distillation")},
             "initialization": {"mode": "checkpoint", "source": source, "optimizer": "fresh_AdamW"},
             "tokenizer_identity": identity(plan),
             "scheduler": {"step": state["step"], "max_steps": plan["settings"]["max_steps"], "name": "cosine"}}
@@ -303,6 +353,9 @@ def run(config, resume=False, root=ROOT, log=print):
     source = load_source(model, root / config["initialization"]["checkpoint"])
     model.to(device)
     optimizer = optimizer_for(model, s, device)
+    teacher = teacher_info = None
+    if plan.get("distillation"):
+        teacher, teacher_info = load_teacher(root / plan["distillation"]["teacher"], plan, device)
     state = initial_state()
     if resume:
         saved = torch.load(output / "last.pt", map_location="cpu", weights_only=True)
@@ -324,7 +377,7 @@ def run(config, resume=False, root=ROOT, log=print):
         compilation = compile_backbone(model)
     environment = {"torch": str(torch.__version__), "cuda": torch.version.cuda, "device": str(device),
                    "precision": precision, "parameters": model.parameter_count(), "source": source,
-                   "compilation": compilation, "smoke_updates": smoke}
+                   "compilation": compilation, "smoke_updates": smoke, "teacher": teacher_info}
     if device.type == "cuda":
         environment["gpu"] = torch.cuda.get_device_name(device)
     write_json(output / "environment.json", environment)
@@ -379,6 +432,9 @@ def run(config, resume=False, root=ROOT, log=print):
     if s["num_workers"]:
         options.update(multiprocessing_context="spawn", prefetch_factor=4, persistent_workers=True)
     try:
+        if teacher is not None and not (output / "teacher_validation.json").exists():
+            write_json(output / "teacher_validation.json", evaluate(teacher, sets, s["validation_batch"], device, limit))
+            log("Teacher validation written")
         evaluation()
         if not resume:
             save()
@@ -391,7 +447,7 @@ def run(config, resume=False, root=ROOT, log=print):
             rate = learning_rate(state["step"] + 1, s)
             for group in optimizer.param_groups:
                 group["lr"] = rate
-            result = update(model, optimizer, batches, plan, device, precision)
+            result = update(model, optimizer, batches, plan, device, precision, teacher)
             if device.type == "cuda":
                 torch.cuda.synchronize(device)
             state["step"] += 1
@@ -408,6 +464,8 @@ def run(config, resume=False, root=ROOT, log=print):
                 writer.add_scalar("train/loss", result["loss"], state["step"])
                 for kind, r in result["kinds"].items():
                     writer.add_scalar(f"{kind}/train_loss", r["loss"], state["step"])
+                    if "kl" in r:
+                        writer.add_scalar(f"{kind}/train_kl", r["kl"], state["step"])
                 writer.add_scalar("optimizer/learning_rate", rate, state["step"])
                 writer.add_scalar("optimizer/grad_norm", result["grad_norm"], state["step"])
                 rate_per_s = state["step"] / state["training_seconds"]

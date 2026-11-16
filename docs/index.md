@@ -37,6 +37,7 @@ Primary documents are English; [Chinese documentation](zh-CN/index.md) mirrors t
 | [Prediction benchmark and desktop roadmap](benchmarks/predict-zh-plan.md) | Preregistration: `ime-predict-zh-v1`, a public-model scale probe, then gated 200M and 800M desktop models |
 | [Prediction benchmark ime-predict-zh-v1](benchmarks/predict-ime-zh.md) | Frozen 2026-11-11: CrossWOZ, RiSAWOZ, KdConv, CPED, 1,200 dialogues each; blind closed |
 | [zh-200m training plan](training-zh-200m-plan.md) | Preregistration: d1024, 16K/24K/32K at context 512 plus a 24K context-128 control, three 24K seeds |
+| [v2-20m distillation plan](training-zh-kd-plan.md) | The 12K joint-pinyin 200M as teacher, online distillation into the 20M (α 0.5, T 1); arms kd-base and kd-cont; decided by self-rescored Top-1 against v1 |
 | [zh-800m training plan](training-zh-800m-plan.md) | Preregistration: d1536/L27, 784M parameters, 12K tokenizer, context 512; all of export-r1 + export-r2 in one pass, LCCC 2%, 2048 windows per update |
 | [vimeml-zh-v2 release scope](release-zh-v2-plan.md) | Released: `vimeml-zh-v2-20m` (mobile), `vimeml-zh-v2-200m`, `vimeml-zh-v2-800m` (desktop), all 12K with pinyin generation; 200M six arms and 20M joint pretraining are research only; release gates; data compliance applies to 20M only |
 | [zh-200m training record](reports/zh-200m-20261113/training.md) | All six arms finished 2026-11-13; web BPC 3.8251–3.9153 vs 4.3533 for zh-v1; window-index, context-cap, and batch-policy fixes |

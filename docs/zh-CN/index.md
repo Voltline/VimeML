@@ -20,6 +20,7 @@ V2系列实验已完成，此前部署版本为V2.1 extend5 step40000 / INT8 blo
 | [中文联想基准与桌面端模型路线](benchmarks/predict-zh-plan.md) | 预注册：联想基准 `ime-predict-zh-v1`（下一词命中、省键率、前缀补全、置信度），先用现成模型摸底规模收益，再按门槛训 200M、800M 桌面端模型 |
 | [中文联想基准 ime-predict-zh-v1](benchmarks/predict-ime-zh.md) | 2026-11-11 冻结：CrossWOZ、RiSAWOZ、KdConv、CPED 各 1,200 段对话；每个 split 下一词 7,200 题、省键 6,000 条左右发言、前缀补全 2,400 题；blind 关闭 |
 | [zh-200m 六臂训练计划](training-zh-200m-plan.md) | 预注册：d1024，16K/L15、24K/L14、32K/L14 × 上下文 512，另加 24K 上下文 128 对照；每更新 512 窗口（偏离记录第 2 条），同 v1 数据与配方，三个 seed |
+| [v2-20m 蒸馏计划](training-zh-kd-plan.md) | 12K 联合拼音 200M 当老师，在线蒸馏 20M（α 0.5，T 1）；kd-base 与 kd-cont 两臂；判定看自身重打分 Top-1 是否显著高于 v1 |
 | [zh-800m 训练计划](training-zh-800m-plan.md) | 预注册：d1536/L27、7.84 亿参数、12K 分词器、上下文 512；export-r1 全部 + export-r2 一遍，LCCC 2%，每更新 2048 窗口 |
 | [vimeml-zh-v2 发布范围](release-zh-v2-plan.md) | 发布 `vimeml-zh-v2-20m`（手机）、`vimeml-zh-v2-200m`、`vimeml-zh-v2-800m`（桌面），都用 12K、都能拼音生成；200M 六臂与 20M 联合预训练只作研发记录；发布门槛；数据合规只针对 20M |
 | [zh-200m 六臂训练记录](reports/zh-200m-20261113/training.md) | 2026-11-13 六臂全部完成；M20 网页 BPC 3.8251–3.9153（v1 为 4.3533）；含窗口索引重建、上下文上限、批次策略三处问题的如实记录 |
