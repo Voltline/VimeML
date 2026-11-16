@@ -3,13 +3,15 @@
 Brief: docs/reference/mac-zh-v1-kvbatch-v2.md. Every stage writes a fresh output.
 
   check     PyTorch: v2 graph (eager and traced) decode, prefill and scored-head checks vs full forward
-  convert   FP32 v2 package: --batch flex|16|1,4,8,16  --tokens 1|flex  --slots flex|16,32,64,128  --head logits|scored
+  convert   FP32 v2 package: --batch flex|16|1,4,8,16  --tokens 1|flex  --slots flex|16,32,64,128  --head logits|scored|sequence
   align     vs PyTorch FP32, or vs the stateless package (--stateless)
   compress  INT8 block32 of an aligned FP32 v2 package
-  measure   decode latency over the accepted B x S grid; scored head at K=149/450; prompt prefill time
+  measure   decode latency over the accepted B x S grid; scored head at K=149/450; prompt prefill time;
+            sequence head: B x T (continuation length) x S grid
   memory    macOS phys_footprint (current and lifetime peak), one fresh process per configuration
   search    the per-key-position beam search on a v2 package vs the FP32 fixture and vs a v1 INT8 batch run
-  fixture   Vime fixture: 16 rows at different positions, one decode call (prompt prefilled with the package)
+  fixture   Vime fixture: 16 rows at different positions, one decode call (prompt prefilled with the package);
+            sequence head: sentence-scoring cases (shared prefix, candidate continuations, expected sums)
 """
 import argparse
 import ctypes
@@ -49,13 +51,21 @@ def stage_check(a):
     lm = zh_v1.BundleLMZh(a.bundle)
     model = lm.model.float().eval()
     eager = z2.run_checks(model, lambda: z2.KVBatchGraphZhV2(model))
-    traced = {f"{head}-T{tokens}": "traced and checked" for head, tokens in (("logits", 1), ("logits", "flex"), ("scored", 1))
+    traced = {f"{head}-T{tokens}": "traced and checked" for head, tokens in
+              (("logits", 1), ("logits", "flex"), ("scored", 1), ("sequence", "flex"))
               if z2.trace(model, head, tokens) is not None}
     scored = z2.check_scored(model)
+    step = z2.torch_sequence_step(z2.KVBatchGraphZhV2(model, "sequence"))
+    sequence = [z2.check_sequence(model, step, **case) for case in z2.SEQUENCE_CASES]
+    continuations = z2.check_continuations(model, step)
+    if not continuations["passed"]:
+        raise AssertionError(f"score_continuations differs by {continuations['max_abs_sum']}")
     worst = max(c["max_abs"] for v in eager.values() for c in v)
     write_json(fresh(a.output), {"format": "vimeml_kv_batch_v2_torch_check_zh_v1", "passed": True, "eager": eager,
-                                 "traced": traced, "scored_head": scored, "environment": environment()})
-    print(f"passed, max {worst:.3g}; scored head {scored['max_abs_log_prob']:.3g}")
+                                 "traced": traced, "scored_head": scored, "sequence_head": sequence,
+                                 "continuations": continuations, "environment": environment()})
+    print(f"passed, max {worst:.3g}; scored head {scored['max_abs_log_prob']:.3g}; sequence head "
+          f"{max(c['max_abs'] for c in sequence):.3g}; continuation sums {continuations['max_abs_sum']:.3g}")
 
 
 def stage_convert(a):
@@ -122,7 +132,9 @@ def stage_measure(a):
     scored = manifest["head"] == "scored"
     rng = np.random.default_rng(1115)
     results = []
-    for rows, size, s in grid(manifest, a.batches, a.slots):
+    if manifest["head"] == "sequence":
+        measure_sequence(a, model, manifest, rng, results)
+    for rows, size, s in ([] if manifest["head"] == "sequence" else grid(manifest, a.batches, a.slots)):
         for k in (a.allowed if scored else [None]):
             row = {"call": "decode", "rows": rows, "batch_shape": size, "slots": s, "allowed": k,
                    **timed(model, decode_feed(rng, size, s, allowed=k), a.repeats, a.warmup)}
@@ -130,7 +142,7 @@ def stage_measure(a):
             print(json.dumps(row), flush=True)
     bs, ss = z2.shapes_of(manifest)
     one = min(bs) if bs else 1
-    for t in a.prompt_tokens:
+    for t in ([] if manifest["head"] == "sequence" else a.prompt_tokens):
         if manifest["tokens"].startswith("flexible"):
             feed = decode_feed(rng, one, 1, tokens=t, allowed=a.allowed[0] if scored else None)
             row = {"call": "prefill (one call)", "tokens": t, **timed(model, feed, a.repeats // 4, a.warmup)}
@@ -159,6 +171,27 @@ def stage_measure(a):
                      "compute_units": a.compute_units, "stateless_loaded": str(a.stateless) if a.stateless else None,
                      "results": results, "note": "Mac python predict() wall time incl. input conversion.",
                      "environment": environment()})
+
+
+def measure_sequence(a, model, manifest, rng, results):
+    """Sequence head: one scoring call (B rows, T continuation tokens, S cached slots), plus prompt prefill."""
+    for rows in a.batches:
+        for t in a.continuation_tokens:
+            for s in a.slots:
+                if s + t > z2.CONTEXT:
+                    continue
+                feed = decode_feed(rng, rows, s, tokens=t)
+                feed["position"] = np.full(rows, s, np.int32)
+                feed["targets"] = rng.integers(8, VOCAB, (rows, t)).astype(np.int32)
+                row = {"call": "score", "rows": rows, "tokens": t, "slots": s, **timed(model, feed, a.repeats, a.warmup)}
+                results.append(row)
+                print(json.dumps(row), flush=True)
+    for t in a.prompt_tokens:
+        feed = decode_feed(rng, 1, 1, tokens=t)
+        feed["targets"] = rng.integers(8, VOCAB, (1, t)).astype(np.int32)
+        row = {"call": "prefill (one call)", "tokens": t, **timed(model, feed, a.repeats // 4, a.warmup)}
+        results.append(row)
+        print(json.dumps(row), flush=True)
 
 
 # ---- memory -----------------------------------------------------------------------------------------
@@ -199,6 +232,7 @@ def memory_child(spec):
     model = ct.models.MLModel(str(path / "model.mlpackage"), compute_units=unit)
     mem["after_load"] = snap()
     scored = v2 and manifest["head"] == "scored"
+    sequence = v2 and manifest["head"] == "sequence"
     if v2:
         bs, ss = z2.shapes_of(manifest)
     else:
@@ -209,6 +243,8 @@ def memory_child(spec):
 
     def call(rows, slots, tokens=1):
         feed = decode_feed(rng, fit(rows, bs), fit(slots, ss), tokens=tokens, allowed=160 if scored else None)
+        if sequence:
+            feed["targets"] = rng.integers(8, VOCAB, feed["input_ids"].shape).astype(np.int32)
         model.predict(feed)
 
     if v2 and manifest["tokens"].startswith("flexible"):
@@ -224,6 +260,9 @@ def memory_child(spec):
     if not ss or max(ss) >= 128:
         call(min(16, hi), 128)
         mem["after_B16_S128"] = snap()
+    if sequence:
+        call(16, 64, tokens=32)
+        mem["after_score_B16_T32_S64"] = snap()
     return mem
 
 
@@ -319,11 +358,78 @@ def stage_search(a):
     print(json.dumps(summary, ensure_ascii=False))
 
 
+SEQUENCE_FIXTURE = (   # (context, candidates): a literal reading and near misses, as typo correction offers them
+    ("", ["今天天气很好", "今天天气很号", "今天甜气很好"]),
+    ("晚上一起吃饭吗", ["好的我七点到", "好的我其点到", "号的我七点到"]),
+    ("", ["这个问题需要你看一下", "这个问题需要你砍一下", "这个文体需要你看一下"]),
+    ("", ["帮我订一张去上海的票", "帮我定一张去上海的票", "帮我订一张去伤害的票"]),
+    ("会议几点开始", ["改到三点了", "改到散点了", "该到三点了"]),
+    ("", ["下雨了记得带伞", "下雨了记得代伞", "下于了记得带伞"]),
+    ("你到哪了", ["我在地铁上马上就到了你们先点菜吧不用等我", "我在地铁上马上就到了你们先店菜吧不用等我",
+                "我在地铁上骂上就到了你们先点菜吧不用等我"]),
+)
+FIXTURE_SWAPS = {"周": "州", "末": "莫", "起": "其", "去": "区", "爬": "怕", "山": "衫", "吧": "把", "们": "门", "一": "以"}
+
+
+def sequence_fixture_cases():
+    """SEQUENCE_FIXTURE plus one case with more than 16 candidates (two scoring calls)."""
+    base = "我们周末一起去爬山吧"
+    spots = [i for i, c in enumerate(base) if c in FIXTURE_SWAPS]
+    many = [base] + [base[:i] + FIXTURE_SWAPS[base[i]] + base[i + 1:] for i in spots]
+    for i, j in zip(spots, spots[1:]):
+        many.append(base[:i] + FIXTURE_SWAPS[base[i]] + base[i + 1:j] + FIXTURE_SWAPS[base[j]] + base[j + 1:])
+    return list(SEQUENCE_FIXTURE) + [("周末有什么安排", many)]
+
+
+def stage_fixture_sequence(a, out):
+    """Sentence-scoring fixture: per case the production rule's shared prefix (BOS + context, cut where the
+    candidates' tokens diverge from it), each candidate's continuation ids, and the expected sums from the
+    package (score_continuations), the stateless package of the same precision and PyTorch FP32 (zh13 rule)."""
+    import torch
+    from vimeml.benchmarks.zh13_lm_scores import score_item
+    from vimeml.deployment.coreml import coremltools
+    ct = coremltools()
+    lm = zh_v1.BundleLMZh(a.bundle)
+    model = lm.model.float().eval()
+    package = Path(a.package)
+    manifest = zh_v1.verify_package(package, z2.FORMAT)
+    fn = z2.coreml_sequence_step(ct.models.MLModel(str(package / "model.mlpackage"), compute_units=ct.ComputeUnit.CPU_ONLY))
+    stateless = zb.coreml_full(load(ct, a.stateless, "CPU_ONLY"))
+    cases, worst, worst_stateless = [], 0.0, 0.0
+    for context, candidates in sequence_fixture_cases():
+        with torch.inference_mode():
+            rule = score_item(model, lm.processor, context, candidates)
+        common = rule["common_prefix_tokens_including_bos"]
+        sequences = [[2] + lm.processor.encode(context + c) for c in candidates]
+        prefix, conts = sequences[0][:common], [s[common:] for s in sequences]
+        got, calls = z2.score_continuations(fn, prefix, conts)
+        ref = [float(z2._expected_logprobs(stateless, torch.tensor(s, dtype=torch.int32))[common - 1:].double().sum())
+               for s in sequences]
+        worst = max(worst, max(abs(x - y) for x, y in zip(got, rule["scores"])))
+        worst_stateless = max(worst_stateless, max(abs(x - y) for x, y in zip(got, ref)))
+        cases.append({"context": context, "candidates": candidates, "prefix_ids": prefix, "continuation_ids": conts,
+                      "scores_package": [round(x, 5) for x in got], "scores_stateless_same_precision": [round(x, 5) for x in ref],
+                      "scores_pytorch_fp32": [round(x, 5) for x in rule["scores"]], "calls": calls})
+    out.mkdir(parents=True)
+    with open(out / "sequence.jsonl", "w", encoding="utf-8", newline="\n") as f:
+        for c in cases:
+            f.write(json.dumps(c, ensure_ascii=False) + "\n")
+    write_json(out / "meta.json", {"format": "vime_zh_kv_sequence_fixture_v1", "cases": len(cases), "head": "sequence",
+        "package": package.name, "package_manifest_sha256": file_sha(package / "manifest.json"),
+        "stateless_package": Path(a.stateless).name, "rule": "zh13 production scoring: BOS + context + candidate, "
+        "targets from the shared prefix on (benchmarks.zh13_lm_scores.score_item)",
+        "how": manifest["scoring"], "max_abs_package_vs_pytorch_fp32": worst,
+        "max_abs_package_vs_stateless": worst_stateless, "tokenizer_sha256": lm.metadata["tokenizer_sha256"]})
+    print(f"sequence fixture written; package vs stateless max {worst_stateless:.3g}, vs PyTorch FP32 {worst:.3g}")
+
+
 def stage_fixture(a):
     import torch
     from vimeml.deployment.coreml import coremltools
     ct = coremltools()
     out = fresh(a.output)
+    if json.loads((Path(a.package) / "manifest.json").read_text(encoding="utf-8")).get("head") == "sequence":
+        return stage_fixture_sequence(a, out)
     lm = zh_v1.BundleLMZh(a.bundle)
     model = lm.model.float().eval()
     rows = fixture_rows(lm.processor)
@@ -374,7 +480,7 @@ def main():
     s = sub.add_parser("check"); s.add_argument("output")
     s = sub.add_parser("convert"); s.add_argument("output"); s.add_argument("--batch", default="flex")
     s.add_argument("--tokens", default="1", choices=("1", "flex")); s.add_argument("--slots", default="flex")
-    s.add_argument("--head", default="logits", choices=("logits", "scored"))
+    s.add_argument("--head", default="logits", choices=z2.HEADS_V2)
     s = sub.add_parser("align"); s.add_argument("package"); s.add_argument("output"); s.add_argument("--stateless")
     s = sub.add_parser("compress"); s.add_argument("package"); s.add_argument("alignment"); s.add_argument("output")
     s = sub.add_parser("measure"); s.add_argument("package"); s.add_argument("output")
@@ -382,6 +488,8 @@ def main():
     s.add_argument("--slots", type=int, nargs="+", default=[16, 32, 64, 128])
     s.add_argument("--allowed", type=int, nargs="+", default=[149, 450])
     s.add_argument("--prompt-tokens", type=int, nargs="+", default=[8, 16, 32])
+    s.add_argument("--continuation-tokens", type=int, nargs="+", default=[4, 8, 16, 32],
+                   help="sequence head: T of the scoring call")
     s.add_argument("--repeats", type=int, default=200); s.add_argument("--warmup", type=int, default=20)
     s.add_argument("--stateless", default=str(STATELESS_INT8), help="'' to measure without it")
     s.add_argument("--compute-units", default="CPU_ONLY", choices=("CPU_ONLY", "CPU_AND_NE", "ALL"))

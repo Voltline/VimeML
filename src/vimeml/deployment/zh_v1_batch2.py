@@ -13,6 +13,12 @@ Changes against `zh_v1_batch` (v1), after Vime's on-device memory report (2026-1
    key position, so they share one allowed set; median 149 tokens, max 536 on the r2 fixture). Outputs
    `logsumexp` [B] over all 12,288 logits and `allowed_logits` [B,K]; log P(token) = allowed_logits -
    logsumexp. The head matmul still runs in full (the normalizer needs every logit).
+4. Optional `sequence` head (2026-11-16, sentence scoring for typo correction): `targets` int32 [B,T], the
+   token that follows each new token. Output `target_logprobs` [B,T], log P(targets[b,t] | row b up to and
+   including input_ids[b,t]), at every new position. Scoring a known continuation is then one call per
+   batch of rows instead of one call per token (see `score_continuations`). Rows of different lengths are
+   right-padded (any token, any target); padded positions come after the real ones, so causality keeps
+   them out of the real scores.
 
 Interface (Core ML names):
   input_ids    int32 [B,T]            T new tokens per row (T=1 for decode)
@@ -20,8 +26,10 @@ Interface (Core ML names):
   key_cache    float32 (9,B,6,S,64)   slots >= position[b] of row b are masked but must be finite (zero new buffers): NaN/Inf there reaches the outputs; S >= max(position), S >= 1
   value_cache  float32 (9,B,6,S,64)
   allowed      int32 [K]              scored head only
+  targets      int32 [B,T]            sequence head only
   -> logits    float32 [B,12288]      logits head: last new token, no softmax
   -> logsumexp float32 [B], allowed_logits float32 [B,K]     scored head
+  -> target_logprobs float32 [B,T]                           sequence head
   -> new_key, new_value float32 (9,B,6,T,64)   keys/values of the new tokens; the caller writes them into
                                                slots position[b]..position[b]+T-1 of row b
 """
@@ -45,19 +53,22 @@ VOCAB, LAYERS, CONTEXT, HEADS, HEAD_DIM, MAX_BATCH = v1.VOCAB, v1.LAYERS, v1.CON
 MAX_ALLOWED = 1024
 TOLERANCE = v1.TOLERANCE
 MASKED = v1.MASKED
+HEADS_V2 = ("logits", "scored", "sequence")
+SEQUENCE_ROWS = 16
 
 
 class KVBatchGraphZhV2(nn.Module):
-    """See the module docstring. head: "logits" or "scored"."""
+    """See the module docstring. head: "logits", "scored" or "sequence"."""
 
     def __init__(self, model, head="logits"):
         super().__init__()
-        if head not in ("logits", "scored"):
+        if head not in HEADS_V2:
             raise ValueError(head)
         self.model = model.eval()
         self.head = head
 
-    def forward(self, input_ids, position, key_cache, value_cache, allowed=None):
+    def forward(self, input_ids, position, key_cache, value_cache, extra=None):
+        """extra: `allowed` [K] for the scored head, `targets` [B,T] for the sequence head."""
         batch, tokens = input_ids.shape
         slots = key_cache.shape[3]
         steps = torch.arange(tokens, dtype=torch.int32, device=input_ids.device)
@@ -80,9 +91,13 @@ class KVBatchGraphZhV2(nn.Module):
             hidden = hidden + block.ffn(block.ffn_norm(hidden))
             keys.append(key)
             values.append(value)
+        if self.head == "sequence":
+            logits = self.model.lm_head(self.model.final_norm(hidden))                 # [B,T,V]
+            picked = torch.gather(logits, 2, extra.long().unsqueeze(-1)).squeeze(-1)    # [B,T]
+            return picked - torch.logsumexp(logits, -1), torch.stack(keys), torch.stack(values)
         logits = self.model.lm_head(self.model.final_norm(hidden[:, -1]))              # [B,V]
         if self.head == "scored":
-            return torch.logsumexp(logits, -1), torch.index_select(logits, 1, allowed), torch.stack(keys), torch.stack(values)
+            return torch.logsumexp(logits, -1), torch.index_select(logits, 1, extra), torch.stack(keys), torch.stack(values)
         return logits, torch.stack(keys), torch.stack(values)
 
 
@@ -159,6 +174,128 @@ def check_scored(model, seed=1117):
     return {"allowed": len(allowed), "max_abs_log_prob": error}
 
 
+def _as(x):
+    return torch.as_tensor(np.asarray(x)).float()
+
+
+def torch_sequence_step(graph):
+    """fn(ids [B,T], targets [B,T], position [B], k, v) -> (target_logprobs, new_key, new_value)."""
+    return lambda ids, targets, position, k, v: graph(ids, position, k, v, targets)
+
+
+def _expected_logprobs(reference, ids):
+    """log P(ids[j+1] | ids[:j+1]) for j < len-1 from a full forward (`reference(ids [1,n]) -> [1,n,V]`)."""
+    full = _as(reference(ids[None].long()))[0].log_softmax(-1)
+    return full[torch.arange(len(ids) - 1), ids[1:].long()]
+
+
+@torch.inference_mode()
+def check_sequence(reference, fn, batch=4, seed=1119, strict=True):
+    """Sequence head, the way sentence scoring uses it. First call per row: prefill a prompt of its own
+    length (B=1, position 0) with targets = the next tokens. Second call: all rows together, each from its
+    own position, a continuation of its own length right-padded to the longest (token 0, target 0), with
+    the cache tails filled with large finite junk. Every real position's log-prob must match the
+    reference's full forward."""
+    prompt = PREFILL_LENGTHS(batch)
+    more = [1 + (3 * b) % 7 for b in range(batch)]
+    g = torch.Generator().manual_seed(seed)
+    ids = torch.randint(8, VOCAB, (batch, max(p + m for p, m in zip(prompt, more)) + 1), generator=g, dtype=torch.int32)
+    worst, outside, positions = 0.0, 0, 0
+
+    def judge(got, want):
+        nonlocal worst, outside, positions
+        worst = max(worst, float((got - want).abs().max()))
+        positions += len(want)
+        bad = int((~torch.isclose(got, want, atol=TOLERANCE, rtol=TOLERANCE)).sum())
+        outside += bad
+        if bad and strict:
+            torch.testing.assert_close(got, want, atol=TOLERANCE, rtol=TOLERANCE)
+
+    caches = []
+    for b in range(batch):
+        n = prompt[b]
+        junk = torch.full((LAYERS, 1, HEADS, 1, HEAD_DIM), 30.0)
+        lp, nk, nv = (_as(x) for x in fn(ids[b:b + 1, :n], ids[b:b + 1, 1:n + 1], torch.tensor([0], dtype=torch.int32),
+                                         junk, -junk))
+        judge(lp[0], _expected_logprobs(reference, ids[b, :n + 1]))
+        caches.append((nk[:, 0], nv[:, 0]))
+    width = max(prompt) + 3
+    k = torch.full((LAYERS, batch, HEADS, width, HEAD_DIM), 30.0)
+    v = torch.full_like(k, -30.0)
+    for b, (ck, cv) in enumerate(caches):
+        k[:, b, :, :prompt[b]] = ck
+        v[:, b, :, :prompt[b]] = cv
+    tokens = torch.zeros((batch, max(more)), dtype=torch.int32)
+    targets = torch.zeros_like(tokens)
+    for b in range(batch):
+        tokens[b, :more[b]] = ids[b, prompt[b]:prompt[b] + more[b]]
+        targets[b, :more[b]] = ids[b, prompt[b] + 1:prompt[b] + more[b] + 1]
+    lp, _, _ = (_as(x) for x in fn(tokens, targets, torch.tensor(prompt, dtype=torch.int32), k, v))
+    for b in range(batch):
+        n = prompt[b] + more[b]
+        judge(lp[b, :more[b]], _expected_logprobs(reference, ids[b, :n + 1])[prompt[b]:])
+    return {"rows": batch, "prompt_lengths": prompt, "continuation_lengths": more, "positions": positions,
+            "max_abs": worst, "positions_outside_tolerance": outside}
+
+
+def score_continuations(fn, prefix, continuations, rows=SEQUENCE_ROWS, slots=None):
+    """Reference algorithm for sentence scoring with the sequence head.
+
+    prefix: the shared token ids (BOS + context + the part every candidate shares), at least one token.
+    continuations: each candidate's remaining token ids (non-empty). Returns (sum of log P over each
+    continuation's tokens given prefix, number of calls). One prefill call over prefix[:-1] (skipped when
+    the prefix is one token), then one call per `rows` continuations: input = [prefix[-1]] + c[:-1],
+    targets = c, position = len(prefix) - 1, every row reading the same cache. `slots` pads the cache
+    width (for packages with enumerated or fixed S)."""
+    prefix = [int(t) for t in prefix]
+    if not prefix or any(not c for c in continuations):
+        raise ValueError("Need a non-empty prefix and non-empty continuations.")
+    if len(prefix) - 1 + max(len(c) for c in continuations) > CONTEXT:
+        raise ValueError(f"prefix + continuation exceed {CONTEXT} tokens")
+    calls, n = 0, len(prefix) - 1
+    if n:
+        zeros = np.zeros((LAYERS, 1, HEADS, 1, HEAD_DIM), np.float32)
+        _, nk, nv = fn(np.array([prefix[:-1]], np.int32), np.array([prefix[1:]], np.int32), np.array([0], np.int32),
+                       zeros, zeros)
+        ck, cv = np.asarray(nk, np.float32)[:, 0], np.asarray(nv, np.float32)[:, 0]          # (9,6,n,64)
+        calls += 1
+    width = max(n, 1, slots or 0)
+    scores = []
+    for start in range(0, len(continuations), rows):
+        part = continuations[start:start + rows]
+        t = max(len(c) for c in part)
+        ids = np.zeros((len(part), t), np.int32)
+        targets = np.zeros_like(ids)
+        for r, c in enumerate(part):
+            ids[r, :len(c)] = [prefix[-1]] + list(c[:-1])
+            targets[r, :len(c)] = c
+        k = np.zeros((LAYERS, len(part), HEADS, width, HEAD_DIM), np.float32)
+        v = np.zeros_like(k)
+        if n:
+            k[:, :, :, :n] = ck[:, None]
+            v[:, :, :, :n] = cv[:, None]
+        lp, _, _ = fn(ids, targets, np.full(len(part), n, np.int32), k, v)
+        lp = np.asarray(lp, np.float64)
+        calls += 1
+        scores += [float(lp[r, :len(c)].sum()) for r, c in enumerate(part)]
+    return scores, calls
+
+
+@torch.inference_mode()
+def check_continuations(reference, fn, seed=1120, count=37):
+    """score_continuations vs the full forward: one shared prefix, `count` continuations of 1..12 tokens."""
+    g = torch.Generator().manual_seed(seed)
+    prefix = torch.randint(8, VOCAB, (9,), generator=g, dtype=torch.int32).tolist()
+    conts = [torch.randint(8, VOCAB, (1 + i % 12,), generator=g, dtype=torch.int32).tolist() for i in range(count)]
+    got, calls = score_continuations(lambda *a: tuple(np.asarray(x) for x in fn(*(torch.as_tensor(y) for y in a))),
+                                     prefix, conts)
+    want = [float(_expected_logprobs(reference, torch.tensor(prefix + c, dtype=torch.int32))[len(prefix) - 1:].double().sum())
+            for c in conts]
+    worst = max(abs(a - b) for a, b in zip(got, want))
+    return {"continuations": count, "calls": calls, "max_abs_sum": worst,
+            "passed": worst <= 1e-3, "tolerance_sum": 1e-3}
+
+
 def run_checks(model, fn_factory):
     """All PyTorch checks for one step function factory (eager or traced)."""
     out = {"decode": [], "prefill": []}
@@ -172,15 +309,24 @@ def run_checks(model, fn_factory):
 def example_inputs(head, tokens=1):
     ex = (torch.tensor([[7] * tokens, [9] * tokens], dtype=torch.int32), torch.tensor([0, 2], dtype=torch.int32),
           torch.zeros(LAYERS, 2, HEADS, 3, HEAD_DIM), torch.zeros(LAYERS, 2, HEADS, 3, HEAD_DIM))
-    return ex + ((torch.tensor([5, 6, 7], dtype=torch.int32),) if head == "scored" else ())
+    if head == "scored":
+        return ex + (torch.tensor([5, 6, 7], dtype=torch.int32),)
+    if head == "sequence":
+        return ex + (torch.tensor([[8] * tokens, [10] * tokens], dtype=torch.int32),)
+    return ex
 
 
 @torch.inference_mode()
 def trace(model, head="logits", tokens=1):
+    if head == "sequence" and tokens == 1:
+        raise ValueError("The sequence head is built with a flexible T.")
     graph = KVBatchGraphZhV2(model, head).eval()
     traced = torch.jit.trace(graph, example_inputs(head, 1 if tokens == 1 else 3))
     if head == "logits":
         run_checks(model, lambda: traced)
+    elif head == "sequence":
+        for case in ({"batch": 4}, {"batch": 1}, {"batch": 16, "seed": 2026}):
+            check_sequence(model, torch_sequence_step(traced), **case)
     else:
         lse, picked, _, _ = traced(*example_inputs(head))
         ref, _, _ = KVBatchGraphZhV2(model)(*example_inputs("logits"))
@@ -232,6 +378,10 @@ def convert(bundle, output, batch="flex", tokens=1, slots="flex", head="logits")
     ct = coremltools()
     if Path(output).exists():
         raise ValueError("Conversion output exists.")
+    if head not in HEADS_V2:
+        raise ValueError(head)
+    if head == "sequence" and (tokens == 1 or isinstance(batch, list) or isinstance(slots, list)):
+        raise ValueError("The sequence head is built with a flexible T and no enumerated shapes.")
     lm = zh_v1.BundleLMZh(bundle)
     ids, pos, kc, vc = shape_spec(ct, batch, tokens, slots)
     inputs = [ct.TensorType(name="input_ids", shape=ids, dtype=np.int32),
@@ -241,6 +391,9 @@ def convert(bundle, output, batch="flex", tokens=1, slots="flex", head="logits")
     if head == "scored":
         inputs.append(ct.TensorType(name="allowed", shape=(ct.RangeDim(1, MAX_ALLOWED, 160),), dtype=np.int32))
         outputs = ["logsumexp", "allowed_logits", "new_key", "new_value"]
+    elif head == "sequence":
+        inputs.append(ct.TensorType(name="targets", shape=ids, dtype=np.int32))
+        outputs = ["target_logprobs", "new_key", "new_value"]
     else:
         outputs = ["logits", "new_key", "new_value"]
     model = ct.convert(trace(lm.model, head, tokens), source="pytorch", convert_to="mlprogram",
@@ -253,6 +406,9 @@ def convert(bundle, output, batch="flex", tokens=1, slots="flex", head="logits")
     head_io = ({"allowed": f"int32 [K], 1<=K<={MAX_ALLOWED}; one id list shared by every row",
                 "logsumexp": "float32 [B]; over all 12,288 logits of the last new token",
                 "allowed_logits": "float32 [B,K]; log P = allowed_logits - logsumexp"} if head == "scored" else
+               {"targets": "int32 [B,T]; the token that follows input_ids[b,t] (right padding: any id)",
+                "target_logprobs": "float32 [B,T]; log P(targets[b,t] | row b through input_ids[b,t]), normalized "
+                                   "over all 12,288 logits; ignore padded positions"} if head == "sequence" else
                {"logits": f"float32 [B,{VOCAB}] for the last new token; no softmax"})
     zh_v1.finish(output, model, FORMAT, {"kind": "fp32", "minimum_ios": 18, "bundle": lm.metadata,
         "batch": batch_text, "batch_range": batch_range, "tokens": "1 (decode step)" if tokens == 1 else
@@ -265,6 +421,10 @@ def convert(bundle, output, batch="flex", tokens=1, slots="flex", head="logits")
                       "new_key/new_value": "float32 (9,B,6,T,64); the caller writes them into slots "
                                            "position[b].. of row b"},
         "rows": "independent; padding rows (token 0, position 0) do not affect others",
+        **({"scoring": "one call per batch of candidates: input = [last shared token] + candidate[:-1], targets = "
+                       "candidate, position = shared length - 1, every row reading the shared cache; sum "
+                       "target_logprobs over the candidate's tokens (zh_v1_batch2.score_continuations)"}
+           if head == "sequence" else {}),
         "prompt": "B=1, T=prompt length, position 0, S=1 (any finite values, e.g. zeros)" if tokens != 1 else
                   "B=1 one token per call, or the batch-1 chunk package",
         "graph": f"vimeml.deployment.zh_v1_batch2.KVBatchGraphZhV2 (read-only caches, {head} head)",
@@ -297,6 +457,7 @@ def compress(source, output, alignment):
     carried = {k: original[k] for k in ("minimum_ios", "bundle", "batch", "batch_range", "tokens", "head", "cache_shape",
                                         "cache_slots", "cache_dtype", "compute_units", "interface", "rows", "prompt",
                                         "graph", "policy")}
+    carried.update({k: original[k] for k in ("scoring",) if k in original})
     zh_v1.finish(output, result, FORMAT, {**carried, "kind": "int8-b32_fp32_compute", "recipe": zh_v1.DEPLOYED_RECIPE,
         "source_manifest_sha256": file_sha(source / "manifest.json"), "fp32_alignment_sha256": file_sha(alignment),
         "compression": {**spec, "weight_threshold": zh_v1.WEIGHT_THRESHOLD, "selection": selection},
@@ -360,6 +521,20 @@ def coreml_step(model, manifest, allowed=None):
     return fn
 
 
+def coreml_sequence_step(model):
+    """fn(ids, targets, position, k, v) over a sequence-head package (flexible B, T and S)."""
+    def fn(ids, targets, position, k, v):
+        out = model.predict({"input_ids": np.asarray(ids, np.int32), "targets": np.asarray(targets, np.int32),
+                             "position": np.asarray(position, np.int32), "key_cache": np.asarray(k, np.float32),
+                             "value_cache": np.asarray(v, np.float32)})
+        return (np.asarray(out["target_logprobs"], np.float32), np.asarray(out["new_key"], np.float32),
+                np.asarray(out["new_value"], np.float32))
+    return fn
+
+
+SEQUENCE_CASES = ({"batch": 4}, {"batch": 1}, {"batch": 16, "seed": 2026})
+
+
 class LogSoftmaxOn:
     """Reference wrapper: full forward -> log-softmax restricted to `allowed` (for the scored head)."""
 
@@ -397,7 +572,19 @@ def align(package, bundle, output, stateless=None):
     bs, ss = shapes_of(manifest)
     hi = manifest["batch_range"][1]
     checks = []
-    for case in v1.ALIGN_CASES:
+    if manifest["head"] == "sequence":
+        fn = coreml_sequence_step(model)
+        for case in SEQUENCE_CASES:
+            stats = check_sequence(reference, fn, strict=False, **case)
+            stats["kind"] = "sequence"
+            stats["rows_outside_tolerance"] = stats["positions_outside_tolerance"]
+            checks.append(stats)
+            print(json.dumps(stats), flush=True)
+        stats = check_continuations(reference, fn)
+        stats.update(kind="continuations", max_abs=stats["max_abs_sum"], rows_outside_tolerance=0 if stats["passed"] else 1)
+        checks.append(stats)
+        print(json.dumps(stats), flush=True)
+    for case in (() if manifest["head"] == "sequence" else v1.ALIGN_CASES):
         case = dict(case)
         if case["batch"] > hi or (ss and case.get("slots", 0) > max(ss)):
             continue
@@ -419,7 +606,9 @@ def align(package, bundle, output, stateless=None):
         "head": manifest["head"], "tolerance": {"atol": TOLERANCE, "rtol": TOLERANCE}, "checks": checks,
         "method": "decode: rows of 3..25 tokens starting at different steps, each step vs the reference's full forward; "
                   "prefill (flexible T): per-row prompt in one call, then a multi-token call for all rows at different "
-                  "positions; scored head: log-probs on 149 fixed allowed ids vs the reference's log-softmax",
+                  "positions; scored head: log-probs on 149 fixed allowed ids vs the reference's log-softmax; sequence head: "
+                  "per-position log-probs after a per-row prompt and after a padded multi-row continuation call, and "
+                  "score_continuations sums (37 candidates, tolerance 1e-3 per sum)",
         "conversion_source_sha256": file_sha(Path(__file__))})
     print(f"alignment {'passed' if passed else 'FAILED'}: max {max(c['max_abs'] for c in checks):.3g}")
     return passed

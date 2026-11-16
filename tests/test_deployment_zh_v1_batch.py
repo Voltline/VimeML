@@ -68,6 +68,20 @@ class BatchGraphV2Test(unittest.TestCase):
     def test_scored_head_is_log_softmax_on_allowed(self):
         self.assertLess(z2.check_scored(self.model)["max_abs_log_prob"], zb.TOLERANCE)
 
+    def test_sequence_head_scores_every_new_position(self):
+        step = z2.torch_sequence_step(z2.KVBatchGraphZhV2(self.model, "sequence"))
+        for case in z2.SEQUENCE_CASES:
+            stats = z2.check_sequence(self.model, step, **case)
+            self.assertEqual(stats["positions_outside_tolerance"], 0)
+
+    def test_traced_sequence_head_and_continuation_sums(self):
+        traced = z2.trace(self.model, "sequence", "flex")
+        stats = z2.check_continuations(self.model, z2.torch_sequence_step(traced), count=20)
+        self.assertTrue(stats["passed"], stats)
+        self.assertEqual(stats["calls"], 1 + 2)     # prefill + ceil(20 / 16)
+        with self.assertRaises(ValueError):
+            z2.trace(self.model, "sequence", 1)
+
     def test_cache_is_not_modified(self):
         k = torch.randn(zb.LAYERS, 2, zb.HEADS, 4, zb.HEAD_DIM)
         before = k.clone()
