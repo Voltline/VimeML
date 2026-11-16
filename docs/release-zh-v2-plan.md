@@ -62,10 +62,13 @@ These are principles. The exact numbers and tests go into each model's confirmat
 
 The data requirements for the mainland China launch apply only to **v2-20m**.
 
-- Its pretraining and pinyin data come from export-r1 and the pinyin samples built from export-r1. export-r1 went through rule-based cleaning and human and AI review, as for v1.
-- Client-side filtering is handled by Vime and is not part of this repository.
-- The desktop models (200M, 800M) are not under this requirement. The 800M's use of export-r2, which had no human review, does not affect them.
-- **Distillation needs a decision.** If v2-20m uses the 800M as a distillation teacher, what the teacher learned from export-r2 reaches the 20M indirectly. The distillation plan must then state how this is handled: distil on export-r1 only, or accept and document the difference.
+- **export-r1 and export-r2 meet the same standard.** Both batches went through the same rule filters, term lists and spam-site removal (the site list is the union of both batches). Human and AI review only ever covered the review queue (about 3% of documents); most r1 documents were never read by a person either:
+  - r1 kept a reviewed document only if every vote was keep (382K documents), and dropped unreviewed ones;
+  - r2 has no review and drops every queued document, which is stricter than r1.
+  So "r2 had no human review" is not a compliance difference.
+- The 20M's current pretraining and pinyin data come from export-r1. Distillation may use r1 + r2, and a teacher trained on r2 is not a problem (decided 2026-11-16).
+- Client-side filtering is handled by Vime and is not part of this repository. It is the backstop: rule filters have limited recall, and both batches may miss a little.
+- The desktop models (200M, 800M) are not under this requirement.
 
 ## Open decisions
 
