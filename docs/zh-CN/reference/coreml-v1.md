@@ -8,7 +8,7 @@ V1为7,386,624参数，本文记录2026-10-06的Mac、宿主与键盘扩展实�
 
 | 检查 | INT8结果与范围 |
 | --- | --- |
-| 严格FP32 logits | **失败**，最大绝对差约3.66；没有将门槛改宽后声称通过 |
+| 严格FP32 logits | **失败**，最大绝对差约3.66；门槛未改宽 |
 | 候选fixture | 排序相同，sum最大差约0.129；末位argmax相同 |
 | PAD / causal | PAD最大差约2.81e-5、超容差0；causal差0 |
 | 开发集 | Top-1 122/137、Top-5 134/137；相对Windows FP32首选变化0、完整顺序变化119条；相对conservative源包为118条 |
@@ -25,7 +25,7 @@ V1为7,386,624参数，本文记录2026-10-06的Mac、宿主与键盘扩展实�
 | PyTorch模拟INT8 | 0.0060 | — | — | 诊断对照 |
 | 4bit palette g16 | 1.316 | 6.944 | 33.0% | 3.94MB |
 
-INT8的聚合KL接近模拟结果，支持量化是主要误差来源，但不能证明转换没有额外误差；模拟scale与Core ML实际存储也非逐位等价。严格logits与概率分布衡量不同性质，分布更接近不能消除PAD、causal和排序复测要求。测试只支持当前冻结候选池上的有限接入结论。
+INT8的聚合KL接近模拟结果，支持量化是主要误差来源，转换是否有额外误差仍未排除；模拟scale与Core ML实际存储也非逐位等价。严格logits与概率分布衡量不同性质，分布更接近不能消除PAD、causal和排序复测要求。测试只支持当前冻结候选池上的有限接入结论。
 
 原始报告在 `outputs/deployment/conservative-int8-b32-{alignment,dev,ajimee,phrases,timing,distribution,release-review}-v1/`。开发集原报告的comparison是对未压缩conservative源包，AJIMEE是对Windows FP32；合并时又从保存的逐候选分数重算了开发集对Windows FP32的差异，详见 [合并校验](../reports/mac-20261006/merge-verification.md)。未压缩对照为 `tiny-ja-v1-conservative-v3`，16.57MB。
 
@@ -43,6 +43,6 @@ Mac客户端文档记录的iPhone16 Pro Max优化构建、CPU_ONLY、**测试宿
 
 当前INT8 FP32计算包的Maccompute plan为119/119算子在CPU。客户端记录GPU/ALL触发 `MPSNDArrayQuantizedGatherND` 动态形状断言，CPU_AND_NE也未把当前包移至ANE。
 
-独立实验入口为 `coreml_ane.py`（FP16计算、16/32/64/128档位及每通道INT8）、`compute_plan.py`、`ane_output_probe.py`（缩小输出的原型）。这些不是当前部署接口；输入需补到下一档并重新验证有效位置。Mac实验中ANE每次调用比CPU慢约3～4倍，缩小输出也未改善；调度与搬运是可能原因，现有数据未隔离证明瓶颈，也不代表所有iPhone或更大模型。功耗尚未测量。
+独立实验入口为 `coreml_ane.py`（FP16计算、16/32/64/128档位及每通道INT8）、`compute_plan.py`、`ane_output_probe.py`（缩小输出的原型）。这些不是当前部署接口；输入需补到下一档并重新验证有效位置。Mac实验中ANE每次调用比CPU慢约3～4倍，缩小输出也未改善；调度与搬运是可能原因，现有数据未隔离证明瓶颈，结果仅限所测设备和模型。功耗尚未测量。
 
 FP16、4bit、ANE失败与放弃的路线均保留原包和报告。转换脚本后续有修改，旧manifest的脚本哈希仍代表当时版本，不更新为当前源码哈希。

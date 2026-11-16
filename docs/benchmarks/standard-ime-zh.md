@@ -1,6 +1,6 @@
 # Standard Chinese IME benchmark
 
-2026-11-06. Sampling, item-by-item AI expert review, human spot checks and real Rime candidates are all done; the frozen version is `ime-standard-zh-v1-r1`: 1,456 development items and 1,445 blind items. Full pinyin is the primary track; abbreviated pinyin (initials) is a separate track with 2–6-character targets only. The label level is `ai_expert_reviewed`, with no claim of native-speaker gold. Scripts and protocol are in Git; item text, candidates and review records stay in ignored local directories.
+2026-11-06. Sampling, item-by-item AI expert review, human spot checks and real Rime candidates are all done; the frozen version is `ime-standard-zh-v1-r1`: 1,456 development items and 1,445 blind items. Full pinyin is the primary track; abbreviated pinyin (initials) is a separate track with 2–6-character targets only. The label level is `ai_expert_reviewed`, which is not native-speaker gold. Scripts and protocol are in Git; item text, candidates and review records stay in ignored local directories.
 
 Blind was first used on 2026-11-11 in the [vimeml-tiny-zh-v1 confirmation](confirmation-zh-v1-plan.md) (run-01, passed; results in the [report](../reports/zh-v1-20261111/blind-and-baselines.md)). Since then it is only a fixed reference test set: it can no longer be called a new blind test, nor be used for tuning.
 
@@ -41,7 +41,7 @@ All three sources are public datasets released on GitHub; they may also have bee
 - Acceptable variants include only same-sound, same-length spellings:
   - 他家/它家 (referring to a shop), and 他/她 when the left context has no referent;
   - 其他/其它, complement 的/得, 预定/预订, 订/定, 那个/哪个 in questions.
-- These variants are not claimed to be exhaustive. This version has at most 3 per item.
+- These variants may not be exhaustive. This version has at most 3 per item.
 
 **Human spot checks**
 - Questions the AI could not settle went to the project owner, decided one by one on a local web page. Decisions recorded in `expert-review-r1/human-review-r1.json`.
@@ -108,7 +108,7 @@ Two patterns per item, matched as exact substrings with Aho-Corasick:
 - the whole contiguous Han run containing the target, at least 8 characters, insensitive to surrounding punctuation;
 - the whole message, at least 8 characters.
 
-Shorter fragments are mostly common phrases and are not screened. The method cannot find paraphrases or near-duplicates, so no claim of zero contamination is made.
+Shorter fragments are mostly common phrases and are not screened. The method cannot find paraphrases or near-duplicates, so contamination is not ruled out.
 
 **Results**
 

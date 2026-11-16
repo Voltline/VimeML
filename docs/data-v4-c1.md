@@ -17,7 +17,7 @@ The first conversion dataset contains **2,841,003 training and 18,956 validation
 | FineWeb examples | 2,814,085 | 18,794 |
 | Tatoeba examples | 26,918 | 162 |
 
-The initial three-million/20,000 selection was reduced by shared-reading, exact task-overlap, and compound-boundary filters while retaining the 20% kana-only cap. Removed rows were not backfilled; the final counts do not establish exhaustion of eligible examples in the corpus. At 256 conversion examples per update, twelve passes require 133,176 updates and 137,842,152 conversion targets. Ordinary-LM replay is counted separately.
+The initial three-million/20,000 selection was reduced by shared-reading, exact task-overlap, and compound-boundary filters while retaining the 20% kana-only cap. Removed rows were not backfilled; the final counts may not exhaust the eligible examples in the corpus. At 256 conversion examples per update, twelve passes require 133,176 updates and 137,842,152 conversion targets. Ordinary-LM replay is counted separately.
 
 ## Annotation and isolation
 

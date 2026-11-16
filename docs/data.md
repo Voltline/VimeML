@@ -12,7 +12,7 @@ Deterministic cleaning processes 2,289,346 source records into 25,713,003 unique
 | Validation | 260,337 |
 | Test | 267,298 |
 
-The target ratio is 98/1/1 with seed 42. Source documents and exact duplicate text share a split. Semantic near-duplicate and public-benchmark overlap audits are incomplete. Text cleaning does not establish factual quality, unbiased content, or absence of personal information.
+The target ratio is 98/1/1 with seed 42. Source documents and exact duplicate text share a split. Semantic near-duplicate and public-benchmark overlap audits are incomplete. Factual quality, bias, and personal information are not checked by the text cleaning.
 
 The frozen exports reside in `outputs/corpus-fast-v1/`. The original merge manifest retains `stage=merged_corpus_staging` and `ready_for_lm_training=false`; later review/training decisions are separate records rather than edits to the original fingerprint. [Pipeline methods](reference/data-pipeline.md) describe reconstruction.
 

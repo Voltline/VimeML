@@ -1,6 +1,6 @@
 # RakutenAI-2.0-mini-instruct 本地重排对照
 
-2026-10-16 复用 [TinySwallow 对照](external-1p5b.md)的四组冻结开发／回归集和原始文本概率评分接口，在本地 RTX 5060 Laptop 8GB 完成 1,565 条评测。Rakuten 的 Standard development 为 462/728，未复现 TinySwallow 的 527/728；其余三组与 V2.1 接近。此次结果用于比较候选重排适用性，不代表模型整体日语或对话能力。
+2026-10-16 复用 [TinySwallow 对照](external-1p5b.md)的四组冻结开发／回归集和原始文本概率评分接口，在本地 RTX 5060 Laptop 8GB 完成 1,565 条评测。Rakuten 的 Standard development 为 462/728，未复现 TinySwallow 的 527/728；其余三组与 V2.1 接近。此次结果用于比较候选重排适用性。
 
 ## 模型与固定协议
 

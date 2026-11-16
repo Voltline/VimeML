@@ -28,6 +28,6 @@ These bounded workloads show no observed linear physical-memory accumulation aft
 
 An older approximately 150-second extension trace has 146 samples, footprint 24.00 → 29.95 MiB, and sampled peak 30.36. It lacks complete switch/load/build/model evidence, so it is not identified as a fully documented LM-plus-suggestions measurement.
 
-Ranking and suggestions switches are independent. Engine ranking can coexist with suggestions that load the model. The worker retains a cached model after first load; UI switch changes do not establish immediate memory reclamation. Character-based left-context limits do not guarantee token bounds; explicit token-length fallback remains necessary.
+Ranking and suggestions switches are independent. Engine ranking can coexist with suggestions that load the model. The worker retains a cached model after first load; UI switch changes show no immediate memory reclamation. Character-based left-context limits do not guarantee token bounds; explicit token-length fallback remains necessary.
 
 Original scenario JSON, failed/retry records, traces, and summaries reside in `outputs/deployment/memory-audit-v2/`. `scripts/deployment/summarize_memory.py` reconstructs summaries from existing reports without rerunning stress workloads. Real-device identity, cold/continuous use, request latency, cancellation, and system termination require separate recorded evidence.

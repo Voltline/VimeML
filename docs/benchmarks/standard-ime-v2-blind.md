@@ -35,6 +35,6 @@ Removal rules: the span starts inside a word or name that the left context cuts;
 - Labels are AI expert review, not native-speaker gold; acceptable notations are not exhaustive.
 - Authors and users come from the same blind role as the consumed v1 blind. Only documents, messages and input/left-context pairs are guaranteed not to be reused; author style is not independent of v1 blind.
 - Overlap screening covers the old training text and the chat corpus, not the web shards added for V4.3 (not available locally).
-- Independent collection of the sources cannot prove that the text never entered the web training corpus.
+- Independent collection of the sources leaves open whether the text entered the web training corpus.
 
 Candidate export: [candidate export v2](candidates-v2-handoff.md). Scoring followed the [confirmation plan v2](confirmation-v2-plan.md); the set was used on 2026-10-21, see the [confirmation v2 results](confirmation-v2-results-20261021.md). Item text, review sheets and candidates stay in a local ignored directory and never enter Git.

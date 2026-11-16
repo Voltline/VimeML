@@ -15,7 +15,7 @@ Instruments supplies 164 process samples with median interval 1.036 seconds. An 
 | Shared resident peak | 40.2813 | Distinct resident metric |
 | Total resident peak | 192.7813 | Distinct resident metric |
 
-Median footprint rises from approximately 18.33 MiB at 30–60 seconds to 27.2675 MiB at 180–201 seconds. A long-term plateau, leak mechanism, or cache explanation is not established. Loads take 153 ms at 5.557 seconds and 28 ms at 136.596 seconds; the second load is not evidence of process restart without additional identity records.
+Median footprint rises from approximately 18.33 MiB at 30–60 seconds to 27.2675 MiB at 180–201 seconds. Whether memory plateaus, and whether the growth is a leak or a cache, is unresolved. Loads take 153 ms at 5.557 seconds and 28 ms at 136.596 seconds; without additional identity records, it cannot be told whether the second load followed a process restart.
 
 ## Latency
 
@@ -27,7 +27,7 @@ Median footprint rises from approximately 18.33 MiB at 30–60 seconds to 27.267
 | Touch-to-visual stage | — | 1.01 | 1.86 | 4.42 |
 | Result-to-UI publication | — | 42.49 | 8.79 | 1,926.09 |
 
-The publication tail's cause is unresolved. Mean exceeding p95 reflects the long tail rather than an interchangeable latency definition. Subjective input experience in this limited record is acceptable; it does not establish universal response-time or power guarantees.
+The publication tail's cause is unresolved. Mean exceeding p95 reflects the long tail rather than an interchangeable latency definition. Subjective input experience in this limited record is acceptable.
 
 ## Host and integration evidence
 

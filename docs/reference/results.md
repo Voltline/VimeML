@@ -14,7 +14,7 @@ The pool covers 162/200 exact references. Pure LM corrects 48 engine errors and 
 
 Historical development results are engine 111/137, pure LM 122/137, and calibrated hybrid 123/137. Lambda selection occurs on development only. That set is AI-reviewed generated text, not native-speaker gold.
 
-V1 scores 1,453/2,000 on the later expanded draft development set. Those labels remain drafts; exposed public/development comparisons do not establish unseen generalization. [AJIMEE](ajimee-benchmark.md), [hybrid ranking](hybrid-ranking.md), and [expanded evaluation](../reports/v2-20261007/expanded-ime-evaluation.md) describe measurement scope.
+V1 scores 1,453/2,000 on the later expanded draft development set. Those labels remain drafts; exposed public/development comparisons are not measures of unseen generalization. [AJIMEE](ajimee-benchmark.md), [hybrid ranking](hybrid-ranking.md), and [expanded evaluation](../reports/v2-20261007/expanded-ime-evaluation.md) describe measurement scope.
 
 ## Generation and deployment
 

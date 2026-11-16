@@ -18,7 +18,7 @@ The entry point refuses to overwrite an existing experiment. Use a separate conf
 
 8192/12288/16384 Unigram vocabularies share identity normalization, preserved whitespace, byte fallback, no dummy prefix, and an exact vocabulary limit. PAD/UNK/BOS/EOS are 0/1/2/3. Reserved USER_DEFINED markers `<CTX>/<READ>/<OUT>` are 4/5/6; they are not used to construct conversion examples here. Future task formatting must specify how literal marker strings in raw text are handled.
 
-All vocabulary sizes use one persisted 2,000,000-line reservoir sample from the full frozen train TXT, produced with Python `random.Random(42)`. The scan verifies train SHA256, sentence/character counts, maximum UTF-8 sentence length, and reserved strings. Native training uses the entire sample without resampling. SentencePiece 0.2.1's internal reservoir seed is separate; this explicit sample is not claimed identical to V2's native sample.
+All vocabulary sizes use one persisted 2,000,000-line reservoir sample from the full frozen train TXT, produced with Python `random.Random(42)`. The scan verifies train SHA256, sentence/character counts, maximum UTF-8 sentence length, and reserved strings. Native training uses the entire sample without resampling. SentencePiece 0.2.1's internal reservoir seed is separate; this explicit sample can differ from V2's native sample.
 
 Full validation SHA256 is verified against the frozen integrity report. Statistics cover the training sample, full validation, and the explicit standard development directory. Test/blind paths are rejected; their text is not read. No LM probability, reranking, or reference accuracy is computed, and benchmark files/references are unchanged. The existing corpus manifest's `ready_for_lm_training=false` is preserved.
 

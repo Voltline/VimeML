@@ -28,6 +28,6 @@ The preselected final checkpoint subsequently receives the preregistered Standar
 
 ## Conclusion and archival
 
-A learns the new chat distribution but regresses old-corpus likelihood and historical draft reranking. The new-source results do not establish a stable deployment replacement advantage. V2.1 remains deployed; the final A model is retained as a research checkpoint. Qualitative continuations show limited generation capability rather than validated conversational quality.
+A learns the new chat distribution but regresses old-corpus likelihood and historical draft reranking. The new-source results show no stable deployment replacement advantage. V2.1 remains deployed; the final A model is retained as a research checkpoint. Qualitative continuations show limited generation capability rather than validated conversational quality.
 
 Model and original reports reside in `artifacts/models/tiny-ja-v3-a-chat05-d320-l6/` and `outputs/training-v3/`. Initial domain validation, full validation, epoch IME results, fixed benchmark caches, and stage records remain frozen. Historical 1,000-case blind candidates receive no LM scoring. AI-reviewed labels are not native-speaker gold; case-level statistics are exploratory.

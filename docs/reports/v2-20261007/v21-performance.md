@@ -9,7 +9,7 @@ Recorded on the original RTX 4090 D using the same frozen V2.0 initialization, r
 | Eager | 512 | 215,837 | 43.68 / 64.70 | 3.1% | 12.12 |
 | Compiled | 512 | 278,818 | 33.86 / 51.13 | 4.2% | 10.26 |
 
-Measured intervals last only approximately 4–6 seconds, include recompilation, and reuse existing disk caches. They do not establish whole-epoch thermal behavior. Snapshot GPU utilization cannot be attributed as a condition-level average. Four loader workers have low wait fractions; no worker-count increase is adopted.
+Measured intervals last only approximately 4–6 seconds, include recompilation, and reuse existing disk caches. Whole-epoch thermal behavior is not covered. Snapshot GPU utilization cannot be attributed as a condition-level average. Four loader workers have low wait fractions; no worker-count increase is adopted.
 
 The formal batch-512 compiled run completes 98,426 updates and 998,854,924 effective tokens in 3,739.8 seconds. Update-only throughput is 273,368 tokens/s over 3,650.2 seconds, excluding validation, saving, and the initial 100 updates. This is approximately 2.26× V2.0 throughput under the reported definitions.
 

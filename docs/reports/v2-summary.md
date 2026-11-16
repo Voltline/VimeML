@@ -26,4 +26,4 @@ Recorded real-keyboard measurements show reranking mean 32.93 ms/p95 53.92 ms, a
 
 [Training](../training-v2.md), [extension selection](v2-20261007/v21-extend.md), [quantization analysis](mac-20261008/v21-quantization-review.md), and [iPhone report](mac-20261008/v21-iphone.md) retain specific conditions and failures. Original score/trace assets remain local and immutable. Historical development labels are AI-reviewed or drafts, not native-speaker gold. The old 1,000-case blind set remains unscored.
 
-Later [V3 experiments](../plan_v3.md) do not establish a stable replacement advantage. Public release links and architecture details appear in the [model card](../../MODEL_CARD.md).
+Later [V3 experiments](../plan_v3.md) show no stable replacement advantage. Public release links and architecture details appear in the [model card](../../MODEL_CARD.md).

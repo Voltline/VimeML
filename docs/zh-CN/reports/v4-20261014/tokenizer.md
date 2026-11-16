@@ -17,7 +17,7 @@
 
 三个 tokenizer 为 8192、12288、16384，全部使用 Unigram、identity、byte fallback、`add_dummy_prefix=false`、保留空白、hard vocab limit。PAD/UNK/BOS/EOS = 0/1/2/3；`<CTX>/<READ>/<OUT>` 为 USER_DEFINED token，ID = 4/5/6。它们仅预留，本次没有生成 Conversion 输入。将来构造任务输入需要明确原始文本中标记字符串的处理规则。
 
-训练复用 `outputs/corpus-fast-v1/train.txt`。完整扫描 train 并核对 SHA256、句数、字符数、最大句子 UTF-8 长度和保留字符串；使用 Python `random.Random(42)` reservoir sampling 抽取 2,000,000 句，持久化为单个 `train-sample.txt`，三个训练读取相同文件的全部内容，不再次抽样。这样固定对照中的训练文本变量。SentencePiece 0.2.1 内部 reservoir 使用独立固定 seed，不能将其采样等同于 Python seed42；本次 sample 不宣称与 V2 的 sample 相同。
+训练复用 `outputs/corpus-fast-v1/train.txt`。完整扫描 train 并核对 SHA256、句数、字符数、最大句子 UTF-8 长度和保留字符串；使用 Python `random.Random(42)` reservoir sampling 抽取 2,000,000 句，持久化为单个 `train-sample.txt`，三个训练读取相同文件的全部内容，不再次抽样。这样固定对照中的训练文本变量。SentencePiece 0.2.1 内部 reservoir 使用独立固定 seed，其采样与 Python seed42 是独立的；本次 sample 与 V2 的 sample 不一定相同。
 
 validation 的实际 SHA256 与冻结 corpus integrity report 一致；只用于统计，不参与拟合。评估范围是完整训练 sample、完整 validation、显式 standard development 目录。入口拒绝 test/blind 路径，未打开 test 或 blind 文本，也没有模型 logP、reranking 或参考答案准确率计算。benchmark 输入与参考未修改。
 
@@ -54,7 +54,7 @@ validation 的实际 SHA256 与冻结 corpus integrity report 一致；只用于
 
 所有长度均不含特殊 token。报告 tokens/sentence、tokens/candidate、characters/token、byte-token 占全部 content tokens 的比例、UNK、roundtrip、长度分位数与 `content+BOS+EOS≤128` 的句子覆盖。
 
-reading 同时统计 benchmark 原始片假名与诊断性平假名版本。平假名版本仅执行 U+30A1–U+30F6 的对应映射，不修改输入文件，不宣称是后续 Conversion 的最终规范化策略。
+reading 同时统计 benchmark 原始片假名与诊断性平假名版本。平假名版本仅执行 U+30A1–U+30F6 的对应映射，不修改输入文件，并非后续 Conversion 的最终规范化策略。
 
 语料的 `128 × chars/token` / `126 × chars/token` 是字符容量估计，不是实测连续窗口覆盖。development 另用 tokenizer offsets 统计前 126 个 content tokens 实际覆盖的字符数，包含短文本；它也不能替代真实 packed LM context 的覆盖测试。
 

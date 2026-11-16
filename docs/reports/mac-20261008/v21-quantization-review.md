@@ -6,7 +6,7 @@ The INT8 deployment package fails the original strict logits criterion while unc
 
 Weight compression perturbs distributions and candidate scores. A low-margin decision can change under modest score perturbations, while aggregate hit counts remain stable. Thirty changed expanded-set first choices have median FP32 margin approximately 0.070 and maximum 0.3628; 27 have margin at most 0.25. The 1,910 unchanged multi-candidate cases have median margin approximately 3.0718; 60 single-candidate cases are excluded from that margin comparison.
 
-V1 INT8 also fails strict alignment, with maximum error approximately 3.66. Recurring failures do not establish an unavoidable small-model or architecture limitation. Uncompressed V2.1 agreement argues against a general conversion failure, but does not prove every compressed operation equivalent or identify a single cause.
+V1 INT8 also fails strict alignment, with maximum error approximately 3.66. Whether the recurring failures are inherent to small models or the architecture is unresolved. Uncompressed V2.1 agreement argues against a general conversion failure, but leaves open whether every compressed operation is equivalent and does not identify a single cause.
 
 ## Task-level evidence
 

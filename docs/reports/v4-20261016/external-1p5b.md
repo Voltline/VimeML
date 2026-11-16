@@ -45,7 +45,7 @@ Below are "baseline wrong, TinySwallow right / baseline right, TinySwallow wrong
 | AJIMEE | 14 / 14 | 1 | 13 / 13 | 1 |
 | Historical development | 7 / 2 | 0.17969 | 9 / 2 | 0.06543 |
 
-Equal totals do not mean identical items. On AJIMEE in particular, against V2.1 there are 14 gains and 14 losses, so the teacher's outputs cannot be taken as correct labels.
+Equal totals do not mean identical items. On AJIMEE in particular, against V2.1 there are 14 gains and 14 losses, so the teacher's outputs are not correct labels.
 
 | Set | Sum with context, primary | Sum, empty context | Mean with context, auxiliary |
 | --- | ---: | ---: | ---: |

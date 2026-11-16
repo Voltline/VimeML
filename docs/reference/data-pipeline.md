@@ -34,6 +34,6 @@ Global deduplication and split assignment occur at merge. Resume uses compatible
 
 `scripts/review/prepare.py` produces stratified review samples and quarantined targets. `run.py` optionally requests DeepSeek review suggestions using external environment credentials; API suggestions do not rewrite or automatically approve source text. `approve.py` records explicit selected decisions. Completed review excludes 638 quarantined blocks. Model review is not comprehensive quality certification.
 
-Exports include ordered `train/validation/test.txt` and `.jsonl`, `provenance.jsonl`, document/review indices, quarantine files, manifests, counts, and original integrity records. The original merge staging flag is preserved; later review and baseline-use decisions are separate records. Exact deduplication does not establish semantic independence or absence of benchmark contamination.
+Exports include ordered `train/validation/test.txt` and `.jsonl`, `provenance.jsonl`, document/review indices, quarantine files, manifests, counts, and original integrity records. The original merge staging flag is preserved; later review and baseline-use decisions are separate records. Exact deduplication covers identical text only; semantic independence and benchmark contamination are not covered.
 
 `scripts/tools/check_corpus.py` provides metadata checks; full large-file reads are a separate optional operation. Existing completed build records are sufficient for routine artifact reuse, without repeated full-corpus hashing.

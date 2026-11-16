@@ -4,7 +4,7 @@ V1 deployment uses symmetric INT8 block-32 weights, FP32 computation, `CPU_ONLY`
 
 ## Numerical and task behavior
 
-Strict INT8 logits alignment fails, with maximum absolute error approximately 3.66. Distribution diagnostics average positions within each example, then examples; they are not corpus-token-weighted. Core ML INT8 KL is approximately 0.0059, similar to simulated INT8 0.0060. Aggregate similarity does not establish a correct implementation at every position.
+Strict INT8 logits alignment fails, with maximum absolute error approximately 3.66. Distribution diagnostics average positions within each example, then examples; they are not corpus-token-weighted. Core ML INT8 KL is approximately 0.0059, similar to simulated INT8 0.0060. Aggregate similarity leaves per-position correctness open.
 
 | Compression diagnostic | KL | NLL | Top-1 token agreement |
 | --- | ---: | ---: | ---: |

@@ -31,7 +31,7 @@ BPC使用完整对应validation，训练器BF16评估；不同语料上的BPC不
 | 旧development / 137 | 4 | 3 | +1 | 1.0000 |
 | 扩大development草稿 / 2000 | 46 | 71 | -25 | 0.0261 |
 
-逐条核对ID、输入、参考与候选顺序一致。2000条仍是未正式审核的草稿标签；其退步是同池诊断信号，p值不将草稿转换为正式gold，也不构成独立blind结论。1000条blind没有进行LM计分，没有改标签或添加后验别名。
+逐条核对ID、输入、参考与候选顺序一致。2000条仍是未正式审核的草稿标签；其退步是同池诊断信号，p值仍基于草稿标签，不是独立blind结论。1000条blind没有进行LM计分，没有改标签或添加后验别名。
 
 12个既有前缀各生成greedy与固定seed采样结果，均保留原前缀，无替换字符。部分日常前缀产生自然续写，部分长续写仍有重复；这些例子仅用于检查推理可用性，不证明聊天质量或设备延迟。
 
@@ -43,7 +43,7 @@ BPC使用完整对应validation，训练器BF16评估；不同语料上的BPC不
 
 ## 本地产物与复用
 
-同日新增[Standard IME独立来源比较](../../benchmarks/standard-ime-results-20261008.md)：新来源blind为V2.1 535/725、V3 A 546/725，旧网页500条为374、368。WRIME在development/blind均改善，JMultiWOZ两组方向不一致。这补充了口语领域收益的证据，前述旧基准下降不能概括为所有场景退化；当前仍保留V2.1部署，尚不足以证明V3 A全面更优。
+同日新增[Standard IME独立来源比较](../../benchmarks/standard-ime-results-20261008.md)：新来源blind为V2.1 535/725、V3 A 546/725，旧网页500条为374、368。WRIME在development/blind均改善，JMultiWOZ两组方向不一致。这补充了口语领域收益的证据，前述旧基准下降只出现在部分场景；当前仍保留V2.1部署，V3 A是否全面更优尚无结论。
 
 - 模型与原始两轮报告：`artifacts/models/tiny-ja-v3-a-chat05-d320-l6/`，下载`best.pt`及完整validation/epoch报告；同一步的其他checkpoint副本留在远端。
 - 下载归档：`handoff/vimeml-v3-a-results.tar.gz`。

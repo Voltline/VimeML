@@ -34,7 +34,7 @@
 python scripts/deployment/coreml.py --help
 ```
 
-原压缩对照包括palette4 group16、linear4 block32与8bit变体。INT4存储不保证INT4执行，理论包体不代表设备收益；转换图先对齐，再独立评价量化损失。
+原压缩对照包括palette4 group16、linear4 block32与8bit变体。INT4存储不保证INT4执行，理论包体和设备收益是两回事；转换图先对齐，再独立评价量化损失。
 
 ## 客户端与测量设计
 
@@ -42,6 +42,6 @@ python scripts/deployment/coreml.py --help
 
 客户端采用单实例和串行推理；generation ID丢弃过时请求，在搜索步之间检查取消，每候选／生成步及时释放中间数组。T128完整logits单份约8MiB，20候选的全部输出长期持有会额外占用约160MiB。
 
-原设备方案分别记录模型／构建身份、冷加载、热重排、联想、请求至UI各阶段、footprint和峰值，并覆盖快速删字、取消、宿主切换与系统终止。加载前后采样不能捕获瞬时峰值，测试宿主也不能代表键盘扩展。
+原设备方案分别记录模型／构建身份、冷加载、热重排、联想、请求至UI各阶段、footprint和峰值，并覆盖快速删字、取消、宿主切换与系统终止。加载前后采样捕获不到瞬时峰值，测试宿主也不是键盘扩展。
 
 实际包、失败结果和设备trace见[V1实测](../reference/coreml-v1.md)、[模拟器记录](../reports/mac-20261006/simulator-memory.md)与[真实扩展记录](../reports/mac-20261006/iphone-keyboard-memory.md)。产物路径见[归档管理](../artifacts.md)。

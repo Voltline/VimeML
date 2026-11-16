@@ -27,7 +27,7 @@ All local IME comparisons use frozen pools, primitive FP32, disabled TF32, full-
 | AJIMEE /200 | **144** | **144** | 132 | 137 | 98 |
 | Historical development /137 | 122 | 120 | **124** | **124** | 118 |
 
-Epoch 13 was selected on Standard development before the local regression comparisons. Its +4 versus V2.1 comprises 45 improvements and 41 regressions; descriptive paired p=0.74653. Epoch 16 is more balanced on the regression sets but does not establish a consistent replacement advantage. These exposed, correlated development/regression sets are not a new independent benchmark.
+Epoch 13 was selected on Standard development before the local regression comparisons. Its +4 versus V2.1 comprises 45 improvements and 41 regressions; descriptive paired p=0.74653. Epoch 16 is more balanced on the regression sets but shows no consistent replacement advantage. These exposed, correlated development/regression sets are not a new independent benchmark.
 
 Final complete LM BPC is **3.121224**, versus V2.1 **3.080191** and V4-B **3.027777**, on the same original validation text with FP32 evaluation. Best chat BPC is **3.153930** at epoch 15; final chat BPC is **3.172254**. Final conversion validation NLL is **0.207814**.
 
@@ -49,4 +49,4 @@ On the same epoch-16 weights, clearing READ improves structured Standard scores 
 
 The repository comparison entry preserves the scoring logic of the archived local script and adds an explicit output argument; the completed evaluation retains its original script hash. It does not automatically run another evaluation or training job. Datasets, weights, transfer utilities, and credentials remain outside Git.
 
-Next independent testing should register the two ordinary-LM candidates in advance and report domain regressions alongside aggregate gains. V4.1 changes data, tasks, seed, and budget together, so it does not establish a causal benefit for any one component. No deployment replacement, additional training, or Core ML/device validation follows automatically from this experiment. The subsequent [V4.2](training-v42.md) run removes the conversion objective and extends the schedule to twenty epochs.
+Next independent testing should register the two ordinary-LM candidates in advance and report domain regressions alongside aggregate gains. V4.1 changes data, tasks, seed, and budget together, so a benefit cannot be attributed to any one component. No deployment replacement, additional training, or Core ML/device validation follows automatically from this experiment. The subsequent [V4.2](training-v42.md) run removes the conversion objective and extends the schedule to twenty epochs.

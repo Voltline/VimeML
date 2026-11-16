@@ -74,7 +74,7 @@ Paired p-values are exploratory and unadjusted, not multiplicity-corrected signi
 | 11 | — | 3.037641 | — | 496 |
 | 12 | — | 3.032557 | — | 489 |
 
-At the same ninth epoch, B BPC 3.086446 trails A3.058957; B overtakes A-best only during epochs 11–12. This supports budgeting through the planned anneal, while interim loss alone cannot determine final quality. BPC and development Top-1 remain non-monotonic. One seed 42 run per schedule does not establish a general causal 8K/15M architecture advantage.
+At the same ninth epoch, B BPC 3.086446 trails A3.058957; B overtakes A-best only during epochs 11–12. This supports budgeting through the planned anneal, while interim loss alone cannot determine final quality. BPC and development Top-1 remain non-monotonic. Each schedule is a single seed 42 run, which is too little to attribute a difference to the 8K/15M architecture.
 
 | Diagnostic | V2.1 | V4-A LM best | V4-A epoch 8 | V4-B LM best |
 | --- | --- | --- | --- | --- |
@@ -88,6 +88,6 @@ The 32 homophone and 14 suggestion cases are small synthetic diagnostics with no
 
 ## Assessment and retained artifacts
 
-The complete twelve-epoch design has clear LM gains and is a candidate foundation for later task training. On Standard, primary B corrects 42/damages 49 versus V2.1 (net-7, descriptive p=0.529602); no stable replacement gain is established. Relative to AzooKey, B corrects 98/damages 53 versus 100/48 for V2.1. On 407 contextual cases, B scores 272 versus 275 for V2.1 and 254 for B without context. Context helps without an overall lead. A useful next question is whether reading-conditioned training improves the same pools; these results do not establish a need to immediately extend pure-LM training. A/B LM-best and development-best checkpoints remain archived with separate selection rationales.
+The complete twelve-epoch design has clear LM gains and is a candidate foundation for later task training. On Standard, primary B corrects 42/damages 49 versus V2.1 (net-7, descriptive p=0.529602); no stable replacement gain is established. Relative to AzooKey, B corrects 98/damages 53 versus 100/48 for V2.1. On 407 contextual cases, B scores 272 versus 275 for V2.1 and 254 for B without context. Context helps without an overall lead. A useful next question is whether reading-conditioned training improves the same pools; these results show no need to immediately extend pure-LM training. A/B LM-best and development-best checkpoints remain archived with separate selection rationales.
 
 [Local summary](../../../outputs/evaluation-v4-b12cosine-20261015/comparison-summary.json) · [Frozen plan](../../../outputs/evaluation-v4-b12cosine-20261015/plan.json) · [Download hashes](../../../outputs/training-v4-b12cosine-20261015/download-manifest.json) · [Control audit](../../../outputs/evaluation-v4-b12cosine-20261015/experimental-controls.json)

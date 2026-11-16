@@ -15,7 +15,7 @@
 
 compiled 在 batch256/512 分别提升 35%/29%；compiled512 比 compiled256 快 83%。观测到 9 种 padded width（8–64、128），无 OOM。4 workers 等待占比低，未增加 worker。
 
-各组 measured 区间仅约 4–6 秒，不能代表完整 epoch 或长期热稳定性。measured 区间保留重编译耗时，现有磁盘编译缓存未删除。每秒 GPU 快照跨不同阶段，不能据此归属某方案的平均 GPU 利用率。
+各组 measured 区间仅约 4–6 秒，只覆盖这几秒，完整 epoch 和长期热稳定性未测。measured 区间保留重编译耗时，现有磁盘编译缓存未删除。每秒 GPU 快照跨不同阶段，不能据此归属某方案的平均 GPU 利用率。
 
 ## 正式配置与进度
 

@@ -1,6 +1,6 @@
 # V3 B joint retraining results — 2026-10-08
 
-Joint retraining does not establish a stable IME replacement advantage. V2.1 remains deployed. The selected epoch-2 checkpoint scores 507/728 on Standard development, 533/725 on the exposed fixed reference, and 364/500 on historical web regression; V2.1 scores 505, 535, and 374 respectively.
+Joint retraining shows no stable IME replacement advantage. V2.1 remains deployed. The selected epoch-2 checkpoint scores 507/728 on Standard development, 533/725 on the exposed fixed reference, and 364/500 on historical web regression; V2.1 scores 505, 535, and 374 respectively.
 
 The randomly initialized V2 architecture completes four epochs, 265,841 updates, and 4,001,730,586 effective tokens, including 5% chat. Input scope is old V2 text, the selected eight-shard JpnMix pool, and two dialogue corpora. The run takes 13,428.8 seconds (3 hours 44 minutes); mean formal-update throughput is 307,681 effective tokens/s, excluding validation, saving, and initialization intervals. [Training design](b-plan.md) records the frozen configuration.
 

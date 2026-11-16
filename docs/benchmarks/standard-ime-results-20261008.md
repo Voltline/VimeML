@@ -16,7 +16,7 @@ The preregistered comparison evaluates frozen V2.1 extension step 40,000 and V3 
 | Reference equal-source macro | — | 77.73% | 79.07% |
 | Historical regression / 500 | 317 | 374 | 368 |
 
-Candidate coverage is 630/728, 650/725, and 443/500. Development Top-5 is 618 for both models; MRR is 0.75934 / 0.76814 and MinCER 0.04255 / 0.03871. Reference Top-5 is 636 / 639, MRR 0.79875 / 0.81147, and MinCER 0.04061 / 0.03642. Source-level effects differ; a favorable aggregate does not establish uniform domain improvement.
+Candidate coverage is 630/728, 650/725, and 443/500. Development Top-5 is 618 for both models; MRR is 0.75934 / 0.76814 and MinCER 0.04255 / 0.03871. Reference Top-5 is 636 / 639, MRR 0.79875 / 0.81147, and MinCER 0.04061 / 0.03642. Source-level effects differ; the aggregate gain is not uniform across domains.
 
 ## Paired changes: A relative to V2.1
 

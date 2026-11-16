@@ -44,4 +44,4 @@ K/V 各为 `[7,1,6,128,64]`，FP32 两份合计 2,752,512 bytes（2.625 MiB）�
 
 [train-v4-b.toml](../../../../configs/train-v4-b.toml)描述从随机权重开始的正式训练：BF16、batch512、accumulation1、4 epochs、fused AdamW、LR6e-4、1000-step 学习率 warmup 与 cosine decay。主干编译、数据加载与 tracking 集成复用 V2.1/V3 的云 GPU 路径。Validation 保持4096个抽样窗口，并补齐对应句子的所有窗口。目前没有 V4 在目标设备上的实际吞吐与显存结果。
 
-训练入口调整通过3项 tracking 入口回归检查，包括无网络初始化的新进程 V4 注册。配置核对确认预算为196,940次更新。CPU Dynamo fullgraph/dynamic capture 使用 eager backend，在两种输入形状下 masked loss 与所有参数梯度均对齐，并保持权重共享和 state-dict 名称。该检查验证图捕获，不代表已验证 Linux CUDA Inductor kernel 或目标设备吞吐。
+训练入口调整通过3项 tracking 入口回归检查，包括无网络初始化的新进程 V4 注册。配置核对确认预算为196,940次更新。CPU Dynamo fullgraph/dynamic capture 使用 eager backend，在两种输入形状下 masked loss 与所有参数梯度均对齐，并保持权重共享和 state-dict 名称。该检查只验证图捕获；Linux CUDA Inductor kernel 和目标设备吞吐未验证。

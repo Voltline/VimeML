@@ -6,7 +6,7 @@ Status: four-epoch training, evaluation, selection, and archival complete. B tra
 
 Only the already-cleaned sampled pool from eight JpnMix shards participates; the other downloaded shards and unsampled full source text are excluded. WRIME and JMultiWOZ remain benchmark sources. Virtual maps reside in `artifacts/training-data/corpus-v3-b-all8-chat05-c128/`.
 
-The 49,205 pricing/catalogue exclusions are reused. Additional normalized exact/anchor-containment screening excludes 1,062 old sequences, 16,854 new sequences, and 67 exact cross-pool web duplicates. This screening does not establish comprehensive semantic decontamination. Conversation-grouped chat validation/test remains unchanged.
+The 49,205 pricing/catalogue exclusions are reused. Additional normalized exact/anchor-containment screening excludes 1,062 old sequences, 16,854 new sequences, and 67 exact cross-pool web duplicates. This screening does not cover semantic decontamination. Conversation-grouped chat validation/test remains unchanged.
 
 The mixture targets 95% web and 5% chat effective tokens after the deterministic 30% eligible prefix crop. Each epoch contains approximately one billion effective tokens; four epochs total 4,001,730,586, including 200,086,509 chat tokens. Approximately 38.53 chat exposures are reported as repetition. Total pre-crop targets are 4,315,153,613 with 313,423,027 dropped. Fixed `epoch_mean_tokens` scaling avoids disproportionate short-batch weighting.
 

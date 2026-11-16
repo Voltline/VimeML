@@ -27,7 +27,7 @@ Before looking at the new regression results, the local comparison fixed two pla
 | 15 | 811,459 | 3.123016 | **3.153930** | 0.210921 | 507 | 457 |
 | 16 | 865,557 | **3.121224** | 3.172254 | **0.207814** | 505 | **461** |
 
-The rerank dip at epochs 7–8 did not turn into an overall decline; the second half brought real learning gains. But plain rerank, chat validation and conditional rerank peak at different epochs; the last epoch lowers plain LM BPC by only about 0.00179 over epoch 15 while chat BPC rises. Continuously falling loss cannot be equated with deployment gains, and this run does not imply that every experiment should train exactly 16 epochs.
+The rerank dip at epochs 7–8 did not turn into an overall decline; the second half brought real learning gains. But plain rerank, chat validation and conditional rerank peak at different epochs; the last epoch lowers plain LM BPC by only about 0.00179 over epoch 15 while chat BPC rises. Continuously falling loss does not track deployment gains, and 16 epochs is specific to this run.
 
 On the same original validation text, 11,110,489 characters, uniform FP32:
 

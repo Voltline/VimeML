@@ -43,7 +43,7 @@ The net gain over V2.1 comes from +15 on WRIME, with JMultiWOZ 2 lower. The rank
 | AJIMEE | 13 / 7 | 0.26318 | 10 / 4 | 0.17957 |
 | Historical development | 7 / 1 | 0.07031 | 5 / 4 | 1 |
 
-A 9-item total difference does not establish TinySwallow as reliably stronger, and the point estimates on the other three sets do not establish Sarashina as reliably stronger either. On Standard, Sarashina fixes 32 of TinySwallow's errors while losing 41 of its correct items, so their per-item ranking signals differ; this run did not use the answers to tune fusion weights or train a selector.
+Neither the 9-item total difference nor the point estimates on the other three sets separate TinySwallow and Sarashina reliably. On Standard, Sarashina fixes 32 of TinySwallow's errors while losing 41 of its correct items, so their per-item ranking signals differ; this run did not use the answers to tune fusion weights or train a selector.
 
 | Set | Sum with original context, primary | Sum, empty context | Mean with original context, auxiliary |
 | --- | ---: | ---: | ---: |

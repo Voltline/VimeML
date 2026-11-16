@@ -1,6 +1,6 @@
 # First V4 run and local evaluation — 2026-10-15
 
-V4 improves general Japanese LM but does not establish a stable V2.1 reranking replacement gain. Primary full FP32 BPC falls from 3.080191 to 3.051781 (0.922% relative). The LM-selected checkpoint scores 492/728 on Standard development versus 505/728 for V2.1; development-selected epoch 8 scores 503/728. No blind data participates.
+V4 improves general Japanese LM but shows no stable V2.1 reranking replacement gain. Primary full FP32 BPC falls from 3.080191 to 3.051781 (0.922% relative). The LM-selected checkpoint scores 492/728 on Standard development versus 505/728 for V2.1; development-selected epoch 8 scores 503/728. No blind data participates.
 
 ## Training and archival
 
@@ -72,7 +72,7 @@ On Standard, V2.1 corrects 100/damages 48 relative to AzooKey; primary V4 correc
 | 8 | 393880 | 3.058166 | 503/728 |
 | 9 | 443115 | 3.058957 | 493/728 |
 
-The predeclared Standard-development Top-1 rule selects epoch 8 from best and nine epochs; ties prefer best, then the earlier epoch. Other tracks do not change selection. Keep this selection separate from LM-best step 372000. Falling BPC does not produce monotonic reranking gains. The original 4→8→12 continuation schedule differs from planning twelve epochs initially; stopping does not establish saturation under another schedule.
+The predeclared Standard-development Top-1 rule selects epoch 8 from best and nine epochs; ties prefer best, then the earlier epoch. Other tracks do not change selection. Keep this selection separate from LM-best step 372000. Falling BPC does not produce monotonic reranking gains. The original 4→8→12 continuation schedule differs from planning twelve epochs initially; saturation under another schedule is unknown.
 
 ## Homophone and suggestion diagnostics
 
@@ -94,4 +94,4 @@ Mean candidate lengths are 11.482/10.049 tokens for 8K/16K; readings 20.444/19.3
 
 A separate V4-B run keeps the same data, 8K tokenizer, fixed model, seed 42, batch 512, BF16, AdamW, and prefix crop. Fresh initialization uses a complete twelve-epoch/590,820-step cosine from 6e-4 to 6e-5 with 1,000 warmup updates; plateau delta 0.01 and patience 2 remain fixed. The configuration is `configs/train-v4-b12cosine.toml`, with independent output under `artifacts/models/tiny-ja-v4-b12cosine-e8k-d384-l7/`. This tests the early-annealing hypothesis without adding data or task objectives. The completed results are in the [V4-B comparison](b12cosine-evaluation.md).
 
-Local evidence: [summary](../../../outputs/evaluation-v4-20261015/comparison-summary.json), [frozen plan](../../../outputs/evaluation-v4-20261015/plan.json), [download hashes](../../../outputs/training-v4-20261015/download-manifest.json). Binary/per-case artifacts are excluded from Git. This report does not establish Apple deployment performance.
+Local evidence: [summary](../../../outputs/evaluation-v4-20261015/comparison-summary.json), [frozen plan](../../../outputs/evaluation-v4-20261015/plan.json), [download hashes](../../../outputs/training-v4-20261015/download-manifest.json). Binary/per-case artifacts are excluded from Git. Apple deployment performance was not measured in this report.
