@@ -119,6 +119,37 @@ class DecoderTest(unittest.TestCase):
                         else:
                             self.assertIn(constraint.keys, READINGS[text[0]])
 
+    def test_cached_lockstep_decoding_equals_one_at_a_time(self):
+        from vimeml.training.model_v2 import GPTV2Config, TinyGPTV2
+
+        class Processor(FakeProcessor):
+            pieces = ["<pad>", "<unk>", "<s>", "</s>", "我", "们", "去", "<0x41>", "我们", "吃", "饭", "吃饭", "，"]
+
+            def encode(self, text):
+                ids, i = [], 0
+                while i < len(text):
+                    best = max((t for t in range(4, len(self.pieces)) if text.startswith(self.pieces[t], i)),
+                               key=lambda t: len(self.pieces[t]))
+                    ids.append(best)
+                    i += len(self.pieces[best])
+                return ids
+
+        torch.manual_seed(0)
+        config = GPTV2Config(vocab_size=13, context_length=48, d_model=32, n_heads=4, n_layers=2, d_ff=64)
+        lm = P.VimeLM(TinyGPTV2(config).eval(), Processor(), "cpu", {"bos": 2, "eos": 3, "pad": 0})
+
+        class Plain:  # the same model without prefill/extend: one search at a time, full passes
+            vocabulary, context_length, context, logprobs = lm.vocabulary, lm.context_length, lm.context, lm.logprobs
+
+        readings = {**READINGS, "，": set()}
+        jobs = [(["我们去"], "", None), ([], "去我们", None), ([], "去", P.Constraint("initials", "wm")),
+                ([], "去我", P.Constraint("syllable", "chi")), (["吃饭", "我们"], "吃饭，", None), ([], "吃", None)]
+        for beam in (2, 16):
+            got, want = P.predict_many(lm, jobs, readings, beam=beam), P.predict_many(Plain(), jobs, readings, beam=beam)
+            self.assertTrue(any(want))
+            for g, w in zip(got, want):
+                self.assert_same(g, w)
+
     def test_select_drops_prefix_related_candidates(self):
         chosen = P.select({"我们": -1.0, "我们去": -0.5, "我": -2.0, "去": -3.0, "吃饭": -4.0}, top=5)
         self.assertEqual([t for t, _ in chosen], ["我们去", "去", "吃饭"])

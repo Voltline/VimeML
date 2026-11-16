@@ -35,6 +35,7 @@ FROZEN_SHA = {
 }
 RIME = ROOT / "datasets/ime-standard-zh-v1/engine/rime-ice"
 NGRAM = ROOT / "outputs/benchmarks/ime-predict-zh-v1/baselines/char5-kn.npz"
+CHUNK = 2048  # jobs decoded together (each beam step of them shares the forward passes)
 QUANTILES = [q / 100 for q in range(5, 100, 5)]
 MODES = (("first_syllable", "syllable", "keys_first_syllable"), ("initials", "initials", "keys_initials"))
 
@@ -135,14 +136,15 @@ def run(args):
     started = time.time()
 
     rows_a, items = [], development("items-a.jsonl", args.limit)
-    for k, item in enumerate(items, 1):
-        candidates = P.predict(lm, item["previous_turns"], item["prefix"])
-        rank, chars = P.rank_of_hit(candidates, item["continuation"])
-        rows_a.append({"id": item["id"], "source": item["source"], "dialogue": item["dialogue"],
-                       "candidates": candidates, "rank": rank, "hit_chars": chars,
-                       "confidence": candidates[0][1] if candidates else None})
-        if k % 500 == 0:
-            log("A", k, len(items))
+    for start in range(0, len(items), CHUNK):
+        chunk = items[start:start + CHUNK]
+        decoded = P.predict_many(lm, [(item["previous_turns"], item["prefix"], None) for item in chunk])
+        for item, candidates in zip(chunk, decoded):
+            rank, chars = P.rank_of_hit(candidates, item["continuation"])
+            rows_a.append({"id": item["id"], "source": item["source"], "dialogue": item["dialogue"],
+                           "candidates": candidates, "rank": rank, "hit_chars": chars,
+                           "confidence": candidates[0][1] if candidates else None})
+        log("A", len(rows_a), len(items))
     write_jsonl(out / "track-a.jsonl", rows_a)
     meta["seconds_a"] = round(time.time() - started, 1)
     meta["tracks"] = args.tracks
@@ -153,15 +155,15 @@ def run(args):
         return
 
     rows_c, items = [], development("items-c.jsonl", args.limit)
-    for k, item in enumerate(items, 1):
-        for mode, kind, field in MODES:
-            constraint = P.Constraint(kind, item[field])
-            candidates = P.predict(lm, item["previous_turns"], item["prefix"], constraint, readings)
+    for start in range(0, len(items), CHUNK):
+        chunk = [(item, mode, kind, field) for item in items[start:start + CHUNK] for mode, kind, field in MODES]
+        decoded = P.predict_many(lm, [(item["previous_turns"], item["prefix"], P.Constraint(kind, item[field]))
+                                      for item, _, kind, field in chunk], readings)
+        for (item, mode, _, field), candidates in zip(chunk, decoded):
             rows_c.append({"id": item["id"], "source": item["source"], "dialogue": item["dialogue"],
                            "mode": mode, "keys": item[field], "candidates": candidates,
                            "rank": P.rank_exact(candidates, item["target"])})
-        if k % 500 == 0:
-            log("C", k, len(items))
+        log("C", start + len(chunk) // len(MODES), len(items))
     write_jsonl(out / "track-c.jsonl", rows_c)
     meta["seconds_c"] = round(time.time() - started - meta["seconds_a"], 1)
 
@@ -175,23 +177,53 @@ def run(args):
     def cut(message):
         return jieba.lcut(message, HMM=False)
 
-    rows_b, items, decodes = [], development("messages-b.jsonl", args.limit), 0
-    for k, item in enumerate(items, 1):
-        message, memo = item["message"], {}
+    # Each message's simulations ask for predictions position by position. They run in rounds:
+    # every simulation goes as far as the decoded positions allow, the positions they stop at are
+    # decoded together, and the rounds repeat. The positions decoded are exactly those asked for.
+    items = development("messages-b.jsonl", args.limit)
+    memos, decodes = [{} for _ in items], 0
+    setup = [(P.keystrokes(item["message"], pinyin), P.boundaries(item["message"], cut)) for item in items]
+
+    class Missing(Exception):
+        pass
+
+    def simulate_all(index):
+        message, memo, (costs, ends) = items[index]["message"], memos[index], setup[index]
+        missing, results = set(), []
 
         def predictions(position):
-            nonlocal decodes
             if position not in memo:
-                memo[position] = P.predict(lm, item["previous_turns"], message[:position])
-                decodes += 1
+                raise Missing(position)
             return memo[position]
 
-        costs, ends = P.keystrokes(message, pinyin), P.boundaries(message, cut)
-        results = [P.simulate(message, costs, ends, predictions, t) for t in grid]
-        rows_b.append({"id": item["id"], "source": item["source"], "dialogue": item["dialogue"],
-                       "results": results})
-        if k % 500 == 0:
-            log("B", k, len(items), "decodes", decodes)
+        for t in grid:
+            try:
+                results.append(P.simulate(message, costs, ends, predictions, t))
+            except Missing as stop:
+                missing.add(stop.args[0])
+        return missing, results
+
+    rows_b, open_ = [None] * len(items), list(range(len(items)))
+    while open_:
+        needed, still = [], []
+        for index in open_:
+            missing, results = simulate_all(index)
+            if missing:
+                needed += [(index, position) for position in sorted(missing)]
+                still.append(index)
+            else:
+                item = items[index]
+                rows_b[index] = {"id": item["id"], "source": item["source"], "dialogue": item["dialogue"],
+                                 "results": results}
+        for start in range(0, len(needed), CHUNK):
+            chunk = needed[start:start + CHUNK]
+            decoded = P.predict_many(lm, [(items[i]["previous_turns"], items[i]["message"][:p], None)
+                                          for i, p in chunk])
+            for (i, p), candidates in zip(chunk, decoded):
+                memos[i][p] = candidates
+        decodes += len(needed)
+        open_ = still
+        log("B", len(items) - len(open_), len(items), "decodes", decodes)
     write_jsonl(out / "track-b.jsonl", rows_b)
     meta["decodes_b"] = decodes
     meta["seconds_total"] = round(time.time() - started, 1)

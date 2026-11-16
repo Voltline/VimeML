@@ -102,6 +102,7 @@ class Vocabulary:
             self.by_first.setdefault(texts[i][0], []).append(i)
         self._length = {}
         self._constraint = {}
+        self._allowed = {}
 
     def length_mask(self, room):
         if room not in self._length:
@@ -120,6 +121,13 @@ class Vocabulary:
                 mask[ok] = True
             self._constraint[key] = mask
         return self._constraint[key]
+
+    def allowed_mask(self, length, constraint):
+        """length & constraint, cached so that equal masks stay one object."""
+        key = (id(length), id(constraint))
+        if key not in self._allowed:
+            self._allowed[key] = length & constraint
+        return self._allowed[key]
 
 
 def healing(lm, ids, prefix):
@@ -143,54 +151,184 @@ def select(scored, top=TOP):
     return chosen
 
 
-def predict(lm, turns, prefix, constraint=None, readings=None, beam=BEAM, top=TOP):
-    """Top candidates [(text, score)] after `prefix`, with earlier `turns` as context."""
-    vocabulary = lm.vocabulary
-    ids, required = healing(lm, lm.context(turns, prefix), prefix)
-    max_chars = constraint.max_chars if constraint else MAX_CHARS
-    if len(ids) + len(required) + max_chars > lm.context_length:
-        raise ValueError("Context leaves no room for decoding")
-    candidates = {}
-    states = [((), "", 0.0)]
-    while states:
-        logprobs = lm.logprobs([ids + list(suffix) for suffix, _, _ in states])
-        expansions = []
-        for row, (suffix, text, score) in enumerate(states):
+class _Search:
+    """One predict() call as a step machine, so that many can share each forward pass.
+
+    requests() gives, per beam state, its token sequence and what the step needs from the
+    next-token distribution: either the tokens that re-spell the healed text (pending) or
+    the mask of allowed tokens. advance() takes, per state, the (logprob, token) pairs in
+    the decoder's order and keeps the best `beam` expansions.
+    """
+
+    def __init__(self, lm, turns, prefix, constraint, readings, beam, top):
+        self.vocabulary, self.constraint, self.readings, self.beam, self.top = (
+            lm.vocabulary, constraint, readings, beam, top)
+        self.ids, self.required = healing(lm, lm.context(turns, prefix), prefix)
+        self.max_chars = constraint.max_chars if constraint else MAX_CHARS
+        if len(self.ids) + len(self.required) + self.max_chars > lm.context_length:
+            raise ValueError("Context leaves no room for decoding")
+        self.candidates = {}
+        self.states = [((), "", 0.0)]
+
+    def requests(self):
+        vocabulary, constraint, required = self.vocabulary, self.constraint, self.required
+        out = []
+        for suffix, text, _ in self.states:
+            sequence = self.ids + list(suffix)
             pending = required[len(text):]
             if pending:
+                tokens = []
                 for token in vocabulary.by_first.get(pending[0], ()):
                     piece = vocabulary.texts[token]
                     if piece.startswith(pending):
                         extra = piece[len(pending):]
-                        if len(extra) > max_chars or (constraint and not constraint.chars_ok(readings, extra, 0)):
+                        if len(extra) > self.max_chars or (
+                                constraint and not constraint.chars_ok(self.readings, extra, 0)):
                             continue
                     elif not pending.startswith(piece):
                         continue
-                    expansions.append((score + float(logprobs[row, token]), suffix + (token,), text + piece))
+                    tokens.append(token)
+                out.append((sequence, tokens, None))
                 continue
             done = len(text) - len(required)
-            mask = vocabulary.length_mask(max_chars - done)
+            mask = vocabulary.length_mask(self.max_chars - done)
             if constraint:
-                mask = mask & vocabulary.constraint_mask(constraint, readings, done)
-            allowed = int(mask.sum())
-            if not allowed:
-                continue
-            values, tokens = logprobs[row].masked_fill(~mask, NEG).topk(min(beam, allowed))
-            for value, token in zip(values.tolist(), tokens.tolist()):
-                expansions.append((score + value, suffix + (token,), text + vocabulary.texts[token]))
+                mask = vocabulary.allowed_mask(mask, vocabulary.constraint_mask(constraint, self.readings, done))
+            out.append((sequence, None, mask))
+        return out
+
+    def advance(self, answers):
+        texts, required, constraint = self.vocabulary.texts, self.required, self.constraint
+        expansions = []
+        for (suffix, text, score), pairs in zip(self.states, answers):
+            for value, token in pairs:
+                expansions.append((score + value, suffix + (token,), text + texts[token]))
         expansions.sort(key=lambda x: (-x[0], x[2]))
-        states = []
-        for score, suffix, text in expansions[:beam]:
+        self.states = []
+        for score, suffix, text in expansions[:self.beam]:
             if len(text) < len(required):
-                states.append((suffix, text, score))
+                self.states.append((suffix, text, score))
                 continue
             new = text[len(required):]
             ok = constraint.candidate_length_ok(len(new)) if constraint else MIN_CHARS <= len(new) <= MAX_CHARS
-            if ok and score > candidates.get(new, NEG):
-                candidates[new] = score
-            if len(new) < max_chars:
-                states.append((suffix, text, score))
-    return select(candidates, top)
+            if ok and score > self.candidates.get(new, NEG):
+                self.candidates[new] = score
+            if len(new) < self.max_chars:
+                self.states.append((suffix, text, score))
+
+    def result(self):
+        return select(self.candidates, self.top)
+
+
+def _answers_rowwise(logprobs, requests, beam):
+    """One state at a time on the adapter's (CPU) distribution."""
+    answers = []
+    for row, (_, tokens, mask) in enumerate(requests):
+        if tokens is not None:
+            answers.append([(float(logprobs[row, token]), token) for token in tokens])
+            continue
+        allowed = int(mask.sum())
+        if not allowed:
+            answers.append([])
+            continue
+        values, ids = logprobs[row].masked_fill(~mask, NEG).topk(min(beam, allowed))
+        answers.append(list(zip(values.tolist(), ids.tolist())))
+    return answers
+
+
+def _answers_batched(logprobs, requests, beam):
+    """All states at once on the device; only the top `beam` per row leave it."""
+    answers = [[] for _ in requests]
+    free = [i for i, r in enumerate(requests) if r[2] is not None]
+    if free:
+        slots, unique, index = {}, [], []
+        for i in free:
+            mask = requests[i][2]  # masks are cached by the vocabulary, so equal masks are one object
+            if id(mask) not in slots:
+                slots[id(mask)] = len(unique)
+                unique.append(mask)
+            index.append(slots[id(mask)])
+        device = logprobs.device
+        stack = torch.stack(unique)
+        allowed = stack.sum(1).tolist()
+        chosen = stack.to(device)[torch.tensor(index, device=device)]
+        values, ids = logprobs[torch.tensor(free, device=device)].masked_fill(~chosen, NEG).topk(
+            min(beam, logprobs.shape[1]))
+        values, ids = values.tolist(), ids.tolist()
+        for j, i in enumerate(free):
+            n = min(beam, allowed[index[j]])
+            answers[i] = list(zip(values[j][:n], ids[j][:n]))
+    pend = [(i, t) for i, r in enumerate(requests) if r[1] is not None for t in r[1]]
+    if pend:
+        rows = torch.tensor([i for i, _ in pend], device=logprobs.device)
+        cols = torch.tensor([t for _, t in pend], device=logprobs.device)
+        for (i, t), value in zip(pend, logprobs[rows, cols].tolist()):
+            answers[i].append((value, t))
+    return answers
+
+
+GROUP = 1024  # searches decoded in lockstep
+
+
+def predict_many(lm, jobs, readings=None, beam=BEAM, top=TOP):
+    """predict() for each (turns, prefix, constraint) job, in order.
+
+    An adapter with prefill/extend (the Vime models) decodes up to GROUP jobs of similar context
+    length in lockstep, each context computed once; the others decode the jobs one at a time.
+    """
+    searches = [_Search(lm, turns, prefix, constraint, readings, beam, top) for turns, prefix, constraint in jobs]
+    if not hasattr(lm, "prefill"):
+        for search in searches:
+            while search.states:
+                requests = search.requests()
+                search.advance(_answers_rowwise(lm.logprobs([r[0] for r in requests]), requests, beam))
+        return [s.result() for s in searches]
+    order = sorted(range(len(searches)), key=lambda i: len(searches[i].ids))
+    start = 0
+    while start < len(order):  # groups of similar context length whose caches fit together
+        end = min(len(order), start + GROUP)
+        end = min(end, start + lm.cache_jobs(len(searches[order[end - 1]].ids)))
+        _decode_group(lm, [searches[i] for i in order[start:end]], beam)
+        start = end
+    return [s.result() for s in searches]
+
+
+def _decode_group(lm, group, beam):
+    """Every search's beam steps in lockstep: the contexts once (prefill), then each step runs
+    only the suffixes (every state of every search has the same number of new tokens)."""
+    cache, first = lm.prefill([s.ids for s in group])
+    requests = [s.requests() for s in group]  # one state each, empty suffix
+    answers = _answers_batched(first, [r[0] for r in requests], beam)
+    for search, answer in zip(group, answers):
+        search.advance([answer])
+    while True:
+        alive = [i for i, s in enumerate(group) if s.states]
+        if not alive:
+            return
+        per_search = [group[i].requests() for i in alive]
+        size = len(per_search[0][0][0]) - len(group[alive[0]].ids)
+        width = max(len(r) for r in per_search)
+        tokens = torch.zeros((len(alive), width, size), dtype=torch.long)
+        rows = []
+        for a, (i, requests) in enumerate(zip(alive, per_search)):
+            for b, (sequence, _, _) in enumerate(requests):
+                suffix = sequence[len(group[i].ids):]
+                if len(suffix) != size:
+                    raise AssertionError("searches out of step")
+                tokens[a, b] = torch.tensor(suffix)
+                rows.append(a * width + b)
+        logprobs = lm.extend(cache, alive, tokens.to(lm.device)).reshape(len(alive) * width, -1)
+        flat = [r for requests in per_search for r in requests]
+        answers = _answers_batched(logprobs[torch.tensor(rows, device=logprobs.device)], flat, beam)
+        at = 0
+        for i, requests in zip(alive, per_search):
+            group[i].advance(answers[at:at + len(requests)])
+            at += len(requests)
+
+
+def predict(lm, turns, prefix, constraint=None, readings=None, beam=BEAM, top=TOP):
+    """Top candidates [(text, score)] after `prefix`, with earlier `turns` as context."""
+    return predict_many(lm, [(turns, prefix, constraint)], readings, beam, top)[0]
 
 
 class VimeLM:
@@ -223,6 +361,81 @@ class VimeLM:
     def logprobs(self, sequences):
         inputs = torch.tensor(sequences, dtype=torch.long, device=self.device)
         return self.model(inputs)[:, -1].float().log_softmax(-1).cpu()
+
+    # Batched decoding with a context cache (used by predict_many). Same blocks as the model's
+    # forward, written out so that keys and values can be kept: qkv, attention, projection, ffn.
+
+    def cache_jobs(self, width):
+        """Contexts of `width` tokens whose cache fits in about 1 GiB."""
+        config = self.model.config
+        return max(1, (1 << 30) // (8 * config.n_layers * config.d_model * width))
+
+    def _qkv(self, block, hidden):
+        heads = self.model.config.n_heads
+        batch, size, width = hidden.shape
+        qkv = block.attention.qkv(block.attention_norm(hidden)).reshape(batch, size, 3, heads, width // heads)
+        return qkv.permute(2, 0, 3, 1, 4).unbind(0)  # each [batch, heads, size, head_dim]
+
+    def _block(self, block, hidden, attended):
+        batch, size, width = hidden.shape
+        hidden = hidden + block.attention.projection(attended.transpose(1, 2).reshape(batch, size, width))
+        return hidden + block.ffn(block.ffn_norm(hidden))
+
+    def _head(self, hidden):
+        return self.model.lm_head(self.model.final_norm(hidden)).float().log_softmax(-1)
+
+    @torch.inference_mode()
+    def prefill(self, contexts):
+        """One causal pass over right-padded contexts: (cache, next-token logprobs [P, V])."""
+        m, device = self.model, self.device
+        n = torch.tensor([len(c) for c in contexts], device=device)
+        width = int(n.max())
+        tokens = torch.tensor([c + [0] * (width - len(c)) for c in contexts], device=device)
+        positions = torch.arange(width, device=device)
+        mask = ((positions[:, None] >= positions[None, :])[None] & (positions[None, :] < n[:, None])[:, None])[:, None]
+        hidden = m.token_embedding(tokens) + m.position_embedding(positions)
+        keys, values = [], []
+        for block in m.blocks:
+            query, key, value = self._qkv(block, hidden)
+            attended = torch.nn.functional.scaled_dot_product_attention(query, key, value, attn_mask=mask)
+            hidden = self._block(block, hidden, attended)
+            keys.append(key)
+            values.append(value)
+        last = hidden[torch.arange(len(contexts), device=device), n - 1]
+        return {"keys": torch.stack(keys), "values": torch.stack(values), "n": n}, self._head(last)
+
+    QUERY_TOKENS = 1 << 15
+
+    @torch.inference_mode()
+    def extend(self, cache, alive, tokens):
+        """Logprobs [A, B, V] after each beam's suffix. tokens [A, B, s]: B suffixes of s tokens for
+        context alive[a]; a suffix attends to its context and causally to itself only."""
+        m, device = self.model, self.device
+        count, beams, size = tokens.shape
+        step = max(1, self.QUERY_TOKENS // (beams * size))
+        out = []
+        for start in range(0, count, step):
+            rows = torch.tensor(alive[start:start + step], device=device)
+            part = tokens[start:start + step]
+            batch = part.shape[0]
+            keys, values, n = cache["keys"][:, rows], cache["values"][:, rows], cache["n"][rows]
+            width = keys.shape[3]
+            offsets = torch.arange(size, device=device)
+            hidden = (m.token_embedding(part) + m.position_embedding(n[:, None] + offsets)[:, None]).reshape(
+                batch, beams * size, -1)
+            beam = torch.arange(beams, device=device).repeat_interleave(size)
+            at = offsets.repeat(beams)
+            own = (beam[:, None] == beam[None, :]) & (at[:, None] >= at[None, :])          # [B*s, B*s]
+            seen = torch.arange(width, device=device)[None, :] < n[:, None]                # [batch, W]
+            mask = torch.cat([seen[:, None, :].expand(batch, beams * size, width),
+                              own[None].expand(batch, -1, -1)], 2)[:, None]
+            for layer, block in enumerate(m.blocks):
+                query, key, value = self._qkv(block, hidden)
+                attended = torch.nn.functional.scaled_dot_product_attention(
+                    query, torch.cat([keys[layer], key], 2), torch.cat([values[layer], value], 2), attn_mask=mask)
+                hidden = self._block(block, hidden, attended)
+            out.append(self._head(hidden.reshape(batch, beams, size, -1)[:, :, -1]))
+        return torch.cat(out)
 
 
 # Track B ------------------------------------------------------------------------------------
