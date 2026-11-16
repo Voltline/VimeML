@@ -12,9 +12,11 @@
 # the frozen benchmark directories (pinyin: development.jsonl, development-contexts.jsonl and
 # manifest.json only), Vime's readings dictionary and the v1 / r2-cont checkpoints.
 # A failed step is logged and the rest still run.
-# Parallel jobs: VIMEML_REFS=0 skips the reference pinyin runs. Naming a job ref-v1-lm (v1, lm) or
-# ref-r2-cont (r2-cont, task) writes exactly the reference directories, so three jobs can run at once;
-# rerun only the report line at the end when they are all done.
+# Every step reuses its finished output, so rerunning the same command only redoes what is missing.
+# Parallel jobs: VIMEML_REFS=0 skips the reference runs (pinyin and v1 Standard). Naming a job
+# ref-v1-lm (v1 checkpoint, lm) or ref-r2-cont (r2-cont, task) writes exactly the reference
+# directories, so three jobs can run at once; when all are done, rerun the main job's command once
+# (it then only fills in the comparisons and the report).
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 ckpt="${1:?usage: cluster_eval_zh.sh <checkpoint.pt> <name> [task|lm]}"
@@ -51,19 +53,28 @@ pinyin "$ckpt" "$mode" "$out/pinyin" || echo "FAIL pinyin"
 
 step "Standard"
 mkdir -p outputs/eval-zh/ref-v1-lm/standard "$out/standard"
-standard "$v1" outputs/eval-zh/ref-v1-lm/standard || echo "FAIL ref Standard"
+if [[ "${VIMEML_REFS:-1}" != 0 && "$name" != ref-v1-lm ]]; then
+  standard "$v1" outputs/eval-zh/ref-v1-lm/standard || echo "FAIL ref Standard"
+fi
 standard "$ckpt" "$out/standard" || echo "FAIL Standard"
-"$py" -I -X utf8 scripts/benchmarks/score_standard_ime_zh.py compare outputs/eval-zh/ref-v1-lm/standard/full \
-  "$out/standard/full" "$out/standard/vs-v1.json" || echo "FAIL Standard compare"
+if [[ "$name" != ref-v1-lm && -d outputs/eval-zh/ref-v1-lm/standard/full && -d "$out/standard/full" ]]; then
+  "$py" -I -X utf8 scripts/benchmarks/score_standard_ime_zh.py compare outputs/eval-zh/ref-v1-lm/standard/full \
+    "$out/standard/full" "$out/standard/vs-v1.json" || echo "FAIL Standard compare"
+fi
 
 step "predict"
+[[ -f "$out/predict/score.json" ]] && echo "reuse $out/predict" || {
 "$py" -X utf8 scripts/benchmarks/predict_ime_zh.py run --model vime --checkpoint "$ckpt" --tokenizer "$tok" \
   --device "$device" --out "$out/predict" || echo "FAIL predict"
 "$py" -X utf8 scripts/benchmarks/predict_ime_zh.py score --run "$out/predict" || echo "FAIL predict score"
+}
 
 step "report"
-runs=("v1-lm=outputs/eval-zh/ref-v1-lm/pinyin")
-[[ -f outputs/eval-zh/ref-r2-cont/pinyin/rows.jsonl ]] && runs+=("r2-cont=outputs/eval-zh/ref-r2-cont/pinyin")
-runs+=("$name=$out/pinyin")
-"$py" -X utf8 scripts/benchmarks/pinyin_gen_zh.py report "${runs[@]}" --base v1-lm --out "$out/report.md" || echo "FAIL report"
+runs=()
+for ref in v1-lm r2-cont; do
+  [[ -f "outputs/eval-zh/ref-$ref/pinyin/rows.jsonl" && "$name" != "ref-$ref" ]] && runs+=("$ref=outputs/eval-zh/ref-$ref/pinyin")
+done
+[[ -f "$out/pinyin/rows.jsonl" ]] && runs+=("$name=$out/pinyin")
+base=(); [[ -f outputs/eval-zh/ref-v1-lm/pinyin/rows.jsonl ]] && base=(--base "$([[ $name == ref-v1-lm ]] && echo "$name" || echo v1-lm)")
+"$py" -X utf8 scripts/benchmarks/pinyin_gen_zh.py report "${runs[@]}" "${base[@]}" --out "$out/report.md" || echo "FAIL report"
 step done
