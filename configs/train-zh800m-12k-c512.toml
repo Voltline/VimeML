@@ -8,7 +8,7 @@ arm = "12k-c512"
 architecture = "tiny_gpt_zh800m"
 output_dir = "artifacts/models/tiny-zh800m-12k-c512-d1536"
 log_dir = "runs/training/tiny-zh800m-12k-c512-d1536"
-dataset_sha256 = ""
+dataset_sha256 = "985aecea96de26a141b11ed7378ee60f04dcf59e307feecb9af8c028ca675d32"
 
 [initialization]
 mode = "random"
