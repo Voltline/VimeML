@@ -12,6 +12,9 @@
 # the frozen benchmark directories (pinyin: development.jsonl, development-contexts.jsonl and
 # manifest.json only), Vime's readings dictionary and the v1 / r2-cont checkpoints.
 # A failed step is logged and the rest still run.
+# Parallel jobs: VIMEML_REFS=0 skips the reference pinyin runs. Naming a job ref-v1-lm (v1, lm) or
+# ref-r2-cont (r2-cont, task) writes exactly the reference directories, so three jobs can run at once;
+# rerun only the report line at the end when they are all done.
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 ckpt="${1:?usage: cluster_eval_zh.sh <checkpoint.pt> <name> [task|lm]}"
@@ -38,9 +41,11 @@ standard() {  # <checkpoint> <dir>
   [[ -d "$2/full" ]] || "$py" -I -X utf8 scripts/benchmarks/score_standard_ime_zh.py score "$std" "$2/full" --track full --scores "$2/scores.jsonl"
 }
 
-step "pinyin references"
-pinyin "$v1" lm outputs/eval-zh/ref-v1-lm/pinyin || echo "FAIL ref v1 pinyin"
-if [[ -f "$r2" ]]; then pinyin "$r2" task outputs/eval-zh/ref-r2-cont/pinyin || echo "FAIL ref r2-cont pinyin"; fi
+if [[ "${VIMEML_REFS:-1}" != 0 ]]; then
+  step "pinyin references"
+  pinyin "$v1" lm outputs/eval-zh/ref-v1-lm/pinyin || echo "FAIL ref v1 pinyin"
+  if [[ -f "$r2" ]]; then pinyin "$r2" task outputs/eval-zh/ref-r2-cont/pinyin || echo "FAIL ref r2-cont pinyin"; fi
+fi
 step "pinyin $name ($mode)"
 pinyin "$ckpt" "$mode" "$out/pinyin" || echo "FAIL pinyin"
 
