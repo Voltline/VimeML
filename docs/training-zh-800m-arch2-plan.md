@@ -13,7 +13,8 @@ arch1 trains with the packing code of [8903f17](../src/vimeml/training/joint_zh2
 
 Goals:
 
-- about 800M parameters, the same 12K vocabulary, the same data and token budget;
+- about 800M parameters, the same 12K vocabulary, the same data, data order and token budget;
+- updates k times as large as arch1's (k set by a 200M precheck, 4 or 8; see Larger updates);
 - one pass in under 1.5 days on the same hardware, i.e. useful MFU of 30–40%;
 - quality no worse than arch1 (decision rule below).
 
@@ -36,7 +37,7 @@ This design decides as follows.
 | GQA with 8 KV heads | Adopted with 7 KV heads | See Architecture |
 | QK-norm | Adopted | Steadier at the unchanged 3e-4 peak learning rate |
 | Shape B2 (d1792 / 23 layers) | Adopted, with 7 KV heads | 15% fewer sequential layers than 27, and an ordinary aspect ratio. 28 query heads do not split into 8 groups (see Architecture) |
-| `lm_batch` counted in tokens | Rejected | Each update stays 2048 windows, so data order, step count and normalization all match arch1 |
+| `lm_batch` counted in tokens | Rejected | Still counted in windows, now 2048 × k; data order and loss normalization match arch1 (see Larger updates) |
 
 ### Packing isolates windows; no document-level long context
 
@@ -110,18 +111,18 @@ Decision:
 ## Execution
 
 - **Packing**:
-  - Each update's 2048 LM windows and 384 pinyin samples are sorted longest first and packed first-fit into rows of 2048. Each window or sample is a segment.
+  - Each update's 2048 × k LM windows and 384 × k pinyin samples are sorted longest first and packed first-fit into rows of 2048. Each window or sample is a segment.
   - Attention uses `torch.nn.attention.flex_attention` with a block-diagonal causal mask built from segment ids. RoPE positions restart for each segment.
   - Loss and `per_kind` weights follow arch1: each token is weighted by its task's weight ÷ that task's global supervised tokens.
 - **Shapes**: rows are always 2048 wide, so only the row count varies. Compilation marks only the batch dimension dynamic, with at least 2 rows, which avoids recompiles.
-- **Microbatch budget unchanged**: rows × 2048 ≤ `lm_microbatch` × 512. `lm_microbatch` 64 means 16 rows per microbatch. At about 100–120k tokens per update, one forward/backward per GPU usually suffices.
+- **Microbatch budget**: rows × 2048 ≤ `lm_microbatch` × 512. `lm_microbatch` is set to the largest value that fits by the smoke run's peak memory (try 128 first, i.e. 32 rows per microbatch). At k times the batch an update is about 400–800k tokens, so each GPU runs several forward/backward passes; all but the last accumulate under `no_sync`, so there is one all-reduce per update.
 - **Data parallelism balanced by tokens**: segments are assigned to ranks greedily by token count instead of in contiguous rows. Normalization still uses global token counts, so the summed gradient is unchanged.
 - **Synchronization**: one merged sync per update (task loss sums, gradient norm, stop flag) instead of separate `.item()` calls.
 - **Validation, inference and export are not packed**: they keep the ordinary per-window forward and the KV-cache path.
 
 ## More speedups
 
-Ordered by expected gain. Items 1–4 change only how training runs, not the objective. Items 5 and 6 change the recipe or the numerics and are decided separately.
+These four items change only how training runs, not the objective. The biggest lever, larger updates, changes the recipe and has its own section (Larger updates).
 
 1. **Remove per-update host syncs so the CPU prepares the next update early.**
    - Each update now has four points where the CPU waits for the GPU:
@@ -140,30 +141,59 @@ Ordered by expected gain. Items 1–4 change only how training runs, not the obj
    - Record forward and backward with `torch.compile(mode="reduce-overhead")`. Each update then only replays the graph, and launch overhead nearly disappears.
    - Do this when step 0's profile shows launch or scheduling overhead.
 3. **Overlap communication with compute.**
-   - After packing there is usually one forward/backward per update, so DDP can send bucket all-reduces during the backward pass.
+   - Gradients sync only in the last microbatch's backward pass, and DDP sends bucket all-reduces during that pass.
    - Enable `gradient_as_bucket_view`, and `static_graph` if the graph is fixed; tune `bucket_cap_mb` from the profile.
 4. **GEMM tuning.**
    - Compile with `max-autotune-no-cudagraphs` (or `max-autotune` together with item 2) so GEMMs get better tiles.
    - Use a chunked fused cross-entropy, which avoids round-tripping the full logits through memory. The speed gain is small; it mainly frees memory for larger microbatches.
-5. **Larger updates (a recipe change, the biggest lever, needs a decision).**
-   - Each update is only about 100k tokens. That is small for 800M; public models of this size usually take 0.5M–2M tokens per update.
-   - The fixed per-update costs (a ~3.1 GB all-reduce, the optimizer, syncs) do not grow with the batch.
-     - At 4× the batch (8192 windows plus 1536 pinyin samples, about 400k tokens), updates drop to about 300k.
-     - The fixed costs per token fall to a quarter.
-   - Roughly, one pass takes about 1.5 days even without the other changes, and less when combined with them.
-   - Costs:
-     - The learning rate, warmup and step count must be reset. Start with a 6e-4 peak (square-root rule) and keep warmup equal in tokens, i.e. 500 updates.
-     - Data is read in the same order, with every 4 updates merged into one. arch1 and arch2 BPC still compare at equal-token milestones, but the recipes differ.
-   - Precheck at 200M on the 12K joint-pinyin data. Run the original and the 4× batch as two arms, each for 10% of the tokens, and compare web BPC and pinyin validation loss at equal tokens. Use the 4× batch in arch2 only if it is no worse (BPC within 0.01).
-6. **FP8 matmuls (a numerics change, considered last).**
-   - The current hardware supports FP8 matmuls at twice the BF16 throughput, through torchao float8 training.
-   - Worth it only if, after the items above, the bottleneck is really the matmuls.
-   - Compare BF16 and FP8 loss curves at 200M first.
-
 **Not done**:
 
-- More GPUs. With a fixed global batch, compute per GPU shrinks as GPUs are added while per-update communication and syncs do not, so more GPUs barely help. Item 5 is the way to scale.
+- FP8 and any other matmul precision below BF16: prohibited; none is introduced.
+- More GPUs. With a fixed global batch, compute per GPU shrinks as GPUs are added while per-update communication and syncs do not, so more GPUs barely help.
 - Activation recomputation. Memory is ample, so recomputation would only slow training down.
+
+## Larger updates (adopted)
+
+An arch1 update is only about 100k tokens (about 79k LM supervised tokens plus pinyin). That is small for 800M; public models of this size usually take 0.5M–2M tokens per update. The fixed per-update costs (a ~3.1 GB all-reduce, the optimizer, syncs) do not grow with the batch, so k times the batch spreads them over k times the tokens. arch2 uses k times the batch, with k = 4 or 8 set by the precheck below.
+
+### Recipe as a function of k
+
+| Item | arch1 | arch2 (k×) | k = 4 | k = 8 |
+| --- | --- | --- | --- | --- |
+| `lm_batch` (windows) | 2048 | 2048 × k | 8192 | 16384 |
+| Pinyin mix full/mixed/initials/error | 96/128/112/48 | each × k | 384/512/448/192 | 768/1024/896/384 |
+| Tokens per update (approx.) | 100k | 100k × k | 400k | 800k |
+| Updates | 1,198,964 | 1,198,964 ÷ k (dry run exact) | about 299,741 | about 149,871 |
+| Peak learning rate | 3e-4 | 3e-4 × √k | 6e-4 | 8.5e-4 |
+| Final learning rate | 3e-5 | peak ÷ 10 | 6e-5 | 8.5e-5 |
+| Warmup (updates) | 2000 | 2000 ÷ k (equal tokens) | 500 | 250 |
+| `bucket_multiplier` | 64 | 64 ÷ k | 16 | 8 |
+| Milestones | 20 | 20, aligned by tokens | | |
+
+- **Data order**: with `bucket_multiplier` at 64 ÷ k, each length pool is still 131,072 windows and the sequence of pools is identical to arch1. Within a pool, windows are cut by length into k-times-larger batches whose order is then shuffled, so each large batch equals k length-adjacent arch1 batches from the same pool.
+- **Pinyin passes unchanged**: the mix scales with the LM batch and the update count divides by k, so the four pinyin kinds still get 1.42/1.35/1.38/1.75 passes.
+- **Unchanged**: AdamW (β 0.9/0.95, wd 0.1), gradient clip 1.0, seed, `per_kind` normalization, the shape of the cosine schedule.
+- **Learning rate**: the square-root rule is the usual starting point under AdamW. QK-norm makes arch2 steadier at higher learning rates. The precheck tests the scaling as well.
+
+### Precheck (200M, before arch2 work starts)
+
+Three arms on the 12K joint-pinyin 200M recipe (`configs/train-zh200m-12k-pinyin-pt.toml`). Each arm is a complete short cosine schedule on the same token budget, 10% of the full 200M run:
+
+| Arm | `lm_batch` | Pinyin mix | Updates (approx.) | Peak → final LR | Warmup | `bucket_multiplier` |
+| --- | ---: | --- | ---: | --- | ---: | ---: |
+| 1× | 512 | 48/64/56/24 | 84,500 | 6e-4 → 6e-5 | 1000 | 64 |
+| 4× | 2048 | 192/256/224/96 | 21,125 | 1.2e-3 → 1.2e-4 | 250 | 16 |
+| 8× | 4096 | 384/512/448/192 | 10,563 | 1.7e-3 → 1.7e-4 | 125 | 8 |
+
+- The arms share data, order and seed; the dry run gives the exact update counts.
+- Compare end-of-training web BPC and the four pinyin validation losses, plus the milestone curves at equal tokens.
+- **Decision**: take the largest k that passes. An arm passes if its web BPC is at most 0.01 above the 1× arm, each of the four pinyin validation losses is at most 0.01 above the 1× arm, and training shows no loss spike (0.5 or more above the mean of the previous 1000 updates).
+- If 8× fails and 4× passes, use 4×. If 4× also fails, run a 2× arm (1024 windows, LR 8.5e-4) and decide then.
+- The precheck runs as cluster jobs; its report freezes the arch2 recipe.
+
+### Expected speed
+
+With larger updates the compute per update grows k-fold and the fixed costs stay. From arch1's measurements (about 60 ms of compute and about 200 ms of other costs per update), k = 4 alone brings one pass to about 1.5 days, and the execution changes and the four items above make it faster. The acceptance thresholds scale with k (see Acceptance before training).
 
 ## Inference and export follow
 
@@ -172,15 +202,17 @@ Ordered by expected gain. Items 1–4 change only how training runs, not the obj
 - **Distillation**: `joint_zh_pinyin` can load arch2 as the teacher. The 12K vocabulary is shared, so token-level logits align directly.
 - **Desktop export**: the Core ML package gains RoPE, GQA and QK-norm, numerically matching the PyTorch forward.
 
-## Data and recipe (identical to arch1)
+## Data and recipe
 
-- Mixture `zh800m-12k-c512`, same `dataset_sha256`, windows not rebuilt.
-- Pinyin store `zh-pinyin-pt-12k`, mix 96/128/112/48, `per_kind` normalization.
-- 2048 windows per update and 1,198,964 updates, in the same data order as arch1.
-- Peak learning rate 3e-4 → 3e-5, warmup 2000, AdamW (β 0.9/0.95, wd 0.1), gradient clip 1.0, same seed.
-- Same 20 milestones, checkpoint interval and retention.
+Same as arch1:
 
-Only the `[model]` section, the model code and the execution change. Because data and order are identical, arch2 and arch1 web/chat/probe BPC compare directly at every milestone.
+- mixture `zh800m-12k-c512`, same `dataset_sha256`, windows not rebuilt;
+- pinyin store `zh-pinyin-pt-12k`, `per_kind` normalization, the pass count of each pinyin kind;
+- the sequence of length pools (see Larger updates) and the total token count;
+- AdamW (β 0.9/0.95, wd 0.1), gradient clip 1.0, seed;
+- 20 milestones (aligned by tokens) and checkpoint retention.
+
+Different from arch1: the `[model]` section, the model code, the execution, and the k-scaled batch, pinyin mix, learning rate, warmup, update count and `bucket_multiplier`. arch2 and arch1 web/chat/probe BPC compare at equal-token milestones. The checkpoint interval stays equal in tokens, i.e. the update interval divides by k.
 
 ## Acceptance before training
 
@@ -190,20 +222,20 @@ Only the `[model]` section, the model code and the execution change. Because dat
    - RoPE KV-cache decoding matches the full forward;
    - **packing equivalence**: for the same windows, the packed forward's per-token loss and gradients match separate per-window forwards (tolerances as in `tests/test_zh800m_pinyin.py`); the data-parallel split matches one device.
 2. **Dry run**:
-   - 776,524,928 parameters and `max_steps` 1,198,964;
+   - 776,524,928 parameters and `max_steps` about 1,198,964 ÷ k;
    - pinyin passes as in arch1 (1.42/1.35/1.38/1.75);
-   - the plan equals arch1's except for the model and the code signature.
+   - the plan equals arch1's except for the model, the code signature and the items in the Larger updates table.
 3. **20-update smoke** reporting:
-   - steady-state update time, target at most 0.12 s;
+   - steady-state update time, target at most 0.11 × k s (0.43 s at k = 4, 0.86 s at k = 8, i.e. within 1.5 days);
    - `compiled_graphs`, and whether any update after the first takes more than 2 s;
    - peak memory;
    - padding ratio `padded_positions ÷ (LM input tokens + pinyin input tokens)`, target at most 1.1;
    - the loss at update 20, as a sanity check only.
-4. **Go condition**: start the formal run only at or below 0.18 s per update (about 2.5 days or less). Otherwise return with the profiler results and decide then.
+4. **Go condition**: start the formal run only at or below 0.18 × k s per update (0.72 s at k = 4, 1.44 s at k = 8; about 2.5 days or less). Otherwise return with the profiler results and decide then.
 
 ## Quality decision (preregistered)
 
-arch2 and arch1 use the same data and the same number of updates, and are compared on development:
+arch2 and arch1 use the same data and the same number of tokens (batch and learning rate scaled as in Larger updates), and are compared on development:
 
 1. Primary metric: public pinyin set Top-1 after self-rescoring (λ = 1.6), with a sentence-cluster sign-flip paired test.
 2. arch2 replaces arch1 as the 800M only if both hold:
@@ -214,14 +246,15 @@ arch2 and arch1 use the same data and the same number of updates, and are compar
 
 ## Timeline and release
 
-- arch2 starts after arch1 has trained and been evaluated: step 0 first, then the code.
+- arch2 starts after arch1 has trained and been evaluated: step 0 and the 200M batch precheck first (independent, so they can run in parallel), then the code.
 - The release name `vimeml-zh-v2-800m` refers to arch1. If arch2 is ready and passes before v2 is final, it replaces arch1; otherwise it goes into the next release.
 
 ## Out of scope
 
 - Document-level long context, a new vocabulary, rebuilt windows.
 - MoE and FSDP (the model and optimizer state fit on one GPU).
-- Changing the loss normalization. The learning rate and step count change only if item 5 of More speedups is approved.
+- FP8 and any other matmul precision below BF16 (prohibited).
+- Changing the loss normalization. Batch, learning rate, warmup and step count change only by the Larger updates scaling, with no separate tuning.
 
 ## Deviations
 
