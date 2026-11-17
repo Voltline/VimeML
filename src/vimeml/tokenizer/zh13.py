@@ -63,16 +63,22 @@ def web_train_files(export):
     return files
 
 
-def check_files(export, files, identity, verify):
-    """Every input must be listed in SHA256SUMS; with verify, hash it too."""
+def check_files(export, files, identity, verify, threads=8):
+    """Every input must be listed in SHA256SUMS; with verify, hash it too (threads files at a
+    time: hashlib releases the GIL, so a 100+ GB export is bound by the disk, not one core)."""
     if not identity["frozen"]:
         return
-    for path in files:
-        name = Path(path).relative_to(export).as_posix()
+    names = [Path(path).relative_to(export).as_posix() for path in files]
+    for name in names:
         if name not in identity["sums"]:
             raise ValueError(f"{name} is not in SHA256SUMS")
-        if verify and sha256(path) != identity["sums"][name]:
-            raise ValueError(f"{name} differs from SHA256SUMS")
+    if not verify:
+        return
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max(1, threads)) as pool:
+        for name, digest in zip(names, pool.map(sha256, files)):
+            if digest != identity["sums"][name]:
+                raise ValueError(f"{name} differs from SHA256SUMS")
 
 
 def shard_of(path):
