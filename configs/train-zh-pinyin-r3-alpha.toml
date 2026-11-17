@@ -1,0 +1,76 @@
+# zh v2-20m distillation round 3, arm r3-alpha: continue kd-cont (final.pt, step 30000) for 30000 updates,
+# seed 20261117, peak LR 1e-4, same teacher as r3-ctrl; data: the r3-data mix with alpha 0.9 (0.1 * cross-entropy + 0.9 * KL at T 1).
+# Against r3-data: whether fitting the teacher harder restores LM ability.
+stage = "zh-pinyin-s1"
+architecture = "tiny_gpt_zh13"
+output_dir = "artifacts/models/tiny-zh13-12k-pinyin-r3-alpha"
+log_dir = "runs/training/tiny-zh13-12k-pinyin-r3-alpha"
+arm = "pinyin-r3-alpha"
+
+[initialization]
+mode = "checkpoint"
+checkpoint = "artifacts/models/tiny-zh13-12k-pinyin-kd-cont/final.pt"
+checkpoint_sha256 = "412aee1d1c2d73c9f2ff52533188055e4655575472fe3be136e048fd240268a4"
+
+[distillation]
+teacher = "artifacts/models/tiny-zh200m-12k-pinyin-pt-d1024/final.pt"
+teacher_sha256 = "90e48fe4cbaeacf5c58774ded243e57d94c86923a51d191555fbbfc7954150f8"
+alpha = 0.9
+temperature = 1.0
+
+[data]
+directory = "artifacts/training-data/zh-pinyin-v2-12k"
+manifest_sha256 = "c449439ba6af405fb4a907c8fcb9e753d4c8eb73428cfe839e9eac0f05cea472"
+mix = { plain = 80, full = 48, mixed = 64, initials = 48, error = 16 }
+
+[[data.extra]]
+directory = "artifacts/training-data/zh-pinyin-r2-12k"
+manifest_sha256 = "1d82b7545197b71e0031c9e6bbc9eff44e603dde00b739e543f45bfa56979279"
+mix = { plain = 80, full = 48, mixed = 64, initials = 48, error = 16 }
+
+[model]
+vocab_size = 12288
+context_length = 128
+d_model = 384
+n_heads = 6
+n_layers = 9
+d_ff = 960
+dropout = 0.0
+norm = "rmsnorm"
+norm_eps = 0.00001
+activation = "swiglu"
+bias = false
+tie_embeddings = true
+position_embedding = "learned"
+
+[runtime]
+compile_backbone = true
+
+[training]
+device = "cuda"
+precision = "bf16"
+seed = 20261117
+normalization = "per_kind"
+cpu_threads = 4
+num_workers = 6
+max_steps = 30000
+learning_rate = 0.0001
+min_learning_rate = 0.00001
+warmup_steps = 1000
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+prefix_crop_probability = 0.30
+log_every = 100
+eval_every = 2000
+checkpoint_every = 1000
+keep_every = 6000
+validation_batch = 256
+validation_plain_examples = 8192
+
+[tracking]
+enabled = true
+project = "vimeml"
+group = "zh-pinyin-kd"
+mode = "online"
