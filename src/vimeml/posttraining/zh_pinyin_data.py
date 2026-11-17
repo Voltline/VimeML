@@ -2,7 +2,9 @@
 
 Selection
     train: web/review documents in P1 (zh13 pools.json, label zh-v13-pool) outside the
-    memorization probe, plus LCCC train utterances; validation: every export validation
+    memorization probe, plus LCCC train utterances; without pools_path (export-r2, which has
+    neither pools nor the probe) every train document is eligible, and a missing LCCC file
+    is skipped; validation: every export validation
     document and LCCC validation utterance. u = doc_hash(label, id) / 2**64 (chat key
     "lccc/<dialogue>/<turn>"): u < plain_fraction -> plain, the next pinyin_fraction ->
     pinyin. Disjoint documents feed the two, so no paragraph is in both. chat_pinyin_repeats
@@ -54,7 +56,7 @@ def jobs(export, split, per_job, max_groups=0):
     import pyarrow.parquet as pq
     directory = Path(export) / split
     files = (sorted(directory.glob("web-*.parquet")) + sorted(directory.glob("review-*.parquet"))
-             + [directory / f"chat-lccc-{split}.parquet"])
+             + [p for p in [directory / f"chat-lccc-{split}.parquet"] if p.exists()])
     out = []
     for path in files:
         groups = pq.ParquetFile(path).metadata.num_row_groups
@@ -70,7 +72,7 @@ def _init(config):
     _state["config"] = config
     _state["pinyin"] = Pinyin(config["sample"], config["readings"])
     _state["sp"] = spm.SentencePieceProcessor(model_file=config["tokenizer"])
-    _state["pools"] = json.loads(Path(config["pools_path"]).read_text("utf-8"))
+    _state["pools"] = json.loads(Path(config["pools_path"]).read_text("utf-8")) if config.get("pools_path") else None
 
 
 class Part:
@@ -155,8 +157,9 @@ def run_job(job):
     repeats = config.get("chat_pinyin_repeats", 1) if split == "train" and source == "chat" else 1
     plain_cut = int(plain_fraction * 2 ** 64)
     pinyin_cut = int((plain_fraction + pinyin_fraction) * 2 ** 64)
-    thresholds, memo_threshold = pools["thresholds"], pools["memo_threshold"]
-    pool_label, memo_label = pools["labels"]["pool"], pools["labels"]["memo"]
+    if pools:
+        thresholds, memo_threshold = pools["thresholds"], pools["memo_threshold"]
+        pool_label, memo_label = pools["labels"]["pool"], pools["labels"]["memo"]
     part, stats = Part(), Counter()
     handle = pq.ParquetFile(job["path"])
     columns = ["text", "dialogue", "turn", "script"] if source == "chat" else ["id", "text", "script"]
@@ -168,7 +171,7 @@ def run_job(job):
             keys = table["id"]
         for key, text, script in zip(keys, table["text"], table["script"]):
             stats["documents_seen"] += 1
-            if split == "train" and source != "chat":
+            if pools and split == "train" and source != "chat":
                 h = doc_hash(pool_label, key)
                 if h >= thresholds["p1"]:
                     continue
@@ -260,10 +263,11 @@ def build(config, export, output_dir, identity, max_groups=0):
         raise FileExistsError(f"{output_dir} exists; remove it first")
     if sha256(config["tokenizer"]) != config["tokenizer_sha256"]:
         raise ValueError("tokenizer identity mismatch")
-    pools = json.loads(Path(config["pools_path"]).read_text("utf-8"))
-    if pools["status"] != "complete" or (identity.get("frozen") and
-                                          pools["export"]["manifest_sha256"] != identity["manifest_sha256"]):
-        raise ValueError("pools.json does not match the export")
+    if config.get("pools_path"):
+        pools = json.loads(Path(config["pools_path"]).read_text("utf-8"))
+        if pools["status"] != "complete" or (identity.get("frozen") and
+                                              pools["export"]["manifest_sha256"] != identity["manifest_sha256"]):
+            raise ValueError("pools.json does not match the export")
     if sha256(config["readings"]) != config["readings_sha256"]:
         raise ValueError("reading table identity mismatch")
     config = dict(config, parts_dir=str(output_dir / "parts"))
@@ -290,7 +294,7 @@ def build(config, export, output_dir, identity, max_groups=0):
     manifest.update({
         "status": "complete",
         "export": identity,
-        "pools_sha256": sha256(config["pools_path"]),
+        "pools_sha256": sha256(config["pools_path"]) if config.get("pools_path") else None,
         "tokenizer_sha256": config["tokenizer_sha256"],
         "config": {k: v for k, v in config.items() if k not in ("parts_dir",)},
         "max_row_groups": max_groups,

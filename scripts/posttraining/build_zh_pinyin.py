@@ -5,6 +5,7 @@ Formal runs read the frozen export and write configs/data-zh-pinyin.toml's outpu
 
 usage:
   python -I -X utf8 scripts/posttraining/build_zh_pinyin.py
+  python -I -X utf8 scripts/posttraining/build_zh_pinyin.py --config configs/data-zh-pinyin-r2.toml
   python -I -X utf8 scripts/posttraining/build_zh_pinyin.py --smoke --max-row-groups 1 --output OUT
 """
 import argparse
@@ -43,7 +44,8 @@ def main():
     public = {k: v for k, v in identity.items() if k != "sums"}
     config["tokenizer"] = str(ROOT / config["tokenizer"])
     config["readings"] = str(ROOT / config["readings"])
-    config["pools_path"] = str(ROOT / config["pools_dir"] / "pools.json")
+    if "pools_dir" in config:
+        config["pools_path"] = str(ROOT / config["pools_dir"] / "pools.json")
     if args.workers:
         config["workers"] = args.workers
     manifest = build(config, export, args.output or formal, public, args.max_row_groups)

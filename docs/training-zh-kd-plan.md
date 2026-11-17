@@ -47,6 +47,65 @@ Everything runs on development; neither blind nor the public test split is read.
 
 If both arms pass, the one with the higher primary score becomes the v2-20m candidate. If neither passes, the next round adds r2 data or changes α and T.
 
+## Round 3 (drafted 2026-11-17)
+
+The [round 2 evaluation](reports/zh-kd-eval-20261117/report.md) picked `kd-cont`, with two gaps left:
+
+- self-rescored 54.8% against the teacher's 58.8%;
+- prediction track A Top-3 at 25.6 against v1's 27.6.
+
+r2-cont plus kd-cont trained for 90,000 updates in total, so the r1 pinyin data has been seen 3.7 to 5 times (plain 1.9 times). Round 3 adds unseen r2 data and tries two changes aimed at those gaps.
+
+### r2 pinyin data
+
+- The config is [data-zh-pinyin-r2.toml](../configs/data-zh-pinyin-r2.toml); output goes to `zh-pinyin-r2-12k`.
+- Builder, sample rules, tokenizer and Rime readings are the same as for r1. The label becomes `zh-pinyin-r2`, so document selection and every random draw are new.
+- export-r2 has no pools, no memorization probe and no LCCC, so every r2 train web document is eligible, with 0.8% each for plain and pinyin.
+- The size was estimated by running the same rules on one row group of export-r1:
+  - about 13M plain windows;
+  - about 3.3M per pinyin kind, 1.45 times r1;
+  - about 1.1M error samples.
+  Round 3 reads less than half a pass of it.
+- It is built on the cluster, where export-r2 lives. The same rules processed 979K documents in 16.5 s on 16 local workers, with no single hotspot: pinyin sampling takes 57% and parquet reads 18%. r2 has about 83M documents, about 3,000 CPU seconds in all, and the build as a whole is bound by disk reads.
+- r2 has no LCCC, so with r1 and r2 at half each the chat share of pinyin samples drops from about 25% to about 13%. That change is part of the overall effect of adding r2, measured by r3-ctrl against r3-data.
+
+### Trainer
+
+- `joint_zh_pinyin` gains an optional `[[data.extra]]`: each extra directory has its own mix and its own sample stream (the permutation seed gets the source index appended). Its samples follow the primary directory's samples of the same kind, so `per_kind` normalization is unchanged.
+- Without extra directories every batch is byte-identical to before (checked on the v2 pinyin data).
+- Validation reads the primary (r1) directory only, so the arms' validation curves compare directly.
+- The keyboard-typo plan's second `typo` directory uses the same mechanism.
+
+### Four arms
+
+All start from `kd-cont` final (step 30,000) and train for 30,000 updates, peak LR 1e-4 → 1e-5, warmup 1000, same teacher, seed `20261117`. r2-cont and kd-cont both started at step 0 of seed `20261116`, so a new seed is needed to avoid replaying the same data order.
+
+| Arm | Data per update (r1 + r2) | α | T | Question |
+| --- | --- | ---: | ---: | --- |
+| `r3-ctrl` | r1 only: plain 160 / full 96 / mixed 128 / initials 96 / error 32 | 0.5 | 1 | What 30,000 more updates alone give (control) |
+| `r3-data` | Half r1, half r2 for every kind, same total as r3-ctrl | 0.5 | 1 | What new data gives |
+| `r3-alpha` | As r3-data | 0.9 | 1 | Whether fitting the teacher harder restores LM ability |
+| `r3-plain` | As r3-data, with plain raised from 160 to 256 (r1 128 + r2 128) | 0.5 | 1 | Prediction specifically |
+
+T stays at 1: rescoring and prediction both use the probabilities at T = 1, so a higher T trains the student on a distribution it never uses. α is the more direct lever.
+
+### Decision
+
+All on development, with the round 2 evaluation methods.
+
+1. The arm with the highest primary score replaces `kd-cont` if either holds:
+   - its primary score (public-set self-rescored Top-1) is significantly above `kd-cont`;
+   - its primary score is not significantly below `kd-cont`, and its prediction track A Top-3 reaches v1's 27.6.
+2. The guard is unchanged: Standard full-pinyin rerank Top-1 must not be significantly below v1.
+3. If `r3-ctrl` wins, more training alone is enough, and r2 is not added further.
+4. The private benchmark stays descriptive.
+
+The arm round 3 picks is the starting point of the with/without `typo` arms in the [keyboard typo plan](training-zh-typo-plan.md).
+
+### Round 4: the 800M as teacher
+
+Once the 800M passes its formal evaluation, rerun round 3's winning recipe with only the teacher swapped for the 800M (same 12K vocabulary, so token-level distillation works directly). It goes into v2-20m if it is ready before v2-20m is final, and into the next release otherwise. The cost of the 800M forward pass will be measured once the 800M is training.
+
 ## Deviations
 
 (None yet.)

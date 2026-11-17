@@ -7,6 +7,13 @@ Store k reads position p = step * mix[k] + j of an endless stream made of seeded
 permutations, one per pass, so the batch of any step is a pure function of (seed, step)
 and resuming needs nothing but the step.
 
+Optional [[data.extra]] directories (same builder format and tokenizer, e.g. the export-r2
+stores) add their own per-kind counts: an extra store reads its own stream (permutation seed
+[seed, kind, epoch, 1 + its index]) and its samples join the same kind's batch after the
+primary directory's, so normalization sees one batch per kind and data.mix plus every extra
+mix is the update. Without extras every batch is byte-identical to before. Validation reads
+the primary directory only.
+
 plain windows keep the original 0.30 prefix crop (first windows only, at least 8 tokens
 left) and supervise every target; pinyin samples supervise output + EOS only.
 normalization "tokens": loss = sum of token losses / supervised tokens in the update
@@ -82,37 +89,47 @@ def shifted(ids, first, crop=0):
 
 
 class Schedule:
-    """dataset[step] -> {store: collated batch}; picklable for spawn workers."""
+    """dataset[step] -> {store: collated batch}; picklable for spawn workers.
 
-    def __init__(self, directory, mix, seed, crop_probability):
+    extra: [(directory, mix), ...], read after the primary directory as sources 1, 2, ..."""
+
+    def __init__(self, directory, mix, seed, crop_probability, extra=()):
         self.directory, self.mix, self.seed, self.crop_probability = Path(directory), dict(mix), seed, crop_probability
+        self.extra = [(Path(d), dict(m)) for d, m in extra]
         self._open()
 
     def _open(self):
-        self.stores = {k: Store(self.directory / k, "train") for k in STORES if self.mix[k]}
+        sources = [(self.directory, self.mix)] + self.extra
+        self.sources = [(i, kind, Store(d / kind, "train"), m[kind])
+                        for kind in STORES for i, (d, m) in enumerate(sources) if m.get(kind, 0)]
+        self.stores = {(i, kind): store for i, kind, store, _ in self.sources}
         self.cache = {}
         self.collate = TaskCollator(128)
 
     def __getstate__(self):
-        return {"directory": self.directory, "mix": self.mix, "seed": self.seed, "crop_probability": self.crop_probability}
+        return {"directory": self.directory, "mix": self.mix, "seed": self.seed,
+                "crop_probability": self.crop_probability, "extra": self.extra}
 
     def __setstate__(self, state):
         self.__dict__.update(state)
+        self.extra = state.get("extra", [])
         self._open()
 
-    def permutation(self, kind, epoch):
-        key = (kind, epoch)
+    def permutation(self, kind, epoch, source=0):
+        key = (source, kind, epoch)
         if key not in self.cache:
-            self.cache = {k: v for k, v in self.cache.items() if k[0] != kind}
-            n = len(self.stores[kind])
-            self.cache[key] = np.random.default_rng([self.seed, STORES.index(kind), epoch]).permutation(n)
+            self.cache = {k: v for k, v in self.cache.items() if k[:2] != (source, kind)}
+            n = len(self.stores[source, kind])
+            seed = [self.seed, STORES.index(kind), epoch] + ([source] if source else [])
+            self.cache[key] = np.random.default_rng(seed).permutation(n)
         return self.cache[key]
 
-    def indices(self, kind, step):
-        n, count = len(self.stores[kind]), self.mix[kind]
+    def indices(self, kind, step, source=0):
+        n = len(self.stores[source, kind])
+        count = (self.mix if source == 0 else self.extra[source - 1][1])[kind]
         out = []
         for p in range(step * count, (step + 1) * count):
-            out.append(int(self.permutation(kind, p // n)[p % n]))
+            out.append(int(self.permutation(kind, p // n, source)[p % n]))
         return out
 
     def __len__(self):
@@ -120,21 +137,20 @@ class Schedule:
 
     def __getitem__(self, step):
         rng = np.random.default_rng([self.seed, 1 << 20, step])
-        batches = {}
-        for kind, store in self.stores.items():
-            samples = []
-            for index in self.indices(kind, step):
+        samples = {}
+        for source, kind, store, _ in self.sources:
+            for index in self.indices(kind, step, source):
                 ids, first = store.get(index)
                 crop = 0
                 if (first == 1 and ids[0] == 2 and len(ids) - 1 - CROP_MINIMUM >= 1
                         and rng.random() < self.crop_probability):
                     crop = 1 + int(rng.integers(len(ids) - 1 - CROP_MINIMUM))
-                samples.append(shifted(ids, first, crop))
-            batches[kind] = self.collate(samples)
-        return batches
+                samples.setdefault(kind, []).append(shifted(ids, first, crop))
+        return {kind: self.collate(group) for kind, group in samples.items()}
 
     def epochs(self, step):
-        return {k: step * self.mix[k] / len(s) for k, s in self.stores.items()}
+        return {(kind if source == 0 else f"{kind}@{source}"): step * count / len(store)
+                for source, kind, store, count in self.sources}
 
 
 def build_plan(config, root=ROOT, verify_files=True):
@@ -176,6 +192,24 @@ def build_plan(config, root=ROOT, verify_files=True):
                 required[data_dir / kind / name] = digest
     if file_sha(data_dir / "manifest.json") != config["data"]["manifest_sha256"]:
         raise ValueError("Pinyin data manifest changed")
+    extras = config["data"].get("extra", [])
+    extra_mixes = [{k: int(e["mix"].get(k, 0)) for k in STORES} for e in extras]
+    extra_train = []
+    for e, m in zip(extras, extra_mixes):
+        folder = root / e["directory"]
+        if set(e["mix"]) - set(STORES) or any(v < 0 for v in m.values()) or not sum(m.values()):
+            raise ValueError("Invalid extra mix: " + e["directory"])
+        if folder.resolve() == data_dir.resolve() or file_sha(folder / "manifest.json") != e["manifest_sha256"]:
+            raise ValueError("Extra pinyin data is the primary directory or its manifest changed: " + e["directory"])
+        extra_manifest = read(folder / "manifest.json")
+        if (extra_manifest.get("format") != DATA_FORMAT or extra_manifest.get("status") != "complete"
+                or extra_manifest["tokenizer_sha256"] != manifest["tokenizer_sha256"]):
+            raise ValueError("Incomplete, unsupported or other-tokenizer extra data: " + e["directory"])
+        required[folder / "manifest.json"] = e["manifest_sha256"]
+        for kind, record in extra_manifest["stores"]["train"].items():
+            for name, digest in record["files"].items():
+                required[folder / kind / name] = digest
+        extra_train.append({k: extra_manifest["stores"]["train"][k]["examples"] for k in STORES})
     if verify_files:
         for path, digest in required.items():
             if file_sha(path) != digest:
@@ -192,13 +226,22 @@ def build_plan(config, root=ROOT, verify_files=True):
                   "code": hashlib.sha256(json.dumps(code, sort_keys=True).encode()).hexdigest()}
     if distillation is not None:
         signatures["teacher"] = distillation["teacher_sha256"]
-    batch = sum(mix.values())
     train = {k: manifest["stores"]["train"][k]["examples"] for k in STORES}
     passes = {k: s["max_steps"] * mix[k] / train[k] for k in STORES if mix[k]}
+    extra = {}
+    if extras:
+        signatures["extra_data"] = [e["manifest_sha256"] for e in extras]
+        for i, (m, examples) in enumerate(zip(extra_mixes, extra_train), 1):
+            passes.update({f"{k}@{i}": s["max_steps"] * m[k] / examples[k] for k in STORES if m[k]})
+        extra["sources"] = [{"directory": config["data"]["directory"], "mix": mix}] + [
+            {"directory": e["directory"], "mix": m} for e, m in zip(extras, extra_mixes)]
+        extra["extra_train_examples"] = extra_train
+        mix = {k: mix[k] + sum(m[k] for m in extra_mixes) for k in STORES}
+    batch = sum(mix.values())
     return {"stage": STAGE, "parameters": SHAPES[12288][1], "settings": s, "mix": mix, "batch": batch,
             "distillation": distillation,
             "signatures": signatures, "code_sha256": code, "train_examples": train, "passes": passes,
-            "tokenizer_sha256": manifest["tokenizer_sha256"],
+            "tokenizer_sha256": manifest["tokenizer_sha256"], **extra,
             "required_files": {Path(p).resolve().as_posix(): h for p, h in required.items()}}
 
 
@@ -382,7 +425,9 @@ def run(config, resume=False, root=ROOT, log=print):
         environment["gpu"] = torch.cuda.get_device_name(device)
     write_json(output / "environment.json", environment)
     data_dir = root / config["data"]["directory"]
-    schedule = Schedule(data_dir, plan["mix"], s["seed"], s["prefix_crop_probability"])
+    sources = plan.get("sources") or [{"directory": config["data"]["directory"], "mix": plan["mix"]}]
+    schedule = Schedule(data_dir, sources[0]["mix"], s["seed"], s["prefix_crop_probability"],
+                        [(root / x["directory"], x["mix"]) for x in sources[1:]])
     sets = validation_sets(data_dir, plan, s["seed"])
     limit = s.get("smoke_validation_examples", 0)
     writer = SummaryWriter(str(log_dir), purge_step=state["step"] + 1 if resume else None, flush_secs=5)
