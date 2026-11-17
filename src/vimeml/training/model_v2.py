@@ -53,6 +53,25 @@ class RMSNorm(nn.Module):
         return normalized.to(hidden.dtype) * self.weight
 
 
+def token_loss(head, hidden, input_ids, labels, token_weights=None):
+    """Cross-entropy on the supervised positions (labels != -100), head applied to those only.
+
+    Without token_weights: {"loss_sum", "token_count"} as always. With token_weights ([batch,
+    time], same shape as labels): loss_sum = sum of weight * token loss, and "token_losses"
+    holds the detached unweighted losses of the supervised positions in row-major order."""
+    if labels.shape != input_ids.shape:
+        raise ValueError("Labels must match inputs; labels are already shifted by DataLoader.")
+    valid = labels != -100
+    logits = head(hidden[valid])
+    if token_weights is None:
+        return {"loss_sum": F.cross_entropy(logits, labels[valid], reduction="sum"), "token_count": valid.sum()}
+    if token_weights.shape != labels.shape:
+        raise ValueError("token_weights must match labels")
+    losses = F.cross_entropy(logits, labels[valid], reduction="none")
+    return {"loss_sum": (losses * token_weights[valid].to(losses.dtype)).sum(), "token_count": valid.sum(),
+            "token_losses": losses.detach()}
+
+
 class CausalAttentionV2(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -117,7 +136,7 @@ class TinyGPTV2(nn.Module):
         if isinstance(module, (nn.Linear, nn.Embedding)):
             nn.init.normal_(module.weight, std=0.02)
 
-    def forward(self, input_ids, labels=None):
+    def forward(self, input_ids, labels=None, token_weights=None):
         if input_ids.ndim != 2 or not 1 <= input_ids.shape[1] <= self.config.context_length:
             raise ValueError("Expected [batch, time] input within model context.")
         positions = torch.arange(input_ids.shape[1], device=input_ids.device)
@@ -127,14 +146,7 @@ class TinyGPTV2(nn.Module):
         hidden = self.final_norm(hidden)
         if labels is None:
             return self.lm_head(hidden)
-        if labels.shape != input_ids.shape:
-            raise ValueError("Labels must match inputs; labels are already shifted by DataLoader.")
-        valid = labels != -100
-        logits = self.lm_head(hidden[valid])
-        return {
-            "loss_sum": F.cross_entropy(logits, labels[valid], reduction="sum"),
-            "token_count": valid.sum(),
-        }
+        return token_loss(self.lm_head, hidden, input_ids, labels, token_weights)
 
     def parameter_count(self):
         return sum(parameter.numel() for parameter in self.parameters())

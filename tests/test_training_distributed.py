@@ -15,6 +15,7 @@ from torch import nn
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from vimeml.training import joint_zh13, joint_zh200m
 from vimeml.training.distributed import Context
+from vimeml.training.model_v2 import token_loss
 
 VOCAB = 50
 
@@ -30,6 +31,16 @@ class Tiny(nn.Module):
         logits = self.head(torch.tanh(self.embed(ids)))
         valid = labels != -100
         return {"loss_sum": nn.functional.cross_entropy(logits[valid], labels[valid], reduction="sum")}
+
+
+class TinyWeighted(Tiny):
+    """Tiny with the token_weights loss of model_v2 and a context length (joint_zh200m packing)."""
+    class config:
+        context_length = 24
+
+    def forward(self, ids, labels, token_weights=None):
+        hidden = torch.tanh(self.embed(ids))
+        return token_loss(self.head, hidden, ids, labels, token_weights)
 
 
 class LocalRank(Context):
@@ -70,10 +81,10 @@ def gradients(model):
 
 
 class DataParallelUpdateTest(unittest.TestCase):
-    def check(self, update, world):
-        one = Tiny()
+    def check(self, update, world, model=Tiny):
+        one = model()
         update(one, Context())
-        many = Tiny()
+        many = model()
         for rank in range(world):
             update(many, LocalRank(world, rank))
         for a, b in zip(gradients(one), gradients(many)):
@@ -93,6 +104,28 @@ class DataParallelUpdateTest(unittest.TestCase):
         for world in (2, 4):     # world 4 leaves some ranks without error rows
             self.check(lambda m, ctx: joint_zh13.update_joint(m, Keep(), lm, extra, weights, SETTINGS, CPU,
                                                               "fp32", ctx, m), world)
+
+    def test_packed_joint_update_matches_one_device_and_the_unpacked_update(self):
+        lm = batch(16, 24, 2)
+        extra = {"full": batch(5, 20, 3), "mixed": batch(6, 20, 4), "initials": batch(3, 12, 5),
+                 "error": batch(2, 18, 6)}
+        weights = {"lm": 16 / 32, "full": 5 / 32, "mixed": 6 / 32, "initials": 3 / 32, "error": 2 / 32}
+        for microbatch in (1, 4, 64):    # 1: a row per microbatch; 64: one microbatch per rank
+            s = {**SETTINGS, "lm_microbatch": microbatch}
+
+            def packed(m, ctx):
+                return joint_zh200m.update_joint(m, Keep(), {"lm": lm, **extra}, weights, s, CPU, "fp32", ctx, m)
+            for world in (2, 4):    # ranks get different numbers of microbatches; world 4 leaves some without error rows
+                self.check(packed, world, TinyWeighted)
+            reference = TinyWeighted()
+            want = joint_zh13.update_joint(reference, Keep(), lm, extra, weights, SETTINGS, CPU, "fp32")
+            model = TinyWeighted()
+            got = packed(model, Context())
+            for a, b in zip(gradients(reference), gradients(model)):
+                torch.testing.assert_close(b, a, atol=1e-6, rtol=1e-5)
+            self.assertAlmostEqual(got["loss"], want["loss"], places=5)
+            for kind in extra:
+                self.assertAlmostEqual(got["pinyin"][kind]["loss"], want["pinyin"][kind]["loss"], places=5)
 
     def test_reported_totals_do_not_depend_on_the_world(self):
         lm = batch(9, 16, 8)

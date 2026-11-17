@@ -18,8 +18,12 @@ Joint pinyin pretraining (optional [pinyin] section, the zh-800m deviation of 20
 arm's mixture, seed, schedule and budget stay unchanged, and every update adds pinyin.mix samples
 from build_zh_pinyin.py stores (step-indexed, joint_zh_pinyin.Schedule), as the 12K joint-pinyin
 200M did. The loss is "per_kind": (lm_batch / batch) * mean LM loss + sum_k (mix[k] / batch) *
-mean loss of k, with every task split into lm_microbatch rows. Pinyin validation (loss,
-teacher-forced exact) runs at every milestone and every eval_every.
+mean loss of k. Each rank packs its rows of every task together: sorted by length, longest
+first, into microbatches of at most lm_microbatch * context_length padded positions (the
+memory bound of lm_microbatch full-length windows), each row's tokens weighted by its task's
+weight / that task's global supervised tokens. The update is the same sum as one forward per
+task; only the float summation order differs. Pinyin validation (loss, teacher-forced exact)
+runs at every milestone and every eval_every.
 """
 import copy
 import hashlib
@@ -249,12 +253,54 @@ def add_pinyin(plan, p, root, verify_files):
                              "pinyin": {"mix": mix, "manifest_sha256": p["manifest_sha256"]}}
 
 
+def packed_rows(parts, budget):
+    """[(kind index, collated batch), ...] -> [(input_ids, labels, row kind), ...] on the CPU.
+
+    Rows of every batch are sorted by length (longest first; ties by kind, then row) and cut
+    greedily into microbatches with rows * padded width <= budget, the width being the first
+    (longest) row's length rounded up to 8. Padding is id 0 / label -100, as the collators pad."""
+    rows = sorted(((int(length), k, b, r) for k, b in parts for r, length in enumerate(b["lengths"].tolist())),
+                  key=lambda row: (-row[0], row[1], row[3]))
+    groups, current, width = [], [], 0
+    for row in rows:
+        if current and (len(current) + 1) * width > budget:
+            groups.append((current, width))
+            current = []
+        if not current:
+            width = math.ceil(row[0] / 8) * 8
+            if width > budget:
+                raise ValueError("A row longer than the microbatch budget")
+        current.append(row)
+    if current:
+        groups.append((current, width))
+    out = []
+    for group, width in groups:
+        ids = torch.zeros(len(group), width, dtype=torch.long)
+        labels = torch.full((len(group), width), -100, dtype=torch.long)
+        kind = torch.tensor([row[1] for row in group], dtype=torch.long)
+        by_batch = {}
+        for j, (_, _, batch, r) in enumerate(group):
+            entry = by_batch.setdefault(id(batch), (batch, [], []))
+            entry[1].append(j)
+            entry[2].append(r)
+        for batch, slots, source in by_batch.values():
+            span = min(width, batch["input_ids"].shape[1])
+            index = torch.tensor(source, dtype=torch.long)
+            slot = torch.tensor(slots, dtype=torch.long)
+            ids[slot, :span] = batch["input_ids"][index, :span].long()
+            labels[slot, :span] = batch["labels"][index, :span].long()
+        out.append((ids, labels, kind))
+    return out
+
+
 def update_joint(model, optimizer, batches, weights, s, device, precision, ctx=None, net=None):
     """One update over {"lm": LM batch, kind: pinyin batch, ...}, per_kind normalized.
 
-    Every task is split into lm_microbatch rows (after the data-parallel share), so the
-    pinyin tasks never change the memory bound set for the LM windows. The per-task
-    denominators stay the global supervised-token counts."""
+    This rank's rows of every task (after the data-parallel share) are packed by packed_rows
+    into microbatches of at most lm_microbatch * context_length padded positions; the pinyin
+    tasks never raise the memory bound set for the LM windows. Each token's loss is weighted
+    by weights[kind] * world / (the task's global supervised tokens), so the gradient is that
+    of one forward per task. padded_positions counts the positions of every task."""
     ctx, net = ctx or Context(), net or model
     tokens = {k: int((b["labels"] != -100).sum()) for k, b in batches.items()}
     lm = batches["lm"]
@@ -262,25 +308,28 @@ def update_joint(model, optimizer, batches, weights, s, device, precision, ctx=N
         raise ValueError("The LM task needs supervised targets")
     optimizer.zero_grad(set_to_none=True)
     kinds = [k for k in batches if tokens[k]]
-    work = []
+    parts = []
     for kind in kinds:
         part = ctx.share(batches[kind]) if ctx.active else batches[kind]
         if part is not None:
-            work += [(kind, piece) for piece in microbatches([part], s["lm_microbatch"])]
-    pieces = {k: [] for k in kinds}
+            parts.append((kinds.index(kind), part))
+    scale = torch.tensor([weights[k] * ctx.world / tokens[k] for k in kinds], dtype=torch.float32)
+    work = packed_rows(parts, s["lm_microbatch"] * model.config.context_length)
+    totals = torch.zeros(len(kinds), dtype=torch.float32, device=device)
     positions = 0
-    for i, (kind, batch) in enumerate(work):
-        ids = batch["input_ids"].to(device, non_blocking=True)
-        labels = batch["labels"].to(device, non_blocking=True)
+    for i, (ids, labels, row_kind) in enumerate(work):
+        ids = ids.to(device, non_blocking=True)
+        labels = labels.to(device, non_blocking=True)
+        row_kind = row_kind.to(device, non_blocking=True)
+        token_weights = scale.to(device)[row_kind][:, None].expand(labels.shape)
         with ctx.no_sync(net, i == len(work) - 1):
             with amp_context(device, precision):
-                loss_sum = net(ids, labels)["loss_sum"]
-                loss = loss_sum * (weights[kind] * ctx.world / tokens[kind])
-            loss.backward()
-        pieces[kind].append(loss_sum.detach())
-        if kind == "lm":
-            positions += ids.numel()
-    sums = [float(torch.stack(pieces[k]).sum()) if pieces[k] else 0.0 for k in kinds]
+                out = net(ids, labels, token_weights=token_weights)
+            out["loss_sum"].backward()
+        token_kind = row_kind[:, None].expand(labels.shape)[labels != -100]
+        totals += torch.bincount(token_kind, weights=out["token_losses"].float(), minlength=len(kinds))
+        positions += ids.numel()
+    sums = totals.tolist()
     if ctx.active:
         *sums, positions = ctx.sum(sums + [positions], device)
         positions = int(positions)

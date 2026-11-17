@@ -7,7 +7,7 @@ from pathlib import Path
 import torch
 from torch.nn import functional as F
 
-from vimeml.training.model_v2 import RMSNorm
+from vimeml.training.model_v2 import RMSNorm, token_loss
 
 
 def rmsnorm_operations(hidden, weight, eps):
@@ -54,7 +54,7 @@ def compile_backbone(model):
 
     compiled = torch.compile(hidden_stack, fullgraph=True, dynamic=True)
 
-    def forward(module, input_ids, labels=None):
+    def forward(module, input_ids, labels=None, token_weights=None):
         if (
             input_ids.ndim != 2
             or not 1 <= input_ids.shape[1] <= module.config.context_length
@@ -63,14 +63,7 @@ def compile_backbone(model):
         hidden = compiled(input_ids)
         if labels is None:
             return module.lm_head(hidden)
-        if labels.shape != input_ids.shape:
-            raise ValueError("Labels must match input shape.")
-        valid = labels != -100
-        logits = module.lm_head(hidden[valid])
-        return {
-            "loss_sum": F.cross_entropy(logits, labels[valid], reduction="sum"),
-            "token_count": valid.sum(),
-        }
+        return token_loss(module.lm_head, hidden, input_ids, labels, token_weights)
 
     model.forward = MethodType(forward, model)
     return {

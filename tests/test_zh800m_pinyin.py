@@ -88,7 +88,33 @@ class Zh800mJointUpdateTests(unittest.TestCase):
             self.assertEqual(set(got['pinyin']), {'full', 'error'})
             for kind in got['pinyin']:
                 self.assertAlmostEqual(got['pinyin'][kind]['loss'], want['pinyin'][kind]['loss'], places=5)
-            self.assertEqual(got['padded_positions'], 8 * 16)
+            # Every task is packed: 8 LM rows of 16 plus 3 rows of 10 and 5 of 12 (widths round up to 8).
+            self.assertEqual(got['padded_positions'], (8 + 3 + 5) * 16)
+
+    def test_packed_rows(self):
+        rng = torch.Generator().manual_seed(3)
+        a, b = batch(rng, 5, 16, 64), batch(rng, 4, 10, 64)
+        a['lengths'] = torch.tensor([16, 3, 9, 12, 1])
+        b['lengths'] = torch.tensor([10, 2, 7, 10])
+        for x in (a, b):
+            for r, n in enumerate(x['lengths'].tolist()):
+                x['input_ids'][r, n:] = 0
+                x['labels'][r, n:] = -100
+        groups = joint_zh200m.packed_rows([(0, a), (1, b)], 32)
+        rows = [(int((ids[j] != 0).sum()), int(kind[j])) for ids, _, kind in groups for j in range(len(kind))]
+        for ids, labels, kind in groups:
+            self.assertLessEqual(ids.numel(), 32)
+            self.assertEqual(ids.shape, labels.shape)
+            self.assertEqual(ids.shape[1] % 8, 0)
+        self.assertEqual(sorted(k for _, k in rows), [0] * 5 + [1] * 4)
+        # Every supervised (row, token) appears once with its label.
+        want = sorted((k, tuple(x['labels'][r][x['labels'][r] != -100].tolist()))
+                      for k, x in ((0, a), (1, b)) for r in range(len(x['lengths'])))
+        got = sorted((int(kind[j]), tuple(labels[j][labels[j] != -100].tolist()))
+                     for _, labels, kind in groups for j in range(len(kind)))
+        self.assertEqual(got, want)
+        with self.assertRaises(ValueError):
+            joint_zh200m.packed_rows([(0, a)], 8)
 
 
 if __name__ == '__main__':
