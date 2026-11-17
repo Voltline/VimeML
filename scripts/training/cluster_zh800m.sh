@@ -2,20 +2,22 @@
 # Cluster launcher for the zh-800m model: builds (or verifies) its frozen
 # mixture, then trains, auto-resuming from last.pt when resubmitted.
 # Usage: cluster_zh800m.sh [arm] [gpu] (arm defaults to 12k-c512); without [gpu] the scheduler's CUDA_VISIBLE_DEVICES is kept.
+# VIMEML_ZH800M_VARIANT=pinyin trains configs/train-zh800m-<arm>-pinyin.toml (joint pinyin pretraining) on the same mixture.
 # Data parallel: set VIMEML_NPROC to the number of GPUs the job sees (see the end of this file).
 # Token stores and c512 indexes must exist first (scripts/tokenizer/encode_zh800m.py).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 arm="${1:-12k-c512}"
-config="configs/train-zh800m-${arm}.toml"
+variant="${VIMEML_ZH800M_VARIANT:-}"
+config="configs/train-zh800m-${arm}${variant:+-$variant}.toml"
 [[ -f "$config" ]] || { echo "No config for arm $arm" >&2; exit 2; }
 if [[ -n "${2:-}" ]]; then export CUDA_VISIBLE_DEVICES="$2"; fi
 export OMP_NUM_THREADS=4 MKL_NUM_THREADS=4 PYTHONUNBUFFERED=1
 # The image exports PYTHONPATH to its own Python tree, which shadows the venv's triton.
 unset PYTHONPATH
 # Per-arm compile caches so concurrent compilations never share a directory.
-export TORCHINDUCTOR_CACHE_DIR="/tmp/vimeml-zh800m-${arm}/torchinductor-cache"
-export TRITON_CACHE_DIR="/tmp/vimeml-zh800m-${arm}/triton-cache"
+export TORCHINDUCTOR_CACHE_DIR="/tmp/vimeml-zh800m-${arm}${variant:+-$variant}/torchinductor-cache"
+export TRITON_CACHE_DIR="/tmp/vimeml-zh800m-${arm}${variant:+-$variant}/triton-cache"
 mkdir -p "$TORCHINDUCTOR_CACHE_DIR" "$TRITON_CACHE_DIR"
 output_dir=$(grep '^output_dir' "$config" | head -1 | sed 's/.*= *"\(.*\)"/\1/')
 # W&B never uses the machine's login: drop every inherited WANDB_* variable, point

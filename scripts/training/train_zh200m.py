@@ -38,7 +38,8 @@ def main():
                "context_length": plan["task_contract"]["context_length"],
                "lm_batch": plan["task_contract"]["lm_batch"],
                "max_steps": s["max_steps"], "epochs": s["epochs"], "milestone_steps": s["milestone_steps"][:3] + ["..."],
-               "budget": plan["budget"], "required_files": len(plan["required_files"])})
+               "budget": plan["budget"], "required_files": len(plan["required_files"]),
+               **({"pinyin": {k: plan["pinyin"][k] for k in ("mix", "weights", "passes")}} if "pinyin" in plan else {})})
         return
     if not args.resume and ((output.exists() and any(output.iterdir())) or (logs.exists() and any(logs.iterdir()))):
         parser.error("Fresh output/log directories must be empty")

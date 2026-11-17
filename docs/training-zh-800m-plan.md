@@ -66,6 +66,9 @@ python -X utf8 scripts/corpus/prepare_zh800m.py --arm 12k-c512
 python -X utf8 scripts/training/train_zh200m.py --config configs/train-zh800m-12k-c512.toml --dry-run
 # training (auto-resumes from last.pt)
 VIMEML_NPROC=<GPUs> scripts/training/cluster_zh800m.sh
+# joint pinyin pretraining (deviation 1): same mixture, config train-zh800m-12k-c512-pinyin.toml
+python -X utf8 scripts/training/train_zh200m.py --config configs/train-zh800m-12k-c512-pinyin.toml --dry-run
+VIMEML_ZH800M_VARIANT=pinyin VIMEML_NPROC=<GPUs> scripts/training/cluster_zh800m.sh
 ```
 
 The entry point is shared with 200M: `train_zh200m.py` and `joint_zh200m.py` pick model, mixture and batch size from `stage = "zh-800m"`. `tests/test_zh800m.py` runs a fake export through the real 12K tokenizer end to end: P1 and `rest` partition export-r1, `all` covers every document, every web window appears exactly once in the map, chat is 2%, the map rebuilds byte for byte, and `build_plan` accepts the mixture.
@@ -74,7 +77,8 @@ The entry point is shared with 200M: `train_zh200m.py` and `joint_zh200m.py` pic
 
 - [ ] r1rest and r2 stores encoded, `selection` in their manifests; c512 indexes built.
 - [ ] Mixture built, `dataset_sha256` pinned, `--dry-run` confirms 784,157,184 parameters and the step count.
-- [ ] GPU smoke: 20 `smoke_updates` reach all 20 milestones; measure microbatch memory and step time; fix the rank count.
+- [ ] GPU smoke: 20 `smoke_updates` reach all 20 milestones; measure microbatch memory and step time; fix the rank count. The smoke uses the pinyin variant's config, and each milestone reports the four pinyin validations.
+- [ ] The `zh-pinyin-pt-12k` pinyin stores are on the cluster with the manifest SHA in the config; `--dry-run` prints passes per pinyin kind.
 - [ ] Training data distributed through private channels and checked against the SHA list (details stay out of the repo).
 
 ## Limitations
@@ -85,4 +89,8 @@ The entry point is shared with 200M: `train_zh200m.py` and `joint_zh200m.py` pic
 
 ## Deviations
 
-(none yet)
+1. **2026-11-17, before training: joint pinyin pretraining.** The 12K joint-pinyin 200M evaluation ([report](reports/zh-200m-pinyin-eval-20261116/report.md)) found that the jointly pretrained 200M passes all three v2 development gates. Rescored with itself as prior it reaches 58.8% public pinyin Top-1, +6.2 over v1 alone (p = 5e-5), and it keeps its LM ability, so the desktop loads one model; the post-trained r2-cont lost LM ability and its own prior falls behind the v1 prior. The 800M therefore trains jointly instead of LM first and pinyin after. The LM-only config `train-zh800m-12k-c512.toml` stays registered but is not launched.
+   - `configs/train-zh800m-12k-c512-pinyin.toml` differs from the LM-only config only in output and log directories, the tracking group and a `[pinyin]` section; mixture, `dataset_sha256`, shape and recipe are unchanged.
+   - Pinyin data: the same `zh-pinyin-pt-12k` stores the 200M used (full/mixed/initials/error, no plain). Each update adds 96/128/112/48 pinyin examples to the 2048 LM windows (384, 15.8% of examples), double the 200M's 48/64/56/24 rather than four times, so about 1.0M updates make 1.1 to 1.5 passes over the pinyin data (full about 1.19, mixed 1.13, initials 1.15, error 1.46) instead of repeating the small stores many times.
+   - Loss: the 200M's per_kind normalization (each task's mean loss times its batch share). Pinyin tasks are also split into `lm_microbatch` rows, so the LM windows still set the memory bound. Implementation: `joint_zh200m.update_joint`. `tests/test_zh800m_pinyin.py` checks that every microbatch split gives the 200M joint update's gradients.
+   - Evaluation adds **pinyin generation**: public `ime-pinyin-zh-v1-r1` development, bucketed-search generation rescored with the model itself as prior (λ1.6), Top-1, with sentence-cluster sign-flip tests against v1 LM mode and the joint-pinyin 200M. The prediction primary metric and the rerank guard are unchanged.
