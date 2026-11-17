@@ -91,6 +91,6 @@ VIMEML_ZH800M_VARIANT=pinyin VIMEML_NPROC=<GPU 数> scripts/training/cluster_zh8
 
 1. **2026-11-17，开训前：改为联合拼音预训练。** 12K joint-pinyin 200M 的评估（[报告](reports/zh-200m-pinyin-eval-20261116/report.md)）显示，联合预训练的 200M 通过了 v2 的全部三道 development 门槛。以它自身为先验做重打分，公开拼音集 Top-1 为 58.8%，比 v1 单独高 6.2（p = 5e-5）；LM 能力保住了，所以桌面端只需加载一个模型。走后训练的 r2-cont 则削弱了 LM 能力，自身先验不如 v1 先验。因此 800M 不再先训纯 LM 再后训练，而是直接联合训练。纯 LM 配置 `train-zh800m-12k-c512.toml` 仍然保留，但不启动。
    - 配置 `configs/train-zh800m-12k-c512-pinyin.toml` 与纯 LM 配置只差输出目录、日志目录、tracking 分组和 `[pinyin]` 一节。数据混合、`dataset_sha256`、形状和配方都不变。
-   - 拼音数据就是 200M 用的 `zh-pinyin-pt-12k` 四类 store（full/mixed/initials/error），不含 plain。每次更新在 2048 个 LM 窗口之外再加 96/128/112/48 条拼音样例（共 384 条，按样例数计占 15.8%）。200M 的比例是 48/64/56/24。这里翻倍而不是按 LM 批次的 4 倍放大，是为了让约 100 万次更新只把拼音数据过 1.1 到 1.5 遍（full 约 1.19、mixed 约 1.13、initials 约 1.15、error 约 1.46），不反复刷小数据集。
+   - 拼音数据就是 200M 用的 `zh-pinyin-pt-12k` 四类 store（full/mixed/initials/error），不含 plain。每次更新在 2048 个 LM 窗口之外再加 96/128/112/48 条拼音样例（共 384 条，按样例数计占 15.8%）。200M 的比例是 48/64/56/24。这里翻倍而不是按 LM 批次的 4 倍放大，是为了让 1,198,964 次更新（dry-run 实测）只把拼音数据过 1.35 到 1.75 遍（full 1.42、mixed 1.35、initials 1.38、error 1.75），不反复刷小数据集。
    - 损失沿用 200M 的 per_kind 归一化：每个任务各自取平均损失，再乘以它在批中的样例占比。拼音任务同样按 `lm_microbatch` 切微批，显存上限仍由 LM 窗口决定。实现在 `joint_zh200m.update_joint`。测试在 `tests/test_zh800m_pinyin.py`：任意微批切法的梯度都与 200M 的联合更新一致。
    - 评估新增**拼音生成**：公开拼音集 `ime-pinyin-zh-v1-r1` development，用分桶搜索生成，再用自身作先验做重打分（λ1.6），报告 Top-1。与 v1 LM 模式、joint-pinyin 200M 做句簇配对符号翻转检验。联想主指标和重排守门不变。
