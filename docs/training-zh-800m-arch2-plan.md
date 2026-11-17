@@ -119,6 +119,52 @@ Decision:
 - **Synchronization**: one merged sync per update (task loss sums, gradient norm, stop flag) instead of separate `.item()` calls.
 - **Validation, inference and export are not packed**: they keep the ordinary per-window forward and the KV-cache path.
 
+## More speedups
+
+Ordered by expected gain. Items 1–4 change only how training runs, not the objective. Items 5 and 6 change the recipe or the numerics and are decided separately.
+
+1. **Remove per-update host syncs so the CPU prepares the next update early.**
+   - Each update now has four points where the CPU waits for the GPU:
+     - the timing `torch.cuda.synchronize`;
+     - the task losses' `.tolist()` with its all-reduce;
+     - `float(clip_grad_norm_)`;
+     - the per-update stop-flag all-reduce (`ctx.any`).
+   - As a result, packing, collation, copies and kernel launches for the next update cannot start until this one has finished.
+   - Changes:
+     - time with CUDA events, read at log intervals;
+     - keep loss sums and the gradient norm accumulating on the GPU and read them at log intervals;
+     - check the stop flag every 10 updates, still stopping every rank after the same update;
+     - when gradients are non-finite, skip the update on the GPU (fused AdamW supports the `found_inf` mechanism GradScaler uses) and fail at the next log check. This relies on a PyTorch internal interface and needs unit-test coverage.
+2. **CUDA Graphs.**
+   - On top of packing, fix each microbatch at R rows × 2048. Missing rows are filled with empty rows, and the variable number of segments goes into a fixed-length segment-id tensor.
+   - Record forward and backward with `torch.compile(mode="reduce-overhead")`. Each update then only replays the graph, and launch overhead nearly disappears.
+   - Do this when step 0's profile shows launch or scheduling overhead.
+3. **Overlap communication with compute.**
+   - After packing there is usually one forward/backward per update, so DDP can send bucket all-reduces during the backward pass.
+   - Enable `gradient_as_bucket_view`, and `static_graph` if the graph is fixed; tune `bucket_cap_mb` from the profile.
+4. **GEMM tuning.**
+   - Compile with `max-autotune-no-cudagraphs` (or `max-autotune` together with item 2) so GEMMs get better tiles.
+   - Use a chunked fused cross-entropy, which avoids round-tripping the full logits through memory. The speed gain is small; it mainly frees memory for larger microbatches.
+5. **Larger updates (a recipe change, the biggest lever, needs a decision).**
+   - Each update is only about 100k tokens. That is small for 800M; public models of this size usually take 0.5M–2M tokens per update.
+   - The fixed per-update costs (a ~3.1 GB all-reduce, the optimizer, syncs) do not grow with the batch.
+     - At 4× the batch (8192 windows plus 1536 pinyin samples, about 400k tokens), updates drop to about 300k.
+     - The fixed costs per token fall to a quarter.
+   - Roughly, one pass takes about 1.5 days even without the other changes, and less when combined with them.
+   - Costs:
+     - The learning rate, warmup and step count must be reset. Start with a 6e-4 peak (square-root rule) and keep warmup equal in tokens, i.e. 500 updates.
+     - Data is read in the same order, with every 4 updates merged into one. arch1 and arch2 BPC still compare at equal-token milestones, but the recipes differ.
+   - Precheck at 200M on the 12K joint-pinyin data. Run the original and the 4× batch as two arms, each for 10% of the tokens, and compare web BPC and pinyin validation loss at equal tokens. Use the 4× batch in arch2 only if it is no worse (BPC within 0.01).
+6. **FP8 matmuls (a numerics change, considered last).**
+   - The current hardware supports FP8 matmuls at twice the BF16 throughput, through torchao float8 training.
+   - Worth it only if, after the items above, the bottleneck is really the matmuls.
+   - Compare BF16 and FP8 loss curves at 200M first.
+
+**Not done**:
+
+- More GPUs. With a fixed global batch, compute per GPU shrinks as GPUs are added while per-update communication and syncs do not, so more GPUs barely help. Item 5 is the way to scale.
+- Activation recomputation. Memory is ample, so recomputation would only slow training down.
+
 ## Inference and export follow
 
 - **Model**: a new `model_zh800m_arch2` with RoPE, GQA and QK-norm. It provides a packed training forward (taking segment ids), the ordinary forward and `forward_cached`.
@@ -175,7 +221,7 @@ arch2 and arch1 use the same data and the same number of updates, and are compar
 
 - Document-level long context, a new vocabulary, rebuilt windows.
 - MoE and FSDP (the model and optimizer state fit on one GPU).
-- Changing the learning rate, the step count or the loss normalization.
+- Changing the loss normalization. The learning rate and step count change only if item 5 of More speedups is approved.
 
 ## Deviations
 
