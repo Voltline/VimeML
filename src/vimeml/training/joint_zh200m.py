@@ -19,11 +19,17 @@ arm's mixture, seed, schedule and budget stay unchanged, and every update adds p
 from build_zh_pinyin.py stores (step-indexed, joint_zh_pinyin.Schedule), as the 12K joint-pinyin
 200M did. The loss is "per_kind": (lm_batch / batch) * mean LM loss + sum_k (mix[k] / batch) *
 mean loss of k. Each rank packs its rows of every task together: sorted by length, longest
-first, into microbatches of at most lm_microbatch * context_length padded positions (the
-memory bound of lm_microbatch full-length windows), each row's tokens weighted by its task's
-weight / that task's global supervised tokens. The update is the same sum as one forward per
-task; only the float summation order differs. Pinyin validation (loss, teacher-forced exact)
-runs at every milestone and every eval_every.
+first, split where the saved padding outweighs the cost of another pass, into microbatches
+of at most lm_microbatch * context_length padded positions (the memory bound of
+lm_microbatch full-length windows), each row's tokens weighted by its task's weight / that
+task's global supervised tokens. The update is the same sum as one forward per task; only the
+float summation order differs. Pinyin validation (loss, teacher-forced exact) runs at every
+milestone and every eval_every.
+
+With data parallelism every rank runs a share of the LM validation batches (whole batches,
+the same batches as one device, FP64 sums), and the periodic last.pt is written by a
+background thread from a CPU copy; milestone, epoch, final and stop checkpoints stay
+synchronous, and last.pt is always replaced atomically.
 """
 import copy
 import hashlib
@@ -33,6 +39,7 @@ import os
 from pathlib import Path
 import random
 import signal
+import threading
 import time
 
 import numpy as np
@@ -45,7 +52,6 @@ from vimeml.training.train import (optimizer_for, learning_rate, atomic_checkpoi
                                    restore_rng, resolve_precision, amp_context)
 from vimeml.training.zh200m_data import ARMS
 from vimeml.posttraining.streams import CommittedStream, loader_for, microbatches
-from vimeml.posttraining.train import validate
 from vimeml.training.distributed import Context, NullWriter, setup as setup_parallel
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -253,23 +259,56 @@ def add_pinyin(plan, p, root, verify_files):
                              "pinyin": {"mix": mix, "manifest_sha256": p["manifest_sha256"]}}
 
 
-def packed_rows(parts, budget):
+# What one more forward/backward pass costs, in padded positions: on the zh-800m smokes a pass
+# costs about as much as 8k positions of compute (launch-bound kernels of 27 layers, DDP hooks,
+# the eager loss), so splitting rows into more passes only pays when it saves more padding.
+PASS_COST = 8192
+
+
+def segments(widths, budget, pass_cost=PASS_COST):
+    """Split rows sorted by padded width (descending) into contiguous segments at width changes,
+    minimizing padded positions + pass_cost * passes; each segment is padded to its first width
+    and cut into passes of budget // width rows. Returns the segment start indices."""
+    starts = [i for i in range(len(widths)) if i == 0 or widths[i] != widths[i - 1]] + [len(widths)]
+    levels = len(starts) - 1
+    best, choice = [0.0] * (levels + 1), [levels] * levels
+    for a in range(levels - 1, -1, -1):
+        width = widths[starts[a]]
+        rows_per_pass = budget // width
+        best[a] = math.inf
+        for b in range(a + 1, levels + 1):
+            count = starts[b] - starts[a]
+            cost = count * width + pass_cost * math.ceil(count / rows_per_pass) + best[b]
+            if cost < best[a]:
+                best[a], choice[a] = cost, b
+    out, a = [], 0
+    while a < levels:
+        out.append(starts[a])
+        a = choice[a]
+    return out
+
+
+def packed_rows(parts, budget, pass_cost=PASS_COST):
     """[(kind index, collated batch), ...] -> [(input_ids, labels, row kind), ...] on the CPU.
 
-    Rows of every batch are sorted by length (longest first; ties by kind, then row) and cut
-    greedily into microbatches with rows * padded width <= budget, the width being the first
-    (longest) row's length rounded up to 8. Padding is id 0 / label -100, as the collators pad."""
+    Rows of every batch are sorted by length (longest first; ties by kind, then row), split
+    into segments of similar width (segments(): padding traded against passes), and each
+    segment is cut greedily into microbatches with rows * padded width <= budget, the width
+    being the microbatch's first (longest) row's length rounded up to 8. Padding is id 0 /
+    label -100, as the collators pad."""
     rows = sorted(((int(length), k, b, r) for k, b in parts for r, length in enumerate(b["lengths"].tolist())),
                   key=lambda row: (-row[0], row[1], row[3]))
+    widths = [math.ceil(row[0] / 8) * 8 for row in rows]
+    if widths and widths[0] > budget:
+        raise ValueError("A row longer than the microbatch budget")
+    cuts = set(segments(widths, budget, pass_cost))
     groups, current, width = [], [], 0
-    for row in rows:
-        if current and (len(current) + 1) * width > budget:
+    for i, row in enumerate(rows):
+        if current and (i in cuts or (len(current) + 1) * width > budget):
             groups.append((current, width))
             current = []
         if not current:
-            width = math.ceil(row[0] / 8) * 8
-            if width > budget:
-                raise ValueError("A row longer than the microbatch budget")
+            width = widths[i]
         current.append(row)
     if current:
         groups.append((current, width))
@@ -300,7 +339,8 @@ def update_joint(model, optimizer, batches, weights, s, device, precision, ctx=N
     into microbatches of at most lm_microbatch * context_length padded positions; the pinyin
     tasks never raise the memory bound set for the LM windows. Each token's loss is weighted
     by weights[kind] * world / (the task's global supervised tokens), so the gradient is that
-    of one forward per task. padded_positions counts the positions of every task."""
+    of one forward per task. padded_positions counts the positions of every task, including
+    the empty row added to a one-row microbatch."""
     ctx, net = ctx or Context(), net or model
     tokens = {k: int((b["labels"] != -100).sum()) for k, b in batches.items()}
     lm = batches["lm"]
@@ -314,10 +354,17 @@ def update_joint(model, optimizer, batches, weights, s, device, precision, ctx=N
         if part is not None:
             parts.append((kinds.index(kind), part))
     scale = torch.tensor([weights[k] * ctx.world / tokens[k] for k in kinds], dtype=torch.float32)
-    work = packed_rows(parts, s["lm_microbatch"] * model.config.context_length)
+    budget = s["lm_microbatch"] * model.config.context_length
+    work = packed_rows(parts, budget)
     totals = torch.zeros(len(kinds), dtype=torch.float32, device=device)
     positions = 0
     for i, (ids, labels, row_kind) in enumerate(work):
+        if len(row_kind) == 1 and 2 * ids.shape[1] <= budget:
+            # torch.compile specializes a dimension of size 1 (a recompile, then a second graph):
+            # an empty row (no labels, no loss, no gradient) keeps every microbatch at >= 2 rows.
+            ids = torch.cat([ids, torch.zeros_like(ids)])
+            labels = torch.cat([labels, torch.full_like(labels, -100)])
+            row_kind = row_kind.repeat(2)
         ids = ids.to(device, non_blocking=True)
         labels = labels.to(device, non_blocking=True)
         row_kind = row_kind.to(device, non_blocking=True)
@@ -343,6 +390,73 @@ def update_joint(model, optimizer, batches, weights, s, device, precision, ctx=N
             "padded_positions": positions, "grad_norm": grad_norm,
             "pinyin": {k: {"loss": sums[k] / tokens[k], "supervised_tokens": tokens[k],
                            "examples": len(batches[k]["lengths"])} for k in kinds if k != "lm"}}
+
+
+def shared_validate(model, loader, device, ctx, expected_tokens=None, characters=None):
+    """posttraining.train.validate over this rank's share of the loader's batches (batch i on
+    rank i % world), summed over ranks: the same batches and per-batch sums as one device."""
+    nll, total, inputs, examples = 0.0, 0, 0, 0
+    for i, indices in enumerate(loader.batch_sampler):
+        if i % ctx.world != ctx.rank:
+            continue
+        batch = loader.collate_fn([loader.dataset[j] for j in indices])
+        labels = batch["labels"].to(device, non_blocking=True)
+        result = model(batch["input_ids"].to(device, non_blocking=True), labels)
+        count = int((batch["labels"] != -100).sum())
+        if int(result["token_count"]) != count:
+            raise ValueError("Model/dataset supervised token counts disagree")
+        total += count
+        nll += float(result["loss_sum"])
+        inputs += int(batch["lengths"].sum())
+        examples += len(batch["lengths"])
+    if ctx.active:
+        nll, total, inputs, examples = ctx.sum([nll, total, inputs, examples], device)
+        total, inputs, examples = int(total), int(inputs), int(examples)
+    if not total or not math.isfinite(nll) or expected_tokens is not None and total != expected_tokens:
+        raise ValueError("Empty/non-finite/incomplete full validation")
+    report = {"loss": nll / total, "nll_sum": nll, "supervised_tokens": total,
+              "input_tokens": inputs, "examples": examples, "precision": "fp32"}
+    if characters is not None:
+        report.update(characters=characters, bpc=nll / (characters * math.log(2)))
+    return report
+
+
+def on_cpu(value):
+    """A copy of a checkpoint payload with every tensor copied to the CPU."""
+    if torch.is_tensor(value):
+        return value.detach().to("cpu", copy=True)
+    if isinstance(value, dict):
+        return {k: on_cpu(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return type(value)(on_cpu(v) for v in value)
+    return value
+
+
+class BackgroundSaver:
+    """Writes one checkpoint at a time on a thread; wait() before anything else saves or exits.
+    The thread is not a daemon, so a pending write finishes before the process ends."""
+    def __init__(self):
+        self.thread, self.error = None, None
+
+    def submit(self, path, payload):
+        self.wait()
+        payload = on_cpu(payload)
+
+        def write():
+            try:
+                atomic_checkpoint(path, payload)
+            except BaseException as error:      # reported by the next wait()
+                self.error = error
+        self.thread = threading.Thread(target=write, name="checkpoint-writer")
+        self.thread.start()
+
+    def wait(self):
+        if self.thread is not None:
+            self.thread.join()
+            self.thread = None
+        if self.error is not None:
+            error, self.error = self.error, None
+            raise error
 
 
 def initial_state():
@@ -593,19 +707,24 @@ def run(config, resume=False, root=ROOT):
         handlers[sig] = signal.getsignal(sig)
         signal.signal(sig, request_stop)
 
-    def save(name="last"):
+    saver = BackgroundSaver()
+
+    def save(name="last", background=False):
         if not ctx.main:
             return
+        saver.wait()
         payload = checkpoint_payload(model, optimizer, state, config, plan, precision, initialization)
         payload["training_regime"] = ("random_initialized_zh_joint_lm_chat_pinyin_pretraining" if joint
                                       else "random_initialized_zh_lm_chat_pretraining")
-        atomic_checkpoint(output / f"{name}.pt", payload)
+        if background:
+            saver.submit(output / f"{name}.pt", payload)
+        else:
+            atomic_checkpoint(output / f"{name}.pt", payload)
 
     def milestone(k):
         save()
         put(output / "progress.json", progress(state, plan, "validating"))
-        report = measure(k) if ctx.main else None
-        report = ctx.broadcast(report)
+        report = ctx.broadcast(measure(k))      # every rank validates its share; rank 0 adds pinyin
         state["milestones"].append(report)
         if not ctx.main:
             return
@@ -621,7 +740,8 @@ def run(config, resume=False, root=ROOT):
               flush=True)
 
     def measure(k):
-        print(f"[milestone {k}/{MILESTONES}] full web, chat and probe validation", flush=True)
+        if ctx.main:
+            print(f"[milestone {k}/{MILESTONES}] full web, chat and probe validation", flush=True)
         before = rng_state()
         report = {"milestone": k, "step": state["step"], "epoch_position": state["epoch"] + (
             state["epoch_batch"] / s["updates_per_epoch"][state["epoch"]] if state["epoch"] < s["epochs"] else 0),
@@ -629,10 +749,10 @@ def run(config, resume=False, root=ROOT):
         with fp32_evaluation(model):
             for name, (loader, pairs, characters) in full.items():
                 if limit:
-                    report[name] = validate(model, loader, device)
+                    report[name] = shared_validate(model, loader, device, ctx)
                 else:
-                    report[name] = validate(model, loader, device, pairs, characters)
-        if joint:
+                    report[name] = shared_validate(model, loader, device, ctx, pairs, characters)
+        if joint and ctx.main:
             report["pinyin"] = pinyin_validation(state["step"], "milestone")
         restore_rng(before)
         return report
@@ -697,12 +817,12 @@ def run(config, resume=False, root=ROOT):
                     print(f"step={state['step']}/{s['max_steps']} epoch={e + 1}/{s['epochs']} "
                           f"lm={result['loss']:.4f} seconds={seconds:.3f}", flush=True)
                 if state["step"] % s["checkpoint_every"] == 0:
-                    save()
-                if state["step"] % s["eval_every"] == 0 and ctx.main:
+                    save(background=True)
+                if state["step"] % s["eval_every"] == 0:
                     with fp32_evaluation(model):
-                        subset_result = validate(model, subset_loader, device)
+                        subset_result = shared_validate(model, subset_loader, device, ctx)
                     writer.add_scalar("web/fixed_subset_loss", subset_result["loss"], state["step"])
-                    if joint:
+                    if joint and ctx.main:
                         before = rng_state()
                         subset_result["pinyin"] = pinyin_validation(state["step"], "validation")
                         restore_rng(before)
@@ -730,6 +850,9 @@ def run(config, resume=False, root=ROOT):
         result = progress(state, plan, terminal)
         result["milestones"] = state["milestones"]
         result["checkpoints"] = sorted(p.name for p in output.glob("*.pt"))
+        if compilation is not None:
+            from torch._dynamo.utils import counters
+            result["compiled_graphs"] = int(counters["stats"]["unique_graphs"])
         if device.type == "cuda":
             result["peak_allocated_MiB"] = torch.cuda.max_memory_allocated(device) / 2**20
             result["peak_reserved_MiB"] = torch.cuda.max_memory_reserved(device) / 2**20
@@ -737,6 +860,10 @@ def run(config, resume=False, root=ROOT):
         put(output / "progress.json", result)
         return result
     except BaseException as error:
+        try:
+            saver.wait()            # a pending last.pt finishes (or reports its own error) first
+        except BaseException as pending_error:
+            print(f"Background checkpoint failed: {pending_error!r}", flush=True)
         put(output / "failure.json", {"status": "failed", "active": True, "error_type": type(error).__name__,
                                              "error": str(error), "last_committed_in_memory_step": state["step"],
                                              "safe_resume_checkpoint": str(output / "last.pt")})

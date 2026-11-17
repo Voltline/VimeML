@@ -5,7 +5,8 @@ own contiguous share of the rows. The data order, the cursor and the per-update 
 normalization therefore stay exactly those of a one-device run: each rank scales its loss
 by the global supervised-token count and by the world size (DDP averages gradients), so
 the summed gradient is the one-device gradient up to floating-point order. Rank 0 writes
-checkpoints, logs and validation; the other ranks wait for it.
+checkpoints and logs; joint_zh13 validates on rank 0 while the others wait, joint_zh200m
+shares the LM validation batches over the ranks.
 
 With WORLD_SIZE unset or 1 nothing here changes the one-device path.
 """
@@ -19,7 +20,7 @@ import torch.distributed as dist
 
 from vimeml.posttraining.streams import slice_batch
 
-# Rank 0 validates alone at milestones while the others wait at a barrier; a full
+# Rank 0 may validate alone at milestones while the others wait at a barrier; a full
 # FP32 validation of a large model can take far longer than NCCL's default 10 minutes.
 TIMEOUT = datetime.timedelta(hours=6)
 

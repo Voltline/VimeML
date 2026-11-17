@@ -81,15 +81,17 @@ class Zh800mJointUpdateTests(unittest.TestCase):
             return joint_zh200m.update_joint(model, optimizer, batches, weights, s, torch.device('cpu'), 'fp32')
 
         want, want_grad = self.grads(reference, 8)
-        for microbatch in (8, 3, 1):
+        # Every task is packed: 8 LM rows of 16 plus 3 rows of 10 and 5 of 12, all of width 16.
+        # Microbatch 3 (48 positions) cuts the 16 rows 3 at a time and pads the last single row
+        # with an empty one; microbatch 1 (16 positions) has no room for that.
+        for microbatch, rows in ((8, 16), (3, 17), (1, 16)):
             got, grad = self.grads(ported, microbatch)
             torch.testing.assert_close(grad, want_grad, rtol=1e-5, atol=1e-6)
             self.assertAlmostEqual(got['loss'], want['loss'], places=5)
             self.assertEqual(set(got['pinyin']), {'full', 'error'})
             for kind in got['pinyin']:
                 self.assertAlmostEqual(got['pinyin'][kind]['loss'], want['pinyin'][kind]['loss'], places=5)
-            # Every task is packed: 8 LM rows of 16 plus 3 rows of 10 and 5 of 12 (widths round up to 8).
-            self.assertEqual(got['padded_positions'], (8 + 3 + 5) * 16)
+            self.assertEqual(got['padded_positions'], rows * 16)
 
     def test_packed_rows(self):
         rng = torch.Generator().manual_seed(3)
@@ -115,6 +117,93 @@ class Zh800mJointUpdateTests(unittest.TestCase):
         self.assertEqual(got, want)
         with self.assertRaises(ValueError):
             joint_zh200m.packed_rows([(0, a)], 8)
+
+    def test_segments_trade_padding_against_passes(self):
+        # 4 rows of width 64 and 40 of width 16: merged 44 * 64 = 2816 positions in one pass,
+        # split 256 + 640 = 896 in two. One pass costs 1000: split; costs 3000: merge.
+        widths = [64] * 4 + [16] * 40
+        self.assertEqual(joint_zh200m.segments(widths, 4096, pass_cost=1000), [0, 4])
+        self.assertEqual(joint_zh200m.segments(widths, 4096, pass_cost=3000), [0])
+        # Without a pass cost every width level is its own segment.
+        self.assertEqual(joint_zh200m.segments([24, 24, 16, 8, 8], 4096, pass_cost=0), [0, 2, 3])
+        self.assertEqual(joint_zh200m.segments([], 64), [])
+
+    def test_packed_rows_keep_long_pinyin_rows_away_from_short_lm_rows(self):
+        rng = torch.Generator().manual_seed(4)
+        lm, pinyin = batch(rng, 64, 40, 64), batch(rng, 6, 104, 64)
+        lm['lengths'] = torch.full((64,), 38)
+        pinyin['lengths'] = torch.tensor([104, 90, 70, 30, 20, 12])
+        groups = joint_zh200m.packed_rows([(0, lm), (1, pinyin)], 64 * 512, pass_cost=1024)
+        self.assertEqual([tuple(ids.shape) for ids, _, _ in groups], [(3, 104), (67, 40)])
+        merged = joint_zh200m.packed_rows([(0, lm), (1, pinyin)], 64 * 512, pass_cost=10 ** 9)
+        self.assertEqual([tuple(ids.shape) for ids, _, _ in merged], [(70, 104)])
+
+
+class FakeLoader:
+    def __init__(self, data, batches):
+        self.dataset, self.batch_sampler = data, batches
+
+    @staticmethod
+    def collate_fn(rows):
+        width = max(len(r) for r in rows)
+        ids = torch.zeros(len(rows), width, dtype=torch.long)
+        for i, r in enumerate(rows):
+            ids[i, :len(r)] = torch.tensor(r)
+        labels = torch.where(ids > 0, ids, torch.full_like(ids, -100))
+        return {'input_ids': ids, 'labels': labels, 'lengths': torch.tensor([len(r) for r in rows])}
+
+
+class SumModel(torch.nn.Module):
+    def forward(self, ids, labels):
+        valid = labels != -100
+        return {'loss_sum': (ids.float() * 0.37)[valid].sum(), 'token_count': valid.sum()}
+
+
+class SharedValidationTests(unittest.TestCase):
+    def test_rank_shares_add_up_to_one_device(self):
+        from vimeml.posttraining.train import validate
+        from vimeml.training.distributed import Context
+
+        class Own(Context):     # each rank's partial sums, added up here instead of all-reduced
+            active = False
+        rng = random_lists()
+        loader = FakeLoader(rng, [[0, 1, 2], [3, 4], [5, 6, 7, 8], [9], [10, 11]])
+        model = SumModel()
+        want = validate(model, loader_iter(loader), 'cpu', characters=100)
+        self.assertEqual(joint_zh200m.shared_validate(model, loader, 'cpu', Context(), characters=100), want)
+        for world in (2, 3):
+            parts = [joint_zh200m.shared_validate(model, loader, 'cpu', Own(world, r)) for r in range(world)]
+            for key in ('nll_sum', 'supervised_tokens', 'input_tokens', 'examples'):
+                self.assertAlmostEqual(sum(p[key] for p in parts), want[key], places=9)
+
+
+def random_lists():
+    g = torch.Generator().manual_seed(5)
+    return [torch.randint(1, 50, (int(n),), generator=g).tolist() for n in torch.randint(2, 9, (12,), generator=g)]
+
+
+def loader_iter(loader):
+    return [loader.collate_fn([loader.dataset[j] for j in b]) for b in loader.batch_sampler]
+
+
+class BackgroundSaverTests(unittest.TestCase):
+    def test_writes_a_snapshot_and_reports_errors(self):
+        import tempfile
+        weight = torch.ones(4)
+        saver = joint_zh200m.BackgroundSaver()
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'last.pt'
+            saver.submit(path, {'model': {'w': weight}, 'step': 3, 'rng': [torch.zeros(2)]})
+            weight += 1                     # training goes on; the snapshot was taken at submit
+            saver.wait()
+            saved = torch.load(path, weights_only=True)
+            self.assertEqual(saved['step'], 3)
+            torch.testing.assert_close(saved['model']['w'], torch.ones(4))
+            self.assertFalse(path.with_suffix('.pt.tmp').exists())
+            saver.submit(Path(folder) / 'missing' / 'last.pt', {'step': 4})
+            with self.assertRaises(RuntimeError):     # torch.save: parent directory missing
+                saver.wait()
+            saver.wait()                    # the error is reported once
 
 
 if __name__ == '__main__':
