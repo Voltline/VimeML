@@ -22,6 +22,7 @@ V2系列实验已完成，此前部署版本为V2.1 extend5 step40000 / INT8 blo
 | [zh-200m 六臂训练计划](training-zh-200m-plan.md) | 预注册：d1024，16K/L15、24K/L14、32K/L14 × 上下文 512，另加 24K 上下文 128 对照；每更新 512 窗口（偏离记录第 2 条），同 v1 数据与配方，三个 seed |
 | [v2-20m 蒸馏计划](training-zh-kd-plan.md) | 12K 联合拼音 200M 当老师，在线蒸馏 20M（α 0.5，T 1）；kd-base 与 kd-cont 两臂；判定看自身重打分 Top-1 是否显著高于 v1 |
 | [zh-800m 训练计划](training-zh-800m-plan.md) | 预注册：d1536/L27、7.84 亿参数、12K 分词器、上下文 512；export-r1 全部 + export-r2 一遍，LCCC 2%，每更新 2048 窗口 |
+| [键盘错字计划](training-zh-typo-plan.md) | 新增 `typo` 拼音任务（公开文本上的 26 键编辑）、按实际按键的 task mode 打分、导出附带校准参数、公开 `ime-typo-zh-v1` 评测集；20M 加/不加两臂，800M 之后续训加入 |
 | [vimeml-zh-v2 发布范围](release-zh-v2-plan.md) | 发布 `vimeml-zh-v2-20m`（手机）、`vimeml-zh-v2-200m`、`vimeml-zh-v2-800m`（桌面），都用 12K、都能拼音生成；200M 六臂与 20M 联合预训练只作研发记录；发布门槛；数据合规只针对 20M |
 | [zh-200m 六臂训练记录](reports/zh-200m-20261113/training.md) | 2026-11-13 六臂全部完成；M20 网页 BPC 3.8251–3.9153（v1 为 4.3533）；含窗口索引重建、上下文上限、批次策略三处问题的如实记录 |
 | [zh 三任务第二轮训练记录](reports/zh-pinyin-r2-20261114/training.md) / [评测](reports/zh-pinyin-r2-20261114/evaluation.md) | 2026-11-14 两组：从第一轮续训 60,000 步、从 12K 基座重训 90,000 步，v2 拼音数据。私有基准生成 Top-1 29.9%，超过 Rime 16 句 + v1 重排（26.0%，p 5e-5）；Standard 重排 −24、联想 Top-3 对 v1 −2.8；KV 生成 CPU p50 92 ms。公开集复核：全部 +8.0，但全拼 −4.0（p 0.02），应按输入类型分流 |
