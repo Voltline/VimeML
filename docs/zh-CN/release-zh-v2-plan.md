@@ -10,7 +10,7 @@ v2 是 vimeml-tiny-zh-v1 之后的中文模型系列。v2 的模型都能直接*
 
 | 发布名称 | 端 | 规模 | 分词器 | 候选来源 | 状态 |
 | --- | --- | ---: | --- | --- | --- |
-| `vimeml-zh-v2-20m` | 手机 | 约 20M | 12K（与 v1 相同） | 蒸馏版 `kd-cont`，自身重打分（[评测](reports/zh-kd-eval-20261117/report.md)，2026-11-17）；第三轮可能取代它 | 候选，待定版 |
+| `vimeml-zh-v2-20m` | 手机 | 约 20M | 12K（与 v1 相同） | 蒸馏版 `kd-cont`，自身重打分（[评测](reports/zh-kd-eval-20261117/report.md)，2026-11-17）；[第三轮](reports/zh-kd-r3-eval-20261117/report.md)四臂都没有取代它 | 候选，待定版 |
 | `vimeml-zh-v2-200m` | 桌面 | 约 200M | 12K | 12K 联合拼音预训练 `zh200m-12k-pinyin-pt`，用自己的分数重打分 | 开发集评测通过（[报告](reports/zh-200m-pinyin-eval-20261116/report.md)），待测延迟和确认运行 |
 | `vimeml-zh-v2-800m` | 桌面 | 7.84 亿 | 12K | [zh-800m 训练计划](training-zh-800m-plan.md)，加上拼音能力 | 数据准备中 |
 

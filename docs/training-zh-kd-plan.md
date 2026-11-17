@@ -102,9 +102,18 @@ All on development, with the round 2 evaluation methods.
 
 The arm round 3 picks is the starting point of the with/without `typo` arms in the [keyboard typo plan](training-zh-typo-plan.md).
 
+### Round 3 result (2026-11-17)
+
+[Round 3 evaluation](reports/zh-kd-r3-eval-20261117/report.md): no arm replaces `kd-cont`.
+
+- Primary metric: `r3-plain` 54.8, `r3-data` 54.7 and `r3-ctrl` 54.6 all tie `kd-cont` at 54.8; `r3-alpha` scores 53.5, significantly lower.
+- Prediction A Top-3 is 25.8 to 26.5, short of 27.6 in every arm. Standard ties v1 in every arm.
+- Conclusion: with the 200M as teacher, more training, r2 data and more plain samples bring no gain, and α = 0.9 hurts.
+- `kd-cont` remains the v2-20m candidate and the starting point of the typo-plan arms.
+
 ### Round 4: the 800M as teacher
 
-Once the 800M passes its formal evaluation, rerun round 3's winning recipe with only the teacher swapped for the 800M (same 12K vocabulary, so token-level distillation works directly). It goes into v2-20m if it is ready before v2-20m is final, and into the next release otherwise. The cost of the 800M forward pass will be measured once the 800M is training.
+Once the 800M passes its formal evaluation, start from `kd-cont` with the `kd-cont` recipe (r1 only, α = 0.5, T = 1; round 3 found no better recipe) and swap only the teacher for the 800M (same 12K vocabulary, so token-level distillation works directly). It goes into v2-20m if it is ready before v2-20m is final, and into the next release otherwise. The cost of the 800M forward pass will be measured once the 800M is training.
 
 ## Deviations
 

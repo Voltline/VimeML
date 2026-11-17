@@ -10,7 +10,7 @@ v2 is the Chinese model line after vimeml-tiny-zh-v1. Every v2 model can **gener
 
 | Release name | Platform | Size | Tokenizer | Candidate | Status |
 | --- | --- | ---: | --- | --- | --- |
-| `vimeml-zh-v2-20m` | mobile | ~20M | 12K (same as v1) | distilled `kd-cont` with self rescoring ([evaluation](reports/zh-kd-eval-20261117/report.md), 2026-11-17); round 3 may replace it | candidate, not final |
+| `vimeml-zh-v2-20m` | mobile | ~20M | 12K (same as v1) | distilled `kd-cont` with self rescoring ([evaluation](reports/zh-kd-eval-20261117/report.md), 2026-11-17); no [round 3](reports/zh-kd-r3-eval-20261117/report.md) arm replaced it | candidate, not final |
 | `vimeml-zh-v2-200m` | desktop | ~200M | 12K | 12K joint pinyin pretraining `zh200m-12k-pinyin-pt`, rescoring with its own scores | passed development evaluation ([report](reports/zh-200m-pinyin-eval-20261116/report.md)); latency and confirmation run pending |
 | `vimeml-zh-v2-800m` | desktop | 784M | 12K | [zh-800m training plan](training-zh-800m-plan.md) plus pinyin ability | data in preparation |
 
