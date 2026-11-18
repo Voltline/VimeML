@@ -335,6 +335,7 @@ None. `src/vimeml/deployment/zh_v1_batch3.py` and `scripts/deployment/coreml_zh_
 - The release inventory now lists the four `ios18-int8-block32-kvbatch-v3/` files and `coreml_manifest_sha256.kvbatch_v3_int8` = `7e4c01d2…`.
 - The release README describes the v3 package. The v2 package is marked as superseded for beam search.
 - `verify_release.py --hashes` passes on 382 files.
+- The Hugging Face release was updated in place at revision `32766748114c38ffc2252b645a51758e066e80b8` (parent `ff3dab5f…`). A fresh download of that revision passes `verify_release.py --hashes`.
 - Section 0: the v3 test module now puts `tests/` on `sys.path`, so `python -m unittest tests.test_deployment_zh_v1_batch3` works from the repository root.
 - Section 8: the `memory` stage now follows `memory_clean4.py`:
   - coremltools is imported and all inputs are built before `start`;
