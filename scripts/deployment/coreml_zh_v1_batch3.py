@@ -157,14 +157,36 @@ def stage_measure(a):
 
 
 def memory_child(spec):
-    rng = np.random.default_rng(1)
-    feeds = [session_feeds(rng, spec["prompt"], own, 16, spec["score_tokens"]) for own in range(1, spec["steps"] + 1)]
-    mem = {"start": snap()}
-    models = load_set(spec["label"], spec)
-    if models["stateless"] is not None:
-        models["stateless"].predict({"input_ids": np.full((1, 16), 7, np.int32)})
-    mem["after_load"] = snap()
+    """One fresh process. coremltools is imported and every input is built (and kept alive) before `start`;
+    models load from .mlmodelc compiled outside the measured process, as an app does. The first Mac run imported
+    coremltools after `start` (+130-160 MiB per load) and compiled .mlpackage in-process (+-30 MiB noise); see
+    docs/reports/mac-20261118/zh-v1-kvbatch-v3.md, section 8."""
+    import coremltools as ct
     kind = spec["kind"]
+    rng = np.random.default_rng(1)
+    # every input stays referenced: dropping the unused half before `start` let macOS hand that memory back
+    # during the loads (-340 MiB on the Mac)
+    feeds = [session_feeds(rng, spec["prompt"], own, 16, spec["score_tokens"]) for own in range(1, spec["steps"] + 1)]
+    unit = ct.ComputeUnit.CPU_ONLY
+    compiled = spec["compiled"]
+    mlm = lambda p, f=None: ct.models.CompiledMLModel(compiled[str(p)], compute_units=unit,
+                                                      **({"function_name": f} if f else {}))
+    mem = {"start": snap()}
+    models = {}
+    if spec.get("stateless"):
+        mlm(spec["stateless"]).predict({"input_ids": np.full((1, 16), 7, np.int32)})
+        mem["after_stateless"] = snap()
+    if kind == "v2":
+        models["decode"] = models["prompt"] = mlm(spec["decode"])
+        mem["after_kvbatch_v2"] = snap()
+        models["score"] = mlm(spec["sequence"])
+        mem["after_kvsequence"] = snap()
+    else:
+        for f in ("scored", "score", "logits"):
+            models[f] = mlm(spec["package"], f)
+            mem[f"after_fn_{f}"] = snap()
+        models["decode"] = models["prompt"] = models["scored"]
+    mem["after_load"] = snap()
     for round_ in range(spec["rounds"]):
         models["prompt"].predict(feeds[0]["prompt"] if kind == "v2" else v3_prompt(feeds[0]["prompt"]))
         for f in feeds:                              # one search: decode steps with growing own caches
@@ -189,28 +211,42 @@ def stage_memory(a):
         configs.append({"label": label, "kind": "v3", "package": path, "stateless": stateless, **base})
         if a.without_stateless:
             configs.append({"label": label + "-alone", "kind": "v3", "package": path, "stateless": None, **base})
+    import coremltools as ct
+    cache = Path(a.compiled)                     # compiled once, outside the measured processes; reused across runs
+    cache.mkdir(parents=True, exist_ok=True)
+    compiled = {}
+    for spec in configs:
+        for key in ("stateless", "decode", "sequence", "package"):
+            p = spec.get(key)
+            if p and p not in compiled:
+                target = cache / f"{Path(p).name}-{file_sha(Path(p) / 'manifest.json')[:12]}.mlmodelc"
+                if not target.exists():
+                    ct.utils.compile_model(str(Path(p) / "model.mlpackage"), str(target))
+                compiled[p] = str(target)
     results = {}
     for spec in configs:
+        spec["compiled"] = compiled
         runs = []
         for _ in range(a.runs):
             res = subprocess.run([sys.executable, __file__, "memory-child", json.dumps(spec)], capture_output=True,
                                  text=True, check=True, cwd=ROOT)
             runs.append(json.loads(res.stdout.strip().splitlines()[-1]))
+        rel = lambda r, k, f="phys_footprint_mib": r[k][f] - r["start"]["phys_footprint_mib"]
         med = lambda f: round(statistics.median(f(r) for r in runs), 1)
-        results[spec["label"]] = {"spec": spec, "runs": runs,
-            "load_mib": med(lambda r: r["after_load"]["phys_footprint_mib"] - r["start"]["phys_footprint_mib"]),
-            "after_rounds_mib": med(lambda r: r["after_rounds"]["phys_footprint_mib"] - r["start"]["phys_footprint_mib"]),
-            "peak_mib": med(lambda r: r["after_rounds"]["peak_phys_footprint_mib"] - r["start"]["phys_footprint_mib"]),
-            "growth_after_first_round_mib": med(lambda r: r["after_rounds"]["phys_footprint_mib"]
-                                                 - r["after_first_round"]["phys_footprint_mib"])}
-        print(json.dumps({spec["label"]: {k: v for k, v in results[spec["label"]].items() if k not in ("runs", "spec")}}), flush=True)
-    write_json(out, {"format": "vimeml_kv_batch_v3_memory_zh_v1", "results": results,
+        row = {k: med(lambda r, k=k: rel(r, k)) for k in runs[0] if k != "start"}
+        row.update(peak=med(lambda r: rel(r, "after_rounds", "peak_phys_footprint_mib")),
+                   min_peak=round(min(rel(r, "after_rounds", "peak_phys_footprint_mib") for r in runs), 1),
+                   growth_after_first_round=med(lambda r: r["after_rounds"]["phys_footprint_mib"]
+                                                - r["after_first_round"]["phys_footprint_mib"]))
+        results[spec["label"]] = {"spec": {k: v for k, v in spec.items() if k != "compiled"}, "median_mib": row, "runs": runs}
+        print(json.dumps({spec["label"]: row}), flush=True)
+    write_json(out, {"format": "vimeml_kv_batch_v3_memory_zh_v1", "results": results, "compiled": compiled,
                      "workload": "per round: prompt prefill, `steps` B=16 decode steps with own caches 1..steps after the "
-                                 "prompt, one logits call (v3 with stateless replaced), one B=16 scoring call of "
-                                 "`score_tokens` tokens; inputs built before the start snapshot",
-                     "note": "Mac, Python, CPU_ONLY, fresh process per run; phys_footprint and lifetime max relative to "
-                             "the start snapshot, medians over runs. Not the keyboard-extension footprint.",
-                     "environment": environment()})
+                                 "prompt, one logits call (v3), one B=16 scoring call of `score_tokens` tokens",
+                     "note": "Mac, Python, CPU_ONLY, fresh process per run; coremltools imported, the configuration's "
+                             "inputs built and models compiled before `start`; phys_footprint and lifetime max relative "
+                             "to `start`, medians over runs. Weights are file-mapped and not in phys_footprint. Not the "
+                             "keyboard-extension footprint.", "environment": environment()})
 
 
 # ---- search, fixtures, client resource --------------------------------------------------------------------
@@ -418,7 +454,9 @@ def main():
     s.add_argument("packages", nargs="+", help="label=<merged v3 package dir>")
     s.add_argument("--prompt", type=int, default=48); s.add_argument("--steps", type=int, default=16)
     s.add_argument("--score-tokens", type=int, default=16); s.add_argument("--rounds", type=int, default=20)
-    s.add_argument("--runs", type=int, default=3)
+    s.add_argument("--runs", type=int, default=5)
+    s.add_argument("--compiled", default=str(ROOT / "outputs/deployment/compiled-for-memory"),
+                   help="cache of .mlmodelc compiled outside the measured processes (keyed by manifest hash)")
     s.add_argument("--stateless", default=str(STATELESS_INT8), help="'' to leave the stateless package out")
     s.add_argument("--without-stateless", action="store_true", help="also run every v3 package without stateless")
     s = sub.add_parser("search"); s.add_argument("package"); s.add_argument("cases"); s.add_argument("output")

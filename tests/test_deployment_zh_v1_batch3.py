@@ -6,6 +6,7 @@ import numpy as np
 import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))   # the v1 test module, from any working directory
 
 from vimeml.deployment import zh_search as zs, zh_v1_batch2 as z2, zh_v1_batch3 as z3  # noqa: E402
 from vimeml.training.model_zh13 import GPTZh13Config, TinyGPTZh13  # noqa: E402
