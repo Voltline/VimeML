@@ -139,3 +139,5 @@ Recorded 2026-11-18, as the work started.
 ## Typo store (built 2026-11-18)
 
 [data-zh-pinyin-typo.toml](../configs/data-zh-pinyin-typo.toml), label `zh-pinyin-v1`: 7,730,142 train samples (242.8M tokens) and 17,009 validation samples. Bases: full 70.0%, mixed 30.0%. Two typos: 15.0%. Edits: substitution 41.0%, deletion 25.7%, insertion 20.5%, swap 12.7% (a swap that does not fit is redrawn). 26.4% of full-pinyin bases stay valid pinyin after the typos. The five existing stores are unchanged.
+
+The arm trains on a rebuild of the same config with sentencepiece 0.2.2 (manifest `3bc0164b…`). Its row structure, lengths and statistics equal the 0.2.1 build above, but 21 of 17,009 validation rows hold other token ids: the two versions break ties in runs of a repeated character differently (`...` + `.` against `.` + `...`, the same for `---`, `??` and doubled key letters such as `xx`). Re-encoding the 0.2.1 rows with 0.2.2 reproduces the rebuild's validation file byte for byte.
