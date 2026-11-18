@@ -127,4 +127,15 @@ Both arms share step count, seed and data order.
 
 ## Deviations
 
-(none yet)
+Recorded 2026-11-18, as the work started.
+
+- **Insert rule.** An extra letter is a repeat or a neighbour of the letter it follows, not of the keys on either side.
+- **Trainer support.** The typo store is read as a `[[data.extra]]` directory (added in round 3) instead of a new `[pinyin]` section, and `distillation.ce_only_kinds = ["typo"]` trains it on cross-entropy only, because the teacher never saw typos. Only `joint_zh_pinyin` (20M) has it; `joint_zh200m` gets it with the 800M resume.
+- **Control arm.** The control is the existing r3-ctrl (kd-cont plus 30,000 updates, seed 20261117), evaluated in round 3. The typo arm differs only by the 48 typo samples per update, so every other kind reads the same batches; the update grows from 512 to 560 samples.
+- **Benchmark pool.** Corrections are the single edits that undo one typo of the data rules (substitution only by QWERTY neighbours, insertion of any letter), not every single-letter edit; this keeps the typed-correct spelling for every one-typo input in a 40-sentence sample at about 65 spellings per input. Clean inputs get corrections too, since the false-display rate needs them. At about 140 s per input the pool is built in shards.
+- **Benchmark text.** The set derives from the pinyin set's development text, which stays out of git (CPED is local use only), so only the generator is committed.
+- **Clean Top-1.** A correction is never shown first, so "how often the first candidate is made wrong" is zero by construction and not reported; Top-1 on typo inputs is the pool's base Top-1, the same for every model.
+
+## Typo store (built 2026-11-18)
+
+[data-zh-pinyin-typo.toml](../configs/data-zh-pinyin-typo.toml), label `zh-pinyin-v1`: 7,730,142 train samples (242.8M tokens) and 17,009 validation samples. Bases: full 70.0%, mixed 30.0%. Two typos: 15.0%. Edits: substitution 41.0%, deletion 25.7%, insertion 20.5%, swap 12.7% (a swap that does not fit is redrawn). 26.4% of full-pinyin bases stay valid pinyin after the typos. The five existing stores are unchanged.

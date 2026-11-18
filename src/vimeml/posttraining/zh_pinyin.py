@@ -242,6 +242,7 @@ class Pinyin:
             raise ValueError(kind)
         units = [(self.initial(rng, s), False) if m else (s, True) for s, m in zip(syllables, mask)]
         keys = units[0][0] + "".join(u for u, _ in units[1:]) if kind == "initials" else self.join(rng, units)
+        info["units"] = [u for u, _ in units]          # keys without apostrophes, one entry per syllable
         context = ""
         if rng.random() >= self.config["empty_context_probability"]:
             before = text[:run_start + start]

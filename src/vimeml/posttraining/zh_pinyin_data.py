@@ -19,6 +19,13 @@ Stores (one directory each under output_dir)
               kind_weights (a paragraph holding a listed misreading becomes an error
               sample around it with listed_boost_probability)
 
+Typo mode (mode = "typo", configs/data-zh-pinyin-typo.toml)
+    one store, typo: the same documents and paragraphs as the pinyin stores of the same label
+    and fractions (plain documents are skipped), each paragraph a full (typo.full_share) or
+    mixed sample whose keys carry one or two keyboard typos (zh_typo), the output still the
+    correct text. Seeds "<key>#typo", so the pinyin samples of the same paragraphs are not
+    reproduced. Layout and format as the other pinyin stores.
+
 Files per store and split: {split}.tokens.bin (<u2), {split}.offsets.bin (<u8, count+1),
 {split}.first.bin (u1). Every random choice comes from random.Random(doc_hash(label/rng,
 id)), and parts are merged in job order, so a rebuild with the same inputs and library
@@ -37,11 +44,13 @@ import time
 import numpy as np
 
 from vimeml.posttraining.zh_pinyin import KINDS, Pinyin, encode
+from vimeml.posttraining.zh_typo import add_typos, full_pinyin
 from vimeml.tokenizer.encode_zh13 import clean_paragraphs, doc_hash
 from vimeml.tokenizer.zh13 import META_SPACE, sha256, write_json
 
 FORMAT = "vimeml_zh_pinyin_v1"
 STORES = ("plain",) + KINDS
+TYPO_STORES = ("typo",)
 SPLITS = ("train", "validation")
 
 _state = {}
@@ -67,6 +76,10 @@ def jobs(export, split, per_job, max_groups=0):
     return out
 
 
+def stores_of(config):
+    return TYPO_STORES if config.get("mode") == "typo" else STORES
+
+
 def _init(config):
     import sentencepiece as spm
     _state["config"] = config
@@ -76,10 +89,11 @@ def _init(config):
 
 
 class Part:
-    def __init__(self):
-        self.tokens = {s: array("H") for s in STORES}
-        self.lengths = {s: array("B") for s in STORES}
-        self.first = {s: array("B") for s in STORES}
+    def __init__(self, stores=STORES):
+        self.stores = stores
+        self.tokens = {s: array("H") for s in stores}
+        self.lengths = {s: array("B") for s in stores}
+        self.first = {s: array("B") for s in stores}
 
     def add(self, store, ids, first):
         if not (2 <= len(ids) <= 129 and 1 <= first < len(ids)):
@@ -90,7 +104,7 @@ class Part:
 
     def save(self, directory):
         directory.mkdir(parents=True, exist_ok=True)
-        for store in STORES:
+        for store in self.stores:
             np.asarray(self.tokens[store], dtype="<u2").tofile(directory / f"{store}.tokens.bin")
             np.asarray(self.lengths[store], dtype="u1").tofile(directory / f"{store}.lengths.bin")
             np.asarray(self.first[store], dtype="u1").tofile(directory / f"{store}.first.bin")
@@ -143,6 +157,40 @@ def _pinyin(part, stats, rng, text):
         stats[f"error_count_{len(info['errors'])}"] += 1
 
 
+def _typo(part, stats, rng, text):
+    config, pinyin, sp = _state["config"], _state["pinyin"], _state["sp"]
+    typo = config["typo"]
+    base = "full" if rng.random() < typo["full_share"] else "mixed"
+    sample = pinyin.sample(rng, text, base)
+    if sample is None:
+        stats[f"skip_{base}"] += 1
+        return
+    context, keys, output, info = sample
+    edited = add_typos(rng, keys, info["units"], typo)
+    if edited is None:
+        stats["skip_typo_edit"] += 1
+        return
+    keys, edits = edited
+    encoded = encode(sp, context, keys, output)
+    if encoded is None:
+        stats["skip_encode_typo"] += 1
+        return
+    ids, first, removed = encoded
+    part.add("typo", ids, first)
+    stats["typo_tokens"] += len(ids)
+    stats["typo_output_chars"] += len(output)
+    stats["typo_output_tokens"] += len(ids) - first - 1
+    stats["typo_context_tokens"] += ids.index(5) - 2
+    stats["typo_empty_context"] += ids.index(5) == 2
+    stats["typo_context_trimmed"] += removed > 0
+    stats[f"typo_base_{base}"] += 1
+    stats[f"typo_count_{len(edits)}"] += 1
+    for edit in edits:
+        stats[f"typo_edit_{edit}"] += 1
+    if base == "full":
+        stats["typo_full_valid_pinyin" if full_pinyin(keys, pinyin.valid) else "typo_full_invalid_pinyin"] += 1
+
+
 def run_job(job):
     import pyarrow.parquet as pq
     config, sp, pools = _state["config"], _state["sp"], _state["pools"]
@@ -160,7 +208,8 @@ def run_job(job):
     if pools:
         thresholds, memo_threshold = pools["thresholds"], pools["memo_threshold"]
         pool_label, memo_label = pools["labels"]["pool"], pools["labels"]["memo"]
-    part, stats = Part(), Counter()
+    typo = config.get("mode") == "typo"
+    part, stats = Part(stores_of(config)), Counter()
     handle = pq.ParquetFile(job["path"])
     columns = ["text", "dialogue", "turn", "script"] if source == "chat" else ["id", "text", "script"]
     for group in range(*job["groups"]):
@@ -188,6 +237,18 @@ def run_job(job):
                 paragraphs = [text]
             else:
                 paragraphs, _ = clean_paragraphs(text)
+            if typo:
+                if u < plain_cut:
+                    continue
+                if script != "hans":
+                    stats["pinyin_skipped_hant_documents"] += 1
+                    continue
+                stats["pinyin_documents"] += 1
+                rng = random.Random(doc_hash(label + "/rng", f"{key}#typo"))
+                for paragraph in paragraphs:
+                    stats["pinyin_paragraphs"] += 1
+                    _typo(part, stats, rng, paragraph)
+                continue
             rng = random.Random(doc_hash(label + "/rng", key))
             if u < plain_cut:
                 stats["plain_documents"] += 1
@@ -207,13 +268,13 @@ def run_job(job):
             else:
                 stats["pinyin_skipped_hant_documents"] += 1
     part.save(Path(config["parts_dir"]) / job["name"])
-    counts = {s: len(part.lengths[s]) for s in STORES}
+    counts = {s: len(part.lengths[s]) for s in part.stores}
     return job["name"], source, counts, dict(stats)
 
 
-def merge(parts_dir, names, output_dir, split):
+def merge(parts_dir, names, output_dir, split, stores=STORES):
     result = {}
-    for store in STORES:
+    for store in stores:
         directory = Path(output_dir) / store
         directory.mkdir(parents=True, exist_ok=True)
         lengths = [np.fromfile(Path(parts_dir) / n / f"{store}.lengths.bin", dtype="u1") for n in names]
@@ -235,9 +296,9 @@ def merge(parts_dir, names, output_dir, split):
     return result
 
 
-def preview(output_dir, sp, count=40):
+def preview(output_dir, sp, count=40, stores=STORES):
     lines = []
-    for store in STORES:
+    for store in stores:
         directory = Path(output_dir) / store
         ids = np.fromfile(directory / "validation.tokens.bin", dtype="<u2")
         offsets = np.fromfile(directory / "validation.offsets.bin", dtype="<u8")
@@ -283,13 +344,13 @@ def build(config, export, output_dir, identity, max_groups=0):
                     sources.setdefault(store, Counter())[source] += n
                 if done % 20 == 0 or done == len(todo):
                     print(f"{split} {done}/{len(todo)} jobs {time.time() - started:.0f}s", flush=True)
-            manifest["stores"][split] = merge(config["parts_dir"], names, output_dir, split)
-            for store in STORES:
+            manifest["stores"][split] = merge(config["parts_dir"], names, output_dir, split, stores_of(config))
+            for store in stores_of(config):
                 manifest["stores"][split][store]["sources"] = dict(sources.get(store, {}))
             manifest["stats"][split] = dict(sorted(stats.items()))
     shutil.rmtree(config["parts_dir"])
     sp = spm.SentencePieceProcessor(model_file=config["tokenizer"])
-    preview(output_dir, sp)
+    preview(output_dir, sp, stores=stores_of(config))
     here = Path(__file__).resolve().parent
     manifest.update({
         "status": "complete",
@@ -298,7 +359,7 @@ def build(config, export, output_dir, identity, max_groups=0):
         "tokenizer_sha256": config["tokenizer_sha256"],
         "config": {k: v for k, v in config.items() if k not in ("parts_dir",)},
         "max_row_groups": max_groups,
-        "code_sha256": {name: sha256(here / name) for name in ("zh_pinyin.py", "zh_pinyin_data.py")},
+        "code_sha256": {name: sha256(here / name) for name in ("zh_pinyin.py", "zh_pinyin_data.py", "zh_typo.py")},
         "readings_sha256": config["readings_sha256"],
         "libraries": {"sentencepiece": importlib.metadata.version("sentencepiece")},
     })

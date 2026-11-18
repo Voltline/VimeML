@@ -12,7 +12,12 @@ stores) add their own per-kind counts: an extra store reads its own stream (perm
 [seed, kind, epoch, 1 + its index]) and its samples join the same kind's batch after the
 primary directory's, so normalization sees one batch per kind and data.mix plus every extra
 mix is the update. Without extras every batch is byte-identical to before. Validation reads
-the primary directory only.
+each kind from the primary directory, or, for a kind the primary lacks (typo), from the first
+extra directory that holds it; an extra with an all-zero mix is validation-only.
+
+Kinds: plain, full, mixed, initials, error from build_zh_pinyin.py, and typo (keyboard typos,
+data-zh-pinyin-typo.toml), which only an extra directory provides. A kind with a mix must exist
+in its directory. Appending typo kept every existing kind's permutation seed and batch order.
 
 plain windows keep the original 0.30 prefix crop (first windows only, at least 8 tokens
 left) and supervise every target; pinyin samples supervise output + EOS only.
@@ -22,8 +27,9 @@ normalization "tokens": loss = sum of token losses / supervised tokens in the up
 Distillation (optional [distillation] section): a frozen teacher with the same 12K tokenizer (the
 joint-pinyin 200M) runs on the same batch in BF16 without gradients. On every supervised position the
 student's loss is (1 - alpha) * cross-entropy on the label + alpha * T^2 * KL(teacher_T || student_T)
-with both distributions at temperature T; normalization is the same as without distillation. The
-teacher's validation losses are written once, at the start, to teacher_validation.json.
+with both distributions at temperature T; normalization is the same as without distillation.
+distillation.ce_only_kinds (e.g. ["typo"], which the teacher never saw) train on cross-entropy
+alone and never run the teacher. The teacher's validation losses are written once, at the start, to teacher_validation.json.
 
 Validation (FP32) at step 0 and every eval_every: loss per store, and for pinyin stores
 tf_exact = share of samples whose every output token (and EOS) is the argmax under
@@ -52,7 +58,12 @@ STAGE = "zh-pinyin-s1"
 ARCHITECTURE = "tiny_gpt_zh13"
 FORMAT = "vimeml_tiny_gpt_zh13"
 DATA_FORMAT = "vimeml_zh_pinyin_v1"
-STORES = ("plain", "full", "mixed", "initials", "error")
+STORES = ("plain", "full", "mixed", "initials", "error", "typo")
+BASE_STORES = STORES[:5]          # always in a plan's mix; typo only when a mix names it
+
+
+def counts(raw):
+    return {k: int(raw.get(k, 0)) for k in STORES if k in BASE_STORES or k in raw}
 CROP_MINIMUM = 8
 SOURCE_FILES = ("src/vimeml/training/joint_zh_pinyin.py", "src/vimeml/training/model_zh13.py",
                 "src/vimeml/training/model_v2.py", "src/vimeml/training/train.py",
@@ -174,7 +185,7 @@ def build_plan(config, root=ROOT, verify_files=True):
         raise ValueError("Formal training is CUDA/BF16/compiled; only smoke runs are CPU/FP32")
     if not 0 < s["min_learning_rate"] <= s["learning_rate"]:
         raise ValueError("Invalid learning rates")
-    mix = {k: int(config["data"]["mix"].get(k, 0)) for k in STORES}
+    mix = counts(config["data"]["mix"])
     if any(v < 0 for v in mix.values()) or not sum(mix.values()):
         raise ValueError("Invalid mix")
     init = config["initialization"]
@@ -192,12 +203,18 @@ def build_plan(config, root=ROOT, verify_files=True):
                 required[data_dir / kind / name] = digest
     if file_sha(data_dir / "manifest.json") != config["data"]["manifest_sha256"]:
         raise ValueError("Pinyin data manifest changed")
+    if set(config["data"]["mix"]) - set(STORES):
+        raise ValueError("Unknown kind in data.mix")
+    held = set(manifest["stores"]["train"])
+    if any(v and k not in held for k, v in mix.items()):
+        raise ValueError("data.mix names a kind the primary directory lacks")
+    validation = {k: config["data"]["directory"] for k in STORES if k in manifest["stores"]["validation"]}
     extras = config["data"].get("extra", [])
-    extra_mixes = [{k: int(e["mix"].get(k, 0)) for k in STORES} for e in extras]
+    extra_mixes = [counts(e["mix"]) for e in extras]
     extra_train = []
     for e, m in zip(extras, extra_mixes):
         folder = root / e["directory"]
-        if set(e["mix"]) - set(STORES) or any(v < 0 for v in m.values()) or not sum(m.values()):
+        if set(e["mix"]) - set(STORES) or any(v < 0 for v in m.values()):
             raise ValueError("Invalid extra mix: " + e["directory"])
         if folder.resolve() == data_dir.resolve() or file_sha(folder / "manifest.json") != e["manifest_sha256"]:
             raise ValueError("Extra pinyin data is the primary directory or its manifest changed: " + e["directory"])
@@ -205,11 +222,18 @@ def build_plan(config, root=ROOT, verify_files=True):
         if (extra_manifest.get("format") != DATA_FORMAT or extra_manifest.get("status") != "complete"
                 or extra_manifest["tokenizer_sha256"] != manifest["tokenizer_sha256"]):
             raise ValueError("Incomplete, unsupported or other-tokenizer extra data: " + e["directory"])
+        if any(v and k not in extra_manifest["stores"]["train"] for k, v in m.items()):
+            raise ValueError("Extra mix names a kind the directory lacks: " + e["directory"])
         required[folder / "manifest.json"] = e["manifest_sha256"]
-        for kind, record in extra_manifest["stores"]["train"].items():
-            for name, digest in record["files"].items():
-                required[folder / kind / name] = digest
-        extra_train.append({k: extra_manifest["stores"]["train"][k]["examples"] for k in STORES})
+        for split, stores in extra_manifest["stores"].items():
+            for kind, record in stores.items():
+                if split == "train" and not m.get(kind):
+                    continue
+                for name, digest in record["files"].items():
+                    required[folder / kind / name] = digest
+        for kind in extra_manifest["stores"]["validation"]:
+            validation.setdefault(kind, e["directory"])
+        extra_train.append({k: r["examples"] for k, r in extra_manifest["stores"]["train"].items() if k in STORES})
     if verify_files:
         for path, digest in required.items():
             if file_sha(path) != digest:
@@ -226,20 +250,25 @@ def build_plan(config, root=ROOT, verify_files=True):
                   "code": hashlib.sha256(json.dumps(code, sort_keys=True).encode()).hexdigest()}
     if distillation is not None:
         signatures["teacher"] = distillation["teacher_sha256"]
-    train = {k: manifest["stores"]["train"][k]["examples"] for k in STORES}
-    passes = {k: s["max_steps"] * mix[k] / train[k] for k in STORES if mix[k]}
+    train = {k: manifest["stores"]["train"][k]["examples"] for k in STORES if k in held}
+    passes = {k: s["max_steps"] * v / train[k] for k, v in mix.items() if v}
     extra = {}
     if extras:
         signatures["extra_data"] = [e["manifest_sha256"] for e in extras]
         for i, (m, examples) in enumerate(zip(extra_mixes, extra_train), 1):
-            passes.update({f"{k}@{i}": s["max_steps"] * m[k] / examples[k] for k in STORES if m[k]})
+            passes.update({f"{k}@{i}": s["max_steps"] * v / examples[k] for k, v in m.items() if v})
         extra["sources"] = [{"directory": config["data"]["directory"], "mix": mix}] + [
             {"directory": e["directory"], "mix": m} for e, m in zip(extras, extra_mixes)]
         extra["extra_train_examples"] = extra_train
-        mix = {k: mix[k] + sum(m[k] for m in extra_mixes) for k in STORES}
+        named = {k for m in [mix] + extra_mixes for k in m}
+        mix = {k: sum(m.get(k, 0) for m in [mix] + extra_mixes) for k in STORES if k in named}
     batch = sum(mix.values())
+    if distillation is not None and set(distillation.get("ce_only_kinds", ())) - set(STORES):
+        raise ValueError("Unknown kind in distillation.ce_only_kinds")
+    if any(k != "plain" and k not in validation and v for k, v in mix.items()):
+        raise ValueError("A trained kind has no validation store")
     return {"stage": STAGE, "parameters": SHAPES[12288][1], "settings": s, "mix": mix, "batch": batch,
-            "distillation": distillation,
+            "distillation": distillation, "validation_sources": validation,
             "signatures": signatures, "code_sha256": code, "train_examples": train, "passes": passes,
             "tokenizer_sha256": manifest["tokenizer_sha256"], **extra,
             "required_files": {Path(p).resolve().as_posix(): h for p, h in required.items()}}
@@ -275,7 +304,7 @@ def update(model, optimizer, batches, plan, device, precision, teacher=None):
         ids = batch["input_ids"].to(device, non_blocking=True)
         labels = batch["labels"].to(device, non_blocking=True)
         with amp_context(device, precision):
-            if teacher is None:
+            if teacher is None or kind in d.get("ce_only_kinds", ()):
                 loss_sum = ce_sum = model(ids, labels)["loss_sum"]
             else:
                 with torch.no_grad():
@@ -299,10 +328,18 @@ def update(model, optimizer, batches, plan, device, precision, teacher=None):
                           **({"kl": kls[k] / tokens[k]} if k in kls else {})} for k in sums}}
 
 
-def validation_sets(directory, plan, seed):
+def validation_sets(directory, plan, seed, root=ROOT):
+    """Validation stores: the primary `directory`, or plan["validation_sources"] (kind -> directory
+    relative to root) when the plan has it."""
     out = {}
+    sources = plan.get("validation_sources")
     for kind in STORES:
-        store = Store(Path(directory) / kind, "validation")
+        if sources is None and kind == "typo":
+            continue
+        if sources is not None and kind not in sources:
+            continue
+        folder = Path(directory) if sources is None else Path(root) / sources[kind]
+        store = Store(folder / kind, "validation")
         indices = range(len(store))
         if kind == "plain" and len(store) > plan["settings"]["validation_plain_examples"]:
             rng = np.random.default_rng([seed, 7])
@@ -428,7 +465,7 @@ def run(config, resume=False, root=ROOT, log=print):
     sources = plan.get("sources") or [{"directory": config["data"]["directory"], "mix": plan["mix"]}]
     schedule = Schedule(data_dir, sources[0]["mix"], s["seed"], s["prefix_crop_probability"],
                         [(root / x["directory"], x["mix"]) for x in sources[1:]])
-    sets = validation_sets(data_dir, plan, s["seed"])
+    sets = validation_sets(data_dir, plan, s["seed"], root)
     limit = s.get("smoke_validation_examples", 0)
     writer = SummaryWriter(str(log_dir), purge_step=state["step"] + 1 if resume else None, flush_secs=5)
     metrics = (output / "metrics.jsonl").open("a", encoding="utf-8", buffering=1)
@@ -464,13 +501,14 @@ def run(config, resume=False, root=ROOT, log=print):
         report = {"step": state["step"], **report}
         state["evaluations"].append(report)
         write_json(output / "evaluations.json", state["evaluations"])
-        for kind in STORES:
+        kinds = [k for k in STORES if k in report]
+        for kind in kinds:
             writer.add_scalar(f"{kind}/validation_loss", report[kind]["loss"], state["step"])
             if "tf_exact" in report[kind]:
                 writer.add_scalar(f"{kind}/validation_tf_exact", report[kind]["tf_exact"], state["step"])
         log(f"[eval step {state['step']}] " + " ".join(
             f"{k}={report[k]['loss']:.4f}" + (f"/{report[k]['tf_exact']:.3f}" if "tf_exact" in report[k] else "")
-            for k in STORES))
+            for k in kinds))
         model.train()
 
     options = {"num_workers": s["num_workers"], "pin_memory": device.type == "cuda"}
@@ -499,7 +537,7 @@ def run(config, resume=False, root=ROOT, log=print):
             seconds = time.perf_counter() - began
             state["training_seconds"] += seconds
             for kind, r in result["kinds"].items():
-                totals = state["totals"][kind]
+                totals = state["totals"].setdefault(kind, {"examples": 0, "supervised_tokens": 0, "loss_sum": 0.0})
                 totals["examples"] += r["examples"]
                 totals["supervised_tokens"] += r["supervised_tokens"]
                 totals["loss_sum"] += r["loss"] * r["supervised_tokens"]
