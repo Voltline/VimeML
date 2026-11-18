@@ -4,12 +4,13 @@ This document designs the second architecture of the 800M Chinese desktop model,
 
 ## Why change
 
-arch1 trains with the packing code of [8903f17](../src/vimeml/training/joint_zh200m.py). Measured:
+arch1 trains with the packing code of [8903f17](../src/vimeml/training/joint_zh200m.py) at `lm_microbatch` 64. Measured at 25% of the formal run:
 
-- about 0.26 s per update in steady state (first-step compilation excluded), about 106k supervised tokens per update;
-- about 3.6 days for 1,198,964 updates;
-- useful MFU about 14% against the measured matmul peak;
-- padding ratio about 1.37.
+- about 0.182 s of wall time per update, of which pure compute has a median of about 0.12 s; about 106k supervised tokens per update;
+- about 2.5 days for 1,198,964 updates;
+- useful MFU about 20% against the measured matmul peak;
+- padding ratio about 1.37 (measured in the smoke run);
+- the `lm_microbatch` 128 smoke run took 0.259 s per update with loss within 0.003% of 64, so the formal run uses 64.
 
 Goals:
 
@@ -60,7 +61,12 @@ The cluster's diagnosis is "sequences are too short to fill the matmuls". That i
 - The matmul M dimension is the number of positions in a microbatch, tens of thousands now, whatever the row length. Short rows cost through padding, attention kernels on very short sequences, and the fixed cost of each forward/backward pass.
 - arch2 has almost the same parameter count as arch1 (777M vs 784M), so the per-update gradient all-reduce is the same size, about 3.1 GB in FP32. If most of an update is communication or host synchronization, no architecture reaches 1.5 days.
 
-At 0.26 s per update and about 20k padded positions per GPU, pure compute is about 60 ms. The other ~200 ms must be accounted for first, hence step 0.
+At about 20k padded positions per GPU, the theoretical compute is about 60 ms per update. The measured 0.182 s splits into two parts:
+
+- about 60 ms outside compute: communication, syncs, host work;
+- about 0.12 s of compute, twice the theoretical value: short attention kernels, padding, kernel launches.
+
+Both must be accounted for first, hence step 0.
 
 ## Step 0: locate the bottleneck (on arch1 code, no training)
 
@@ -115,7 +121,7 @@ Decision:
   - Attention uses `torch.nn.attention.flex_attention` with a block-diagonal causal mask built from segment ids. RoPE positions restart for each segment.
   - Loss and `per_kind` weights follow arch1: each token is weighted by its task's weight ÷ that task's global supervised tokens.
 - **Shapes**: rows are always 2048 wide, so only the row count varies. Compilation marks only the batch dimension dynamic, with at least 2 rows, which avoids recompiles.
-- **Microbatch budget**: rows × 2048 ≤ `lm_microbatch` × 512. `lm_microbatch` is set to the largest value that fits by the smoke run's peak memory (try 128 first, i.e. 32 rows per microbatch). At k times the batch an update is about 400–800k tokens, so each GPU runs several forward/backward passes; all but the last accumulate under `no_sync`, so there is one all-reduce per update.
+- **Microbatch budget**: rows × 2048 ≤ `lm_microbatch` × 512. `lm_microbatch` starts at 64 (16 rows per microbatch) and is chosen by the smoke run's update time, not as the largest that fits in memory: in arch1, 64 measured faster than 128. At k times the batch an update is about 400–800k tokens, so each GPU runs several forward/backward passes; all but the last accumulate under `no_sync`, so there is one all-reduce per update.
 - **Data parallelism balanced by tokens**: segments are assigned to ranks greedily by token count instead of in contiguous rows. Normalization still uses global token counts, so the summed gradient is unchanged.
 - **Synchronization**: one merged sync per update (task loss sums, gradient norm, stop flag) instead of separate `.item()` calls.
 - **Validation, inference and export are not packed**: they keep the ordinary per-window forward and the KV-cache path.
@@ -193,7 +199,12 @@ Three arms on the 12K joint-pinyin 200M recipe (`configs/train-zh200m-12k-pinyin
 
 ### Expected speed
 
-With larger updates the compute per update grows k-fold and the fixed costs stay. From arch1's measurements (about 60 ms of compute and about 200 ms of other costs per update), k = 4 alone brings one pass to about 1.5 days, and the execution changes and the four items above make it faster. The acceptance thresholds scale with k (see Acceptance before training).
+With larger updates the compute per update grows k-fold and the fixed costs stay. A rough estimate from arch1's measurements (about 0.12 s of compute and about 60 ms of other costs per update):
+
+- Larger updates alone: one pass takes about 1.9 days at k = 4 and about 1.8 days at k = 8. They save only the time outside compute, so a larger k gains little more.
+- Reaching 1.5 days needs compute itself to be about 20% faster, through packing (padding from 1.37 to under 1.1), larger GEMM shapes and the four items above.
+
+The acceptance thresholds scale with k (see Acceptance before training).
 
 ## Inference and export follow
 
@@ -231,7 +242,7 @@ Different from arch1: the `[model]` section, the model code, the execution, and 
    - peak memory;
    - padding ratio `padded_positions ÷ (LM input tokens + pinyin input tokens)`, target at most 1.1;
    - the loss at update 20, as a sanity check only.
-4. **Go condition**: start the formal run only at or below 0.18 × k s per update (0.72 s at k = 4, 1.44 s at k = 8; about 2.5 days or less). Otherwise return with the profiler results and decide then.
+4. **Go condition**: start the formal run only at or below 0.144 × k s per update (0.58 s at k = 4, 1.15 s at k = 8; within 2 days, at least 20% faster than arch1's 2.5 days). Otherwise return with the profiler results and decide then.
 
 ## Quality decision (preregistered)
 
