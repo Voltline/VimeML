@@ -126,6 +126,13 @@ First arch2 CUDA smoke after the fix (8 ranks, 10 untimed then 20 timed updates,
 - At the median, one pass takes about 24.5 hours at k = 4 and 26.6 hours at k = 8, plus the loop overhead (about 0.04 s per update in arch1).
 - k = 8 has updates of about 7 s at timed updates 11, 24 and 27, and its graph count went from 1 to 2. At that rate the mean, not the median, sets the run time, so the spikes are diagnosed before the run: step 0 now records every update's pass shapes, graph count and allocator retries.
 
+Stopping rule (fixed 2026-11-19; no further rounds):
+
+1. The go condition is the **mean** timed update time, spikes included, at or below 0.144 × k s.
+2. k = 4 is checked from the existing smoke records; if it passes, it needs no further diagnosis or optimization.
+3. k = 8 is diagnosed only if the precheck picks it: one diagnostic run and one fix. If the mean then passes, k = 8; otherwise k = 4.
+4. Token balance, sync merging, DDP buckets and CUDA Graphs do not block the formal run; both k already meet the 1.5-day goal at the median.
+
 ## Architecture
 
 | Item | arch1 | arch2 (frozen) |
