@@ -120,14 +120,23 @@ def breakdown(trace):
     return {"updates": len(rows), "per_update": rows, "mean_seconds": mean, "share_of_wall": share}
 
 
-def timed(function, bucket):
+def timed(function, bucket, shapes=None):
+    """Wrap a packing function: its seconds go to `bucket`, the [rows, width] of each pass it returns to `shapes`."""
     def wrapper(*args, **kwargs):
         began = time.perf_counter()
         try:
-            return function(*args, **kwargs)
+            out = function(*args, **kwargs)
         finally:
             bucket.append(time.perf_counter() - began)
+        if shapes is not None:
+            shapes.extend(list(work[0].shape) for work in out)
+        return out
     return wrapper
+
+
+def graph_count():
+    from torch._dynamo.utils import counters
+    return int(counters["stats"]["unique_graphs"])
 
 
 def percentile(values, q):
@@ -184,9 +193,9 @@ def run_updates(config, out, updates, warmup, profile=0, emulate_world=0, root=J
         if s["num_workers"]:
             extra.update(multiprocessing_context="spawn", prefetch_factor=4, persistent_workers=True)
         pinyin_stream = iter(DataLoader(schedule, batch_size=None, sampler=range(0, total), **extra))
-    packing = []
+    packing, shapes = [], []
     saved = J.packed_rows, J.segment_microbatches
-    J.packed_rows, J.segment_microbatches = timed(J.packed_rows, packing), timed(J.segment_microbatches, packing)
+    J.packed_rows, J.segment_microbatches = timed(J.packed_rows, packing, shapes), timed(J.segment_microbatches, packing, shapes)
     records = []
     profiler = None
     model.train()
@@ -205,7 +214,7 @@ def run_updates(config, out, updates, warmup, profile=0, emulate_world=0, root=J
             fetched = time.perf_counter()
             for group in optimizer.param_groups:
                 group["lr"] = learning_rate(step, s)
-            del packing[:]
+            del packing[:], shapes[:]
             annotation = torch.profiler.record_function("update") if profiler else nullcontext()
             with annotation:
                 if joint:
@@ -224,7 +233,10 @@ def run_updates(config, out, updates, warmup, profile=0, emulate_world=0, root=J
             records.append({"step": step, "seconds": done - began, "update_seconds": done - fetched,
                             "data_wait_seconds": fetched - began, "packing_seconds": sum(packing),
                             "padded_positions": result["padded_positions"], "input_tokens_all_tasks": inputs,
-                            "lm_loss": result["loss"]})
+                            "lm_loss": result["loss"], "pass_shapes": [list(x) for x in shapes],
+                            "compiled_graphs": graph_count() if compilation is not None else None,
+                            "alloc_retries": (torch.cuda.memory_stats(device).get("num_alloc_retries", 0)
+                                              if device.type == "cuda" else None)})
             if ctx.main:
                 print(f"step {step}/{total} {'warmup' if step <= warmup else 'timed'} "
                       f"{done - began:.3f}s (update {done - fetched:.3f}s)", flush=True)
@@ -259,8 +271,12 @@ def run_updates(config, out, updates, warmup, profile=0, emulate_world=0, root=J
         else:
             summary["padding_ratio_note"] = "padded positions summed over ranks over all input tokens"
         if compilation is not None:
-            from torch._dynamo.utils import counters
-            summary["compiled_graphs"] = int(counters["stats"]["unique_graphs"])
+            summary["compiled_graphs"] = graph_count()
+        slow = [r for r in records[1:] if r["seconds"] > 2]
+        summary["slow_updates"] = [{k: r[k] for k in ("step", "seconds", "pass_shapes", "compiled_graphs",
+                                                      "alloc_retries")} for r in slow]
+        timed_seconds = [r["seconds"] for r in timed_rows]
+        summary["seconds_mean"] = statistics.fmean(timed_seconds)
         if device.type == "cuda":
             summary["gpu"] = torch.cuda.get_device_name(device)
             summary["peak_allocated_MiB"] = torch.cuda.max_memory_allocated(device) / 2**20
