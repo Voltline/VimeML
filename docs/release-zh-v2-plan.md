@@ -52,7 +52,7 @@ These are principles. The exact numbers and tests go into each model's confirmat
    - Compare the desktop models with v1 and the 200M default arm.
    - Prediction results do not decide whether a model ships.
 4. **Latency.**
-   - The 20M is measured on an iPhone (v1's batched KV packages have not been measured there yet).
+   - The 20M is measured on an iPhone. For reference, Vime measured v1's kvbatch-v3 INT8 package end to end, typing key by key (2026-11-19): the first candidate list, model rerank included, at p50/p95 22/38 ms on an iPhone 13 Pro and 15/36 ms on an iPhone 16 Pro Max, published within 60 ms for 99.1% and 99.9% of keys; only the 13 Pro past 40 typed letters misses the window, on 16.2% of keys. Sentence correction takes 196/177 ms p50. Load time, memory and full-sentence generation were not measured.
    - The desktop models get full-search p50/p95 measured on Windows in PyTorch (deviation, 2026-11-18: a desktop client would be a Windows client, so not a Mac; [report](reports/zh-desktop-latency-20261118/report.md)).
 5. **One confirmation run.**
    - Each released model's candidate and scoring rule are fixed before its blind and public test split are opened, and the run is done once.
