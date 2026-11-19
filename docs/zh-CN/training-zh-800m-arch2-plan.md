@@ -259,6 +259,7 @@ arch2 与 arch1 用同样的数据、同样的 token 数（批量和学习率按
 - 训练器：`joint_zh200m` 新增 stage `zh-800m-arch2`（每次更新 8192 或 16384 个窗口）。每张卡上所有任务的行按首次适配降序打包成 2048 token 的行，每次前向 `lm_microbatch × 512 ÷ 2048` 行；逐 token 权重和归一化与 arch1 相同，梯度与不打包的更新一致（有测试）。编译的隐藏层栈以位置和掩码为输入。
 - 评测：搜索后端、Standard 打分、拼音生成、预测和蒸馏教师都通过 `zh_desktop` 加载 arch2 检查点。
 - 配置：`configs/train-zh800m-arch2-k4.toml` 和 `-k8.toml`（只运行预检选中的那个），以及预检的三个 200M 配置。
+- 第 0 步（`scripts/training/step0_zh800m.py`、`src/vimeml/training/step0_zh800m.py`）：`updates` 从随机权重出发，用训练器自己的更新循环跑若干次更新并逐次计时；可以数据并行运行，也可以用 `--emulate-world N` 在单进程里跑 N 卡运行中 rank 0 的那一份（单进程对照）。`--profile K` 把 rank 0 上 K 次更新的时间拆成计算、未被掩盖的通信、GPU 空闲和主机工作（等数据、打包、同步调用）。`allreduce` 测梯度大小的 FP32 all-reduce 带宽，分整块和 25 MB 分桶两种。arch2 的 20 步冒烟也用同一个 `updates` 命令计时。
 
 尚未完成，都等第 0 步报告确定执行范围后再做：
 

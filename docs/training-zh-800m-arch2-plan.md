@@ -276,6 +276,7 @@ Done, with unit tests (`tests/test_zh800m_arch2.py`, `tests/test_zh_batch_preche
 - Trainer: stage `zh-800m-arch2` in `joint_zh200m` (8192 or 16384 windows per update). Each rank's rows of every task are packed first-fit decreasing into 2048-token rows and run in passes of `lm_microbatch × 512 ÷ 2048` rows, with arch1's per-token weights and normalization; the gradient equals the padded update's (test). The compiled hidden stack takes positions and the mask as inputs.
 - Evaluation: the search backend, Standard scoring, pinyin generation, prediction and the distillation teacher load arch2 checkpoints through `zh_desktop`.
 - Configs: `configs/train-zh800m-arch2-k4.toml` and `-k8.toml` (only the one the precheck picks runs) and the precheck's three 200M configs.
+- Step 0 (`scripts/training/step0_zh800m.py`, `src/vimeml/training/step0_zh800m.py`): `updates` times the trainer's own update loop for a few updates from random weights, either data-parallel or, with `--emulate-world N`, as rank 0's share of an N-rank run in one process (the single-process control); `--profile K` splits K updates on rank 0 into compute, exposed communication, GPU idle and host work (data wait, packing, synchronization calls). `allreduce` measures the FP32 all-reduce bandwidth of the gradient size as one tensor and as 25 MB buckets. The same `updates` command times the arch2 20-update smoke.
 
 Not yet done; each waits for step 0's report, which fixes the execution scope:
 
