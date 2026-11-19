@@ -40,7 +40,7 @@ The context is trimmed from the left, once per input, to fit the longest candida
 
 - **Typo inputs**: @2 (reference among the first two), shown-correct (the shown correction is the reference) and base Top-1, per `typo1`, `typo2` and both.
 - **Clean inputs**: false display (a correction is shown) and @2.
-- **Margins**: the `lm` rule is reported at the production margin 3. Every rule is also reported at its calibrated margin: the margin with clean false display ≤ 10% that maximizes typo @2, ties to the larger margin. This is the value that goes into an export's `calibration.json`.
+- **Margins**: the `lm` rule is reported at the production margin 3. Every rule is also reported at its calibrated margin: the margin with clean false display ≤ 10% that maximizes typo @2, ties to the larger margin. This is the value that goes into an export's `calibration.json`. The `calibration` command writes that file from a model's `lm` rows: format `vimeml_zh_calibration_v1`, the model's checkpoint sha256 and step, search (beam 16, top 10), rescoring (λ and prior, `self` or `v1`) and the correction rule with its calibrated margin, typo @2 and clean false display at that margin and at margin 3 (no margin meets the cap: `enabled` false).
 - **Pool coverage**: share of inputs whose reference is `base[0]`, in `base[:2]` or among the corrections.
 - **Tests**: paired typo @2, sign-flip over sentence clusters, 20,000 permutations, seed 1118.
 
@@ -53,6 +53,7 @@ python -X utf8 scripts/benchmarks/typo_zh.py build --out OUT/shard-I --shard I/N
 python -X utf8 scripts/benchmarks/typo_zh.py merge OUT/shard-0 ... OUT/shard-(N-1)
 python -X utf8 scripts/benchmarks/typo_zh.py score --checkpoint CKPT --out DIR [--rules lm task]
 python -X utf8 scripts/benchmarks/typo_zh.py report NAME=DIR:RULE ... [--base NAME/fixed|NAME/calibrated] --out FILE
+python -X utf8 scripts/benchmarks/typo_zh.py calibration --rows DIR --lambda 1.6 --prior self --out calibration.json
 ```
 
 The test split of `ime-pinyin-zh-v1` is never read.

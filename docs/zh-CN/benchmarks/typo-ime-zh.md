@@ -40,7 +40,7 @@
 
 - **错字输入**：@2（参考句在前两位）、纠正命中（显示的纠正结果就是参考句）和 base Top-1，分 `typo1`、`typo2` 和合计。
 - **干净输入**：误显示率（出现了纠正结果）和 @2。
-- **margin**：`lm` 规则报告线上 margin 3 的结果。所有规则另报校准 margin 下的结果：在干净输入误显示率 ≤ 10% 的前提下使错字 @2 最高的 margin，并列时取较大者。这个值写进导出的 `calibration.json`。
+- **margin**：`lm` 规则报告线上 margin 3 的结果。所有规则另报校准 margin 下的结果：在干净输入误显示率 ≤ 10% 的前提下使错字 @2 最高的 margin，并列时取较大者。这个值写进导出的 `calibration.json`。`calibration` 命令用模型的 `lm` 打分结果生成这个文件：格式 `vimeml_zh_calibration_v1`，记录模型 checkpoint 的 sha256 和步数、搜索设置（束宽 16，取前 10）、重打分（λ 和先验，`self` 或 `v1`），以及纠错规则和校准 margin，并附上该 margin 和 margin 3 下的错字 @2 与干净误显示率（没有 margin 满足上限时 `enabled` 为 false）。
 - **候选池覆盖**：参考句是 `base[0]`、在 `base[:2]` 中、在纠正结果中的比例。
 - **检验**：错字 @2 配对比较，按句子聚类的 sign-flip，20,000 次置换，种子 1118。
 
@@ -53,6 +53,7 @@ python -X utf8 scripts/benchmarks/typo_zh.py build --out OUT/shard-I --shard I/N
 python -X utf8 scripts/benchmarks/typo_zh.py merge OUT/shard-0 ... OUT/shard-(N-1)
 python -X utf8 scripts/benchmarks/typo_zh.py score --checkpoint CKPT --out DIR [--rules lm task]
 python -X utf8 scripts/benchmarks/typo_zh.py report NAME=DIR:RULE ... [--base NAME/fixed|NAME/calibrated] --out FILE
+python -X utf8 scripts/benchmarks/typo_zh.py calibration --rows DIR --lambda 1.6 --prior self --out calibration.json
 ```
 
 `ime-pinyin-zh-v1` 的测试集从不读取。

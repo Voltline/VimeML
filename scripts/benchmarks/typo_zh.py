@@ -5,6 +5,7 @@ usage:
   python -X utf8 scripts/benchmarks/typo_zh.py merge DIR/shard-0 ... DIR/shard-(N-1) [--out SET]
   python -X utf8 scripts/benchmarks/typo_zh.py score --checkpoint CKPT --out DIR [--rules lm task] [--limit N]
   python -X utf8 scripts/benchmarks/typo_zh.py report NAME=DIR:RULE [...] [--base NAME/calibrated] [--out FILE]
+  python -X utf8 scripts/benchmarks/typo_zh.py calibration --rows DIR --lambda 1.6 --prior self --out calibration.json
 
 build reads the development split of ime-pinyin-zh-v1 (frozen-r1) and Vime's readings dictionary;
 both stay out of git, and so does the built set. The pool is made once by vimeml-tiny-zh-v1.
@@ -58,6 +59,14 @@ def main():
     r.add_argument("--base", help="NAME/fixed or NAME/calibrated")
     r.add_argument("--margin", type=float, default=3.0, help="fixed margin of the lm rule")
     r.add_argument("--out")
+    c = sub.add_parser("calibration", help="calibration.json for an export from its lm-rule rows")
+    c.add_argument("--rows", required=True, help="score output (lm rule) of the exported model")
+    c.add_argument("--lambda", dest="rescoring_lambda", type=float, required=True)
+    c.add_argument("--prior", choices=("self", "v1"), required=True)
+    c.add_argument("--beam", type=int, default=16)
+    c.add_argument("--topk", type=int, default=10)
+    c.add_argument("--set", default=str(SET))
+    c.add_argument("--out", required=True)
     args = parser.parse_args()
     if args.command == "build":
         with open(args.typo_config, "rb") as stream:
@@ -73,6 +82,12 @@ def main():
     elif args.command == "score":
         print(tz.score(args.set, args.checkpoint, args.tokenizer, args.out, args.frozen, tuple(args.rules),
                        args.device, args.limit))
+    elif args.command == "calibration":
+        value = tz.calibration(args.set, args.rows, args.rescoring_lambda, args.prior, args.beam, args.topk)
+        text = json.dumps(value, ensure_ascii=False, indent=2) + "
+"
+        Path(args.out).write_text(text, "utf-8")
+        print(text)
     else:
         runs = {}
         for spec in args.runs:

@@ -398,3 +398,42 @@ def report(set_dir, runs, base=None, fixed_margin=3.0):
             s = sign_flip(items, hits[base], h)
             lines.append(f"| {key} | {s['diff']:+.1f} | +{s['gained']}/-{s['lost']} | {s['p']:.2g} |")
     return "\n".join(lines) + "\n"
+
+
+# ---- per-export calibration --------------------------------------------------------------------------------
+
+CALIBRATION_FORMAT = "vimeml_zh_calibration_v1"
+
+
+def calibration(set_dir, rows_dir, rescoring_lambda, prior, beam=16, topk=10, fixed_margin=3.0):
+    """calibration.json for one exported model, shipped next to RELEASE.json (Vime reads it on a model switch).
+
+    search: beam per key position and generated candidates kept; rescoring: final score = genScore +
+    lambda * prior LM score, prior "self" (the model's own LM score) or "v1"; correction: Vime's LM display
+    rule with the margin calibrated on this set's development items (clean false display <= 10 %, then the
+    highest typo @2). The rows must be this model's lm-rule scores of the same set."""
+    from vimeml.training.data import file_sha
+    set_dir, rows_dir = Path(set_dir), Path(rows_dir)
+    meta = json.loads((rows_dir / "meta.json").read_text("utf-8"))
+    if meta["set_manifest_sha256"] != file_sha(set_dir / "manifest.json") or meta.get("limit"):
+        raise ValueError("The rows were not scored on this whole set")
+    if "lm" not in meta["rules"]:
+        raise ValueError("The rows have no lm-rule scores")
+    if prior not in ("self", "v1"):
+        raise ValueError("prior is 'self' or 'v1'")
+    items = read_jsonl(set_dir / "development.jsonl")
+    rows = load_rows(rows_dir)
+    margin = calibrate(items, rows, "lm")
+    at = metrics(items, rows, "lm", margin)
+    fixed = metrics(items, rows, "lm", fixed_margin)
+
+    def summary(t):
+        return {"typo_at2": round(t["typo"]["at2"], 2), "clean_false_display": round(t["clean"]["shown"], 2)}
+    return {"format": CALIBRATION_FORMAT,
+            "model": {"checkpoint_sha256": meta["checkpoint_sha256"], "step": meta["step"]},
+            "search": {"beam": beam, "topk": topk},
+            "rescoring": {"lambda": rescoring_lambda, "prior": prior},
+            "correction": {"rule": "lm", "margin": None if math.isinf(margin) else round(margin, 4),
+                           "enabled": not math.isinf(margin), "false_display_limit": FALSE_DISPLAY_LIMIT,
+                           "set": VERSION, "set_manifest_sha256": meta["set_manifest_sha256"],
+                           "at_margin": summary(at), "at_fixed_margin": {"margin": fixed_margin, **summary(fixed)}}}

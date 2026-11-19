@@ -59,6 +59,30 @@ class RulesTest(unittest.TestCase):
         self.assertEqual(B.metrics(self.items, self.rows, "lm", margin)["clean"]["shown"], 0.0)
         self.assertEqual(B.calibrate(self.items, self.rows, "lm", limit=0.5), 2.0)   # largest margin of the best @2
 
+    def test_calibration_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            (tmp / "set").mkdir()
+            B.write_jsonl(tmp / "set" / "development.jsonl", self.items)
+            (tmp / "set" / "manifest.json").write_text('{"version": "ime-typo-zh-v1-r1"}', "utf-8")
+            (tmp / "rows").mkdir()
+            B.write_jsonl(tmp / "rows" / "rows.jsonl", [{"id": k[0], "variant": k[1], **v} for k, v in self.rows.items()])
+            meta = {"checkpoint_sha256": "abc", "step": 7, "rules": ["lm"], "limit": 0,
+                    "set_manifest_sha256": file_sha(tmp / "set" / "manifest.json")}
+            (tmp / "rows" / "meta.json").write_text(json.dumps(meta), "utf-8")
+            c = B.calibration(tmp / "set", tmp / "rows", 1.6, "self")
+            self.assertEqual(c["format"], B.CALIBRATION_FORMAT)
+            self.assertEqual((c["model"]["checkpoint_sha256"], c["search"], c["rescoring"]),
+                             ("abc", {"beam": 16, "topk": 10}, {"lambda": 1.6, "prior": "self"}))
+            self.assertEqual(c["correction"]["margin"], 9.0)          # clean deltas 4 and -2: only 9 keeps 0 % shown
+            self.assertEqual(c["correction"]["at_margin"], {"typo_at2": 50.0, "clean_false_display": 0.0})
+            self.assertEqual(c["correction"]["at_fixed_margin"]["clean_false_display"], 50.0)
+            json.dumps(c, allow_nan=False)
+            meta["limit"] = 10
+            (tmp / "rows" / "meta.json").write_text(json.dumps(meta), "utf-8")
+            with self.assertRaises(ValueError):
+                B.calibration(tmp / "set", tmp / "rows", 1.6, "self")
+
     def test_sign_flip(self):
         a = B.hits_by_item(self.items, self.rows, "lm", 100)
         b = B.hits_by_item(self.items, self.rows, "lm", 2)
