@@ -122,5 +122,35 @@ class ScoreTest(unittest.TestCase):
         self.assertEqual(pg.sign_flip(new, new, 0, 0)["p"], 1.0)
 
 
+class MergeTest(unittest.TestCase):
+    def test_shards_join_in_set_order(self):
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            frozen = tmp / "frozen"
+            frozen.mkdir()
+            records = [{"id": f"r{i}", "split": "development", "full_input": f"k{i}", "words": ["a", "b"],
+                        "abbreviations": [{"input": f"m{i}", "abbreviated_word_indices": [0]}]} for i in range(5)]
+            pg.write_jsonl(frozen / "development.jsonl", records)
+            pg.write_jsonl(frozen / "development-contexts.jsonl", [{"id": r["id"], "infield": ""} for r in records])
+            meta = {"checkpoint_sha256": "x", "step": 1, "mode": "task", "beam": 16, "topk": 10, "context": True,
+                    "prior": None, "readings_sha256": "r", "set_manifest_sha256": "m", "limit": 0, "seconds": 1.0}
+            for i in range(2):
+                d = tmp / f"s{i}"
+                d.mkdir()
+                pg.write_jsonl(d / "rows.jsonl", [{"id": r["id"], "kind": k, "input": r[f]}
+                                                  for r in records[i::2]
+                                                  for k, f in (("full", "full_input"), ("mixed", "full_input"))])
+                (d / "meta.json").write_text(json.dumps({**meta, "shard": [i, 2]}), "utf-8")
+            info = pg.merge([tmp / "s1", tmp / "s0"], frozen, tmp / "out")
+            rows = pg.read_jsonl(tmp / "out" / "rows.jsonl")
+            self.assertEqual([(r["id"], r["kind"]) for r in rows],
+                             [(f"r{i}", k) for i in range(5) for k in ("full", "mixed")])
+            self.assertEqual((info["inputs"], info["shards"]), (10, 2))
+            with self.assertRaises(ValueError):
+                pg.merge([tmp / "s0"], frozen, tmp / "bad")
+
+
 if __name__ == "__main__":
     unittest.main()

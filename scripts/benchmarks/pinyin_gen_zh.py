@@ -3,7 +3,8 @@
 usage:
   python -X utf8 scripts/benchmarks/pinyin_gen_zh.py run --checkpoint CKPT --out DIR \\
       [--mode task|lm] [--beam 16] [--prior artifacts/models/tiny-zh13-12k-fresh-s1-d384-l9/final.pt | --no-prior] \\
-      [--no-context] [--device cuda] [--limit N]
+      [--no-context] [--device cuda] [--limit N] [--shard I/N]
+  python -X utf8 scripts/benchmarks/pinyin_gen_zh.py merge DIR/shard-0 ... DIR/shard-(N-1) --out DIR
   python -X utf8 scripts/benchmarks/pinyin_gen_zh.py report NAME=DIR [NAME=DIR ...] [--base NAME] [--lam 1.6]
 
 Checkpoints: vimeml-tiny-zh-v1, its pinyin post-training stages, 12K zh-200m (tiny_gpt_zh200m) and zh-800m (tiny_gpt_zh800m).
@@ -38,6 +39,11 @@ def main():
     r.add_argument("--frozen", default=str(ROOT / "outputs/benchmarks/ime-pinyin-zh-v1/frozen-r1"))
     r.add_argument("--device", default="cuda")
     r.add_argument("--limit", type=int, default=0, help="records, for smoke runs")
+    r.add_argument("--shard", default="0/1", help="I/N: records whose index mod N is I (join with merge)")
+    g = sub.add_parser("merge", help="join shard runs 0..N-1 into one run")
+    g.add_argument("shards", nargs="+")
+    g.add_argument("--out", required=True)
+    g.add_argument("--frozen", default=str(ROOT / "outputs/benchmarks/ime-pinyin-zh-v1/frozen-r1"))
     q = sub.add_parser("reprior", help="recompute the prior column of a finished run with another checkpoint")
     q.add_argument("--rows", required=True, help="directory of a finished run")
     q.add_argument("--prior", required=True)
@@ -54,8 +60,10 @@ def main():
     if args.command == "run":
         info = pg.run(args.checkpoint, args.tokenizer, args.readings, args.frozen, args.out, args.mode, args.beam,
                       args.topk, None if args.no_prior else args.prior, args.device, args.limit,
-                      not args.no_context)
+                      not args.no_context, tuple(map(int, args.shard.split("/"))))
         print(info)
+    elif args.command == "merge":
+        print(pg.merge(args.shards, args.frozen, args.out))
     elif args.command == "reprior":
         print(pg.reprior(args.rows, args.prior, args.tokenizer, args.frozen, args.out, args.device))
     else:

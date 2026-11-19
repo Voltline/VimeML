@@ -64,7 +64,8 @@ def prior_scores(model, processor, context, candidates, device):
 
 
 def run(checkpoint, tokenizer, readings, frozen, out, mode="task", beam=16, topk=10, prior=None,
-        device="cpu", limit=0, use_context=True):
+        device="cpu", limit=0, use_context=True, shard=(0, 1)):
+    """shard (I, N): only records whose index mod N is I; merge() joins the N shards in set order."""
     import sentencepiece as spm
     from vimeml.benchmarks.zh13_lm_scores import load
     from vimeml.deployment import zh_search as zs
@@ -80,6 +81,9 @@ def run(checkpoint, tokenizer, readings, frozen, out, mode="task", beam=16, topk
         prior_model, prior_processor, prior_meta = load(prior, tokenizer, device)
         prior_model.float().eval()
     records, contexts = load_set(frozen, limit)
+    if not 0 <= shard[0] < shard[1]:
+        raise ValueError("shard is I/N with 0 <= I < N")
+    records = records[shard[0]::shard[1]]
     rows, started = [], time.time()
     total = sum(len(inputs(r)) for r in records)
     for record in records:
@@ -102,6 +106,33 @@ def run(checkpoint, tokenizer, readings, frozen, out, mode="task", beam=16, topk
             "prior": None if not prior else {"checkpoint": Path(prior).name, "sha256": prior_meta["checkpoint_sha256"]},
             "readings_sha256": file_sha(readings), "set_manifest_sha256": file_sha(Path(frozen) / "manifest.json"),
             "inputs": len(rows), "limit": limit, "seconds": round(time.time() - started, 1)}
+    if shard[1] > 1:
+        info["shard"] = list(shard)
+    (out / "meta.json").write_text(json.dumps(info, ensure_ascii=False, indent=2) + "\n", "utf-8")
+    return info
+
+
+def merge(shards, frozen, out):
+    """One run from shard runs 0..N-1 of the same settings: rows in set order, as an unsharded run writes them."""
+    shards, out = [Path(d) for d in shards], Path(out)
+    metas = [json.loads((d / "meta.json").read_text("utf-8")) for d in shards]
+    count = len(shards)
+    if sorted(tuple(m.get("shard", (0, 1))) for m in metas) != [(i, count) for i in range(count)]:
+        raise ValueError("Need shards 0..N-1 of one N")
+    fixed = ("checkpoint_sha256", "step", "mode", "beam", "topk", "context", "prior", "readings_sha256",
+             "set_manifest_sha256", "limit")
+    if any(any(m[k] != metas[0][k] for k in fixed) for m in metas):
+        raise ValueError("Shards differ in settings")
+    records, _ = load_set(frozen, metas[0]["limit"])
+    order = {r["id"]: n for n, r in enumerate(records)}
+    rows = [row for d in shards for row in read_jsonl(d / "rows.jsonl")]
+    rows.sort(key=lambda row: order[row["id"]])          # stable: a record's inputs keep their order
+    if len(rows) != sum(len(inputs(r)) for r in records):
+        raise ValueError("Merged shards do not cover the set")
+    out.mkdir(parents=True, exist_ok=True)
+    write_jsonl(out / "rows.jsonl", rows)
+    info = {k: v for k, v in metas[0].items() if k != "shard"}
+    info.update(inputs=len(rows), seconds=max(m["seconds"] for m in metas), shards=count)
     (out / "meta.json").write_text(json.dumps(info, ensure_ascii=False, indent=2) + "\n", "utf-8")
     return info
 
