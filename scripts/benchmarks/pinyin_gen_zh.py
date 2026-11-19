@@ -6,7 +6,7 @@ usage:
       [--no-context] [--device cuda] [--limit N]
   python -X utf8 scripts/benchmarks/pinyin_gen_zh.py report NAME=DIR [NAME=DIR ...] [--base NAME] [--lam 1.6]
 
-Checkpoints: vimeml-tiny-zh-v1, its pinyin post-training stages, and 12K zh-200m (tiny_gpt_zh200m).
+Checkpoints: vimeml-tiny-zh-v1, its pinyin post-training stages, 12K zh-200m (tiny_gpt_zh200m) and zh-800m (tiny_gpt_zh800m).
 The readings dictionary is Vime's (outputs/zh-readings/dict/vime_pinyin.dict.yaml; CC BY-SA sources,
 not committed). Development only; the test split is never read.
 """

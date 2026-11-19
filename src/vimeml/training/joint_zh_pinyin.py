@@ -68,7 +68,8 @@ CROP_MINIMUM = 8
 SOURCE_FILES = ("src/vimeml/training/joint_zh_pinyin.py", "src/vimeml/training/model_zh13.py",
                 "src/vimeml/training/model_v2.py", "src/vimeml/training/train.py",
                 "src/vimeml/training/runtime_v2.py", "src/vimeml/posttraining/streams.py",
-                "scripts/training/train_zh_pinyin.py", "src/vimeml/training/model_zh200m.py")
+                "scripts/training/train_zh_pinyin.py", "src/vimeml/training/model_zh200m.py",
+                "src/vimeml/training/model_zh800m.py", "src/vimeml/training/zh_desktop.py")
 
 
 def read(path):
@@ -383,14 +384,15 @@ def load_source(model, path):
 
 
 def load_teacher(path, plan, device):
-    """The frozen distillation teacher: a 12K tiny_gpt_zh200m with this data's tokenizer."""
-    from vimeml.training.model_zh200m import GPTZh200mConfig, TinyGPTZh200m
+    """The frozen distillation teacher: a 12K tiny_gpt_zh200m or tiny_gpt_zh800m with this data's tokenizer."""
+    from vimeml.training.zh_desktop import desktop_family
     saved = torch.load(path, map_location="cpu", weights_only=True)
-    if saved.get("architecture") != "tiny_gpt_zh200m":
-        raise ValueError("The teacher is not a tiny_gpt_zh200m checkpoint")
+    family = desktop_family(saved)
+    if family is None:
+        raise ValueError("The teacher is not a tiny_gpt_zh200m or tiny_gpt_zh800m checkpoint")
     if (saved.get("tokenizer_identity") or {}).get("tokenizer_model_sha256") != plan["tokenizer_sha256"]:
         raise ValueError("The teacher's tokenizer differs from the data's")
-    teacher = TinyGPTZh200m(GPTZh200mConfig(**saved["model_config"]))
+    teacher = family[1](family[0](**saved["model_config"]))
     teacher.load_state_dict(saved["model"], strict=True)
     teacher.to(device).eval().requires_grad_(False)
     return teacher, {"step": saved.get("step"), "parameters": sum(p.numel() for p in teacher.parameters())}

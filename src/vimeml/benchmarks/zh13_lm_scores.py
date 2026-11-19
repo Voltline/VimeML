@@ -17,6 +17,7 @@ import torch
 from vimeml.training.data import file_sha
 from vimeml.training.joint_zh13 import ARCHITECTURE, FORMAT, SPECIAL
 from vimeml.training.model_zh13 import GPTZh13Config, TinyGPTZh13
+from vimeml.training.zh_desktop import desktop_family
 
 VERSION = "ime-standard-zh-v1-r1"
 # The zh three-task stage-1 trainer continues the 12K model on this tokenizer (configs/data-zh-pinyin.toml)
@@ -32,13 +33,14 @@ def read_jsonl(path):
 def load(checkpoint, tokenizer, device="cpu"):
     import sentencepiece as spm
     saved = torch.load(checkpoint, map_location="cpu", weights_only=True)
-    if (saved.get("format"), saved.get("architecture")) == ("vimeml_tiny_gpt_zh200m", "tiny_gpt_zh200m"):
-        # zh-200m arms: same special ids and scoring, larger shape and its own 16K/24K/32K tokenizer
-        from vimeml.training.model_zh200m import GPTZh200mConfig, TinyGPTZh200m
+    desktop = desktop_family(saved)
+    if desktop is not None:
+        # zh-200m / zh-800m: same special ids and scoring, larger shapes (zh-200m arms also 16K/24K/32K)
         identity = saved["tokenizer_identity"]
         if file_sha(tokenizer) != identity["tokenizer_model_sha256"] or identity["special_ids"] != SPECIAL:
             raise ValueError("Tokenizer differs from the checkpoint's tokenizer identity")
-        model = TinyGPTZh200m(GPTZh200mConfig(**saved["model_config"]))
+        config_class, model_class = desktop
+        model = model_class(config_class(**saved["model_config"]))
         model.load_state_dict(saved["model"], strict=True)
         model.to(device).eval()
         processor = spm.SentencePieceProcessor(model_file=str(tokenizer))
