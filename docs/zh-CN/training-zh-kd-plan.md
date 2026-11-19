@@ -104,6 +104,20 @@ T 固定为 1：重打分和联想用的都是 T = 1 时的概率，调高 T 等
 
 配置是 [train-zh-pinyin-r4.toml](../../configs/train-zh-pinyin-r4.toml)：r3-ctrl 的配方（从 `kd-cont` 继续 30,000 步，种子 20261117，峰值学习率 1e-4），只换老师，所以对照就是 r3-ctrl。老师的 sha256 等 800M 的 final.pt 出来再填。2026-11-19 在本地用随机权重的 800M 测过：同样的批次，800M 前向耗时是 200M 的 3.6 倍；r3-ctrl 用 200M 当老师跑 30,000 步约 45 分钟，换成 800M 估计约 2 小时。
 
+和 r4 一起再跑 7 个臂，各臂互相独立、并行运行（每个约 2 小时；r4-60k 约 4 小时）。每个臂相对 r4 只改一处，用同一套评测和 r4 比：
+
+| 臂 | 相对 r4 的改动 | 回答的问题 |
+|---|---|---|
+| [r4-s2](../../configs/train-zh-pinyin-r4-s2.toml) | 种子 20261118 | r4 的种子噪声 |
+| [r3-ctrl-s2](../../configs/train-zh-pinyin-r3-ctrl-s2.toml) | 200M 老师，种子 20261118 | 第二组老师对比（和 r4-s2 配对） |
+| [r4-t2](../../configs/train-zh-pinyin-r4-t2.toml) | T = 2 | 大老师的分布更平滑时是否更好 |
+| [r4-a07](../../configs/train-zh-pinyin-r4-a07.toml) | α = 0.7 | 老师更强时是否该加大 KL 权重 |
+| [r4-60k](../../configs/train-zh-pinyin-r4-60k.toml) | 60,000 步 | r4 到 30,000 步是否还在涨 |
+| [r4-data](../../configs/train-zh-pinyin-r4-data.toml) | r1、r2 各一半（r3-data 的配比） | 800M 老师下的新文本 |
+| [r4-r2](../../configs/train-zh-pinyin-r4-r2.toml) | 从 `r2-cont` 开始 | 800M 老师从 `kd-cont` 同一起点出发（和 `kd-cont` 配对） |
+
+只有 r4 − r3-ctrl 和 r4-s2 − r3-ctrl-s2 同号，老师对比才算数。配方臂要超过 r4 的幅度大于 r4 − r4-s2，才替换 r4。
+
 ## 偏离记录
 
 （暂无）

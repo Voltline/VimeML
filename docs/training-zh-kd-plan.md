@@ -117,6 +117,20 @@ Once the 800M passes its formal evaluation, start from `kd-cont` with the `kd-co
 
 The config is [train-zh-pinyin-r4.toml](../configs/train-zh-pinyin-r4.toml): r3-ctrl's recipe (continue `kd-cont` for 30,000 updates, seed 20261117, peak LR 1e-4) with only the teacher swapped, so its control is r3-ctrl. The teacher's sha256 is filled in once the 800M's final.pt exists. Measured locally on 2026-11-19 with random 800M weights: on the same batches the 800M forward pass takes 3.6 times as long as the 200M's; r3-ctrl took about 45 minutes for 30,000 updates with the 200M teacher, so about 2 hours is expected with the 800M.
 
+Seven more arms run alongside r4; the arms are independent and run in parallel (about 2 hours each; r4-60k about 4). Each changes one thing from r4 and is compared with it on the same evaluation:
+
+| Arm | Change from r4 | Question |
+|---|---|---|
+| [r4-s2](../configs/train-zh-pinyin-r4-s2.toml) | seed 20261118 | seed noise of r4 |
+| [r3-ctrl-s2](../configs/train-zh-pinyin-r3-ctrl-s2.toml) | 200M teacher, seed 20261118 | second teacher comparison (with r4-s2) |
+| [r4-t2](../configs/train-zh-pinyin-r4-t2.toml) | T = 2 | a larger teacher's softer distribution |
+| [r4-a07](../configs/train-zh-pinyin-r4-a07.toml) | α = 0.7 | more weight on a stronger teacher |
+| [r4-60k](../configs/train-zh-pinyin-r4-60k.toml) | 60,000 updates | whether r4 is still improving at 30,000 |
+| [r4-data](../configs/train-zh-pinyin-r4-data.toml) | half r1, half r2 (r3-data's mix) | unseen text with the 800M teacher |
+| [r4-r2](../configs/train-zh-pinyin-r4-r2.toml) | starts from `r2-cont` | the 800M teacher from `kd-cont`'s own start (pair with `kd-cont`) |
+
+The teacher comparison counts only if r4 − r3-ctrl and r4-s2 − r3-ctrl-s2 have the same sign. A recipe arm replaces r4 only if it beats r4 by more than r4 − r4-s2.
+
 ## Deviations
 
 (None yet.)
