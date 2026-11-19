@@ -12,7 +12,7 @@ single-model deployment would use it); generation is not rerun.
 score: Top-1/3/10 by input kind for the generation order and for genScore + λ·prior, and paired
 comparisons on Top-1 against other runs, with a sentence-cluster sign-flip test.
 
-The test split is never read here.
+The test split is read only through zh_v2_confirm (a committed confirmation plan and its contexts file).
 """
 import json
 import random
@@ -44,12 +44,20 @@ def inputs(record):
     return out
 
 
-def load_set(frozen, limit=0):
+def load_set(frozen, limit=0, split="development", contexts=None, confirmation=None):
+    """Records and in-field contexts. The test split needs a verified committed confirmation plan
+    (`confirmation`, from zh_v2_confirm) and its contexts file, which only the confirmation run builds."""
     frozen = Path(frozen)
-    records = read_jsonl(frozen / "development.jsonl")
-    if any(r.get("split") != "development" for r in records):
-        raise ValueError("development.jsonl holds a non-development record")
-    contexts = {r["id"]: r["infield"] for r in read_jsonl(frozen / "development-contexts.jsonl")}
+    if split == "test":
+        if not (confirmation and confirmation.get("commit")) or contexts is None:
+            raise ValueError("test is read only by the preregistered confirmation run")
+    elif split != "development":
+        raise ValueError(f"Unknown split {split}")
+    records = read_jsonl(frozen / f"{split}.jsonl")
+    if any(r.get("split") != split for r in records):
+        raise ValueError(f"{split}.jsonl holds a record of another split")
+    path = Path(contexts) if contexts else frozen / "development-contexts.jsonl"
+    contexts = {r["id"]: r["infield"] for r in read_jsonl(path)}
     return (records[:limit] if limit else records), contexts
 
 
@@ -64,7 +72,7 @@ def prior_scores(model, processor, context, candidates, device):
 
 
 def run(checkpoint, tokenizer, readings, frozen, out, mode="task", beam=16, topk=10, prior=None,
-        device="cpu", limit=0, use_context=True, shard=(0, 1)):
+        device="cpu", limit=0, use_context=True, shard=(0, 1), split="development", contexts=None, confirmation=None):
     """shard (I, N): only records whose index mod N is I; merge() joins the N shards in set order."""
     import sentencepiece as spm
     from vimeml.benchmarks.zh13_lm_scores import load
@@ -80,7 +88,7 @@ def run(checkpoint, tokenizer, readings, frozen, out, mode="task", beam=16, topk
     if prior:
         prior_model, prior_processor, prior_meta = load(prior, tokenizer, device)
         prior_model.float().eval()
-    records, contexts = load_set(frozen, limit)
+    records, contexts = load_set(frozen, limit, split, contexts, confirmation)
     if not 0 <= shard[0] < shard[1]:
         raise ValueError("shard is I/N with 0 <= I < N")
     records = records[shard[0]::shard[1]]
@@ -106,6 +114,8 @@ def run(checkpoint, tokenizer, readings, frozen, out, mode="task", beam=16, topk
             "prior": None if not prior else {"checkpoint": Path(prior).name, "sha256": prior_meta["checkpoint_sha256"]},
             "readings_sha256": file_sha(readings), "set_manifest_sha256": file_sha(Path(frozen) / "manifest.json"),
             "inputs": len(rows), "limit": limit, "seconds": round(time.time() - started, 1)}
+    if split != "development":
+        info.update(split=split, confirmation=confirmation)
     if shard[1] > 1:
         info["shard"] = list(shard)
     (out / "meta.json").write_text(json.dumps(info, ensure_ascii=False, indent=2) + "\n", "utf-8")
