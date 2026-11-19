@@ -11,7 +11,7 @@ v2 is the Chinese model line after vimeml-tiny-zh-v1. Every v2 model can **gener
 | Release name | Platform | Size | Tokenizer | Candidate | Status |
 | --- | --- | ---: | --- | --- | --- |
 | `vimeml-zh-v2-20m` | mobile | ~20M | 12K (same as v1) | distilled `kd-cont` with self rescoring ([evaluation](reports/zh-kd-eval-20261117/report.md), 2026-11-17); no [round 3](reports/zh-kd-r3-eval-20261117/report.md) arm replaced it | candidate, not final |
-| `vimeml-zh-v2-200m` | desktop | ~200M | 12K | 12K joint pinyin pretraining `zh200m-12k-pinyin-pt`, rescoring with its own scores | passed development evaluation ([report](reports/zh-200m-pinyin-eval-20261116/report.md)); desktop latency 83/205 ms p50/p95 with CUDA graphs in FP16 ([report](reports/zh-desktop-latency-20261118/report.md)); confirmation run pending |
+| `vimeml-zh-v2-200m` | desktop | ~200M | 12K | 12K joint pinyin pretraining `zh200m-12k-pinyin-pt`, rescoring with its own scores | passed development evaluation ([report](reports/zh-200m-pinyin-eval-20261116/report.md)); desktop latency 83/205 ms p50/p95 with CUDA graphs in FP16 ([report](reports/zh-desktop-latency-20261118/report.md)); confirmation run after v2-20m is final, since it is compared with v2-20m |
 | `vimeml-zh-v2-800m` | desktop | 784M | 12K | [zh-800m training plan](training-zh-800m-plan.md) plus pinyin ability | data in preparation |
 
 - **20M** is the mobile model and keeps v1's deployment: Core ML INT8, batched KV decoding and bucketed beam search.
@@ -75,4 +75,4 @@ The data requirements for the mainland China launch apply only to **v2-20m**.
 - Final `vimeml-zh-v2-20m`: the current candidate is the distilled `kd-cont` (2026-11-17). Round 3 replaces it if better; iPhone latency and confirmation scoring are still to come.
 - ~~Whether 200M uses joint pretraining or post-training~~: decided 2026-11-16, joint pretraining with its own rescoring (see the [evaluation report](reports/zh-200m-pinyin-eval-20261116/report.md)).
 - The source of the 800M's pinyin ability, decided after the 200M evaluation and before 800M training starts.
-- Default beam width, decided when the public-set beam sweep finishes. Beam 16 and beam 12 results are in so far, and 16 is significantly better.
+- ~~Default beam width~~: decided 2026-11-19, beam 16 (significantly better than 12; the rest of the sweep is not run).
