@@ -10,6 +10,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from vimeml.benchmarks import pinyin_gen_zh as pg  # noqa: E402
 from vimeml.deployment import zh_v1_batch as zb  # noqa: E402
 from vimeml.deployment.zh_torch_backend import ModelBatchBackend  # noqa: E402
+from vimeml.deployment.zh_torch_graph import GraphBackend  # noqa: E402
 from vimeml.training.model_zh13 import GPTZh13Config, TinyGPTZh13  # noqa: E402
 from vimeml.training.model_zh200m import GPTZh200mConfig, TinyGPTZh200m  # noqa: E402
 
@@ -45,11 +46,65 @@ class BackendTest(unittest.TestCase):
         b, _ = ref.decode([12, 13], [sb, sb])
         self.assertLess((a - b).abs().max().item(), 1e-4)
 
+    def test_rows_from_several_calls_in_any_order(self):
+        torch.manual_seed(1118)
+        model = TinyGPTZh13(GPTZh13Config()).float().eval()
+        backend = ModelBatchBackend(model)
+        seqs = [[2, 4, 100], [2, 9, 8, 7, 6], [2]]
+        states = [backend.prefill(s)[1] for s in seqs]
+        _, first = backend.decode([50, 51, 52], states)            # one call, three rows
+        _, second = backend.decode([60], [states[1]])               # another call
+        mixed = [first[2], second[0], first[0], first[2], states[0]]
+        tokens = [70, 71, 72, 73, 74]
+        prefixes = [seqs[2] + [52], seqs[1] + [60], seqs[0] + [50], seqs[2] + [52], seqs[0]]
+        logits, out = backend.decode(tokens, mixed)
+        for r, s in enumerate(prefixes):
+            self.assertLess((logits[r] - model(torch.tensor([s + [tokens[r]]]))[0, -1]).abs().max().item(), 1e-4)
+        logits, _ = backend.decode([80, 81], [out[1], out[4]])
+        for r, s in ((0, prefixes[1] + [71, 80]), (1, prefixes[4] + [74, 81])):
+            self.assertLess((logits[r] - model(torch.tensor([s]))[0, -1]).abs().max().item(), 1e-4)
+
     def test_200m_shape(self):
         torch.manual_seed(1116)
         model = TinyGPTZh200m(GPTZh200mConfig(vocab_size=12288, context_length=128, d_model=1024, n_heads=16,
                                               n_layers=15, d_ff=2560)).float().eval()
         check(self, model, [[2, 4, 5], [2, 4, 6, 7, 8]], [[100, 200]])
+
+
+@unittest.skipUnless(torch.cuda.is_available(), "CUDA graphs need CUDA")
+class GraphBackendTest(unittest.TestCase):
+    def test_rows_from_several_calls_and_widths(self):
+        torch.manual_seed(1119)
+        model = TinyGPTZh13(GPTZh13Config()).float().eval()
+        reference = TinyGPTZh13(GPTZh13Config()).float().eval()
+        reference.load_state_dict(model.state_dict())
+        backend = GraphBackend(model, rows=4, widths=(8, 16))
+
+        def expect(logits, prefixes):
+            for r, s in enumerate(prefixes):
+                want = reference(torch.tensor([s]))[0, -1]
+                self.assertLess((logits[r].cpu() - want).abs().max().item(), 1e-4)
+
+        seqs = [[2, 4, 100], [2, 9, 8, 7, 6, 5, 4], [2]]
+        states = []
+        for s in seqs:
+            logits, state = backend.prefill(s)
+            expect(logits[None], [s])
+            states.append(state)
+        logits, first = backend.decode([50, 51, 52], states)        # width 8
+        expect(logits, [s + [t] for s, t in zip(seqs, [50, 51, 52])])
+        logits, second = backend.decode([60, 61], [first[1], first[0]])
+        expect(logits, [seqs[1] + [51, 60], seqs[0] + [50, 61]])
+        mixed = [second[0], first[2], states[1], second[1]]          # rows from four sources, any order
+        prefixes = [seqs[1] + [51, 60], seqs[2] + [52], seqs[1], seqs[0] + [50, 61]]
+        logits, out = backend.decode([70, 71, 72, 73], mixed)        # width 16 (a row of length 9)
+        expect(logits, [s + [t] for s, t in zip(prefixes, [70, 71, 72, 73])])
+        with torch.no_grad():
+            tail = prefixes[0] + [70]
+            for t in range(80, 87):                                   # past both widths: the full context
+                logits, out = backend.decode([t], [out[0]])
+                tail = tail + [t]
+            expect(logits, [tail])
 
 
 class ScoreTest(unittest.TestCase):

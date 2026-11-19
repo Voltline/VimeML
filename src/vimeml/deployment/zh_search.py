@@ -17,6 +17,8 @@ import math
 from dataclasses import dataclass, field
 from itertools import product
 
+import numpy as np
+
 BOS, EOS, CTX, READ, OUT = 2, 3, 4, 5, 6
 LIMIT = 128
 MAX_SPELLINGS = 4096
@@ -92,7 +94,13 @@ def prompt_ids(sp, keys, context="", mode="lm"):
 
 
 def log_softmax(logits):
-    return logits.float().log_softmax(-1)
+    """Row log-probs as a host array: the search reads one entry per move, and reading device tensors
+    entry by entry costs a device sync each (about 4 ms per hypothesis on CUDA)."""
+    if hasattr(logits, "detach"):
+        return logits.detach().float().log_softmax(-1).cpu().numpy()
+    x = np.asarray(logits, dtype=np.float32)
+    m = x.max(-1, keepdims=True)
+    return x - (m + np.log(np.exp(x - m).sum(-1, keepdims=True)))
 
 
 def search(backend, sp, index, keys, context="", mode="lm", beam=16, topk=10):
@@ -106,10 +114,23 @@ def search(backend, sp, index, keys, context="", mode="lm", beam=16, topk=10):
     # A backend with `scored = True` takes the bucket's allowed ids and returns log-probs on them only
     # (a dict id -> log-prob row); otherwise it returns full logits and the search normalizes.
     scored = getattr(backend, "scored", False)
+    room = LIMIT - len(base)              # a hypothesis may hold fewer tokens than this
+    groups = {}
+
+    def moves_at(pos):
+        """[(end, token ids, the same as an array)], in Index.moves order; cached per position."""
+        g = groups.get(pos)
+        if g is None:
+            g = groups[pos] = []
+            for end in range(pos + 1, min(n, pos + index.max_len) + 1):
+                if ok[end]:
+                    tids = list(index.by_spelling.get(keys[pos:end], ()))
+                    if tids:
+                        g.append((end, tids, np.array(tids, dtype=np.int64)))
+        return g
 
     def allowed(pos):
-        ids = sorted({tid for tid, _, _ in index.moves(keys, pos, ok)} | ({EOS} if pos == n else set()))
-        return ids
+        return sorted({t for _, tids, _ in moves_at(pos) for t in tids} | ({EOS} if pos == n else set()))
 
     if scored:
         ids0 = allowed(0)
@@ -118,8 +139,9 @@ def search(backend, sp, index, keys, context="", mode="lm", beam=16, topk=10):
     else:
         logits, state = backend.prefill(base)
         root_lp = log_softmax(logits)
-    # bucket entry: (tokens, score, parent log-probs row or None, parent state, last token)
-    buckets = {0: [((), 0.0, root_lp, state)]}
+    # Children are kept per target position as chunks (parent tokens, parent state, token ids, scores),
+    # appended in the order the per-hypothesis loop made them, and only turned into hypotheses when kept.
+    buckets = {}
     done = {}
 
     def finish(toks, score):
@@ -128,43 +150,62 @@ def search(backend, sp, index, keys, context="", mode="lm", beam=16, topk=10):
             done[text] = (score, list(toks))
 
     def expand(toks, score, lp, st, pos):
-        for tid, end, _ in index.moves(keys, pos, ok):
-            buckets.setdefault(end, []).append((toks + (tid,), score + float(lp[tid]), None, (st, tid)))
+        if len(toks) + 1 >= room:
+            return
+        for end, tids, arr in moves_at(pos):
+            if isinstance(lp, dict):
+                values = np.array([lp[t] for t in tids], dtype=np.float64) + score
+            else:
+                values = lp[arr].astype(np.float64) + score
+            buckets.setdefault(end, []).append((toks, st, tids, values))
 
-    for pos in range(n + 1):
-        hyps = buckets.pop(pos, None)
-        if not hyps:
-            continue
-        hyps.sort(key=lambda h: -h[1])
+    def best(chunks):
+        """The bucket's top `beam` distinct hypotheses (tokens, score, parent state, last token): the
+        stable descending order of the old list sort, read lazily."""
+        values = np.concatenate([c[3] for c in chunks]) if len(chunks) > 1 else chunks[0][3]
+        owner = np.repeat(np.arange(len(chunks)), [len(c[2]) for c in chunks])
+        start = np.cumsum([0] + [len(c[2]) for c in chunks])
+        order = np.argsort(-values, kind="stable")
         kept, seen = [], set()
-        for h in hyps:
-            if h[0] not in seen and len(base) + len(h[0]) < LIMIT:
-                seen.add(h[0])
-                kept.append(h)
-            if len(kept) == beam:
-                break
+        for lo in range(0, len(order), 4 * beam):
+            for i in order[lo:lo + 4 * beam].tolist():
+                c = int(owner[i])
+                toks, st, tids, _ = chunks[c]
+                tid = tids[i - int(start[c])]
+                child = toks + (tid,)
+                if child not in seen:
+                    seen.add(child)
+                    kept.append((child, float(values[i]), st, tid))
+                    if len(kept) == beam:
+                        return kept
+        return kept
+
+    if n == 0:
+        finish((), 0.0 if mode == "lm" else float(root_lp[EOS]))
+    expand((), 0.0, root_lp, state, 0)
+    for pos in range(1, n + 1):
+        chunks = buckets.pop(pos, None)
+        if not chunks:
+            continue
+        kept = best(chunks)
         if pos == n and mode == "lm":
             for toks, score, _, _ in kept:
                 finish(toks, score)
             break
-        ready = [h for h in kept if h[2] is not None]          # only the root (pos 0) has log-probs already
-        pending = [h for h in kept if h[2] is None]
-        if pending:
-            if scored:
-                ids = allowed(pos)
-                out, states = backend.decode([h[3][1] for h in pending], [h[3][0] for h in pending], ids)
-                lps = [dict(zip(ids, row.tolist())) for row in out]
-            else:
-                out, states = backend.decode([h[3][1] for h in pending], [h[3][0] for h in pending])
-                lps = log_softmax(out)
-            stats.calls += 1
-            stats.rows += len(pending)
-            stats.buckets.append(len(pending))
-            ready += [(h[0], h[1], lps[r], states[r]) for r, h in enumerate(pending)]
-        for toks, score, lp, st in ready:
+        if scored:
+            ids = allowed(pos)
+            out, states = backend.decode([h[3] for h in kept], [h[2] for h in kept], ids)
+            lps = [dict(zip(ids, row.tolist())) for row in out]
+        else:
+            out, states = backend.decode([h[3] for h in kept], [h[2] for h in kept])
+            lps = log_softmax(out)
+        stats.calls += 1
+        stats.rows += len(kept)
+        stats.buckets.append(len(kept))
+        for r, (toks, score, _, _) in enumerate(kept):
             if pos == n:
-                finish(toks, score + float(lp[EOS]))
+                finish(toks, score + float(lps[r][EOS]))
             else:
-                expand(toks, score, lp, st, pos)
+                expand(toks, score, lps[r], states[r], pos)
     ranked = sorted(((t, s, ids) for t, (s, ids) in done.items()), key=lambda x: -x[1])[:topk]
     return ranked, stats

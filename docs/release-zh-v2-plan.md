@@ -11,7 +11,7 @@ v2 is the Chinese model line after vimeml-tiny-zh-v1. Every v2 model can **gener
 | Release name | Platform | Size | Tokenizer | Candidate | Status |
 | --- | --- | ---: | --- | --- | --- |
 | `vimeml-zh-v2-20m` | mobile | ~20M | 12K (same as v1) | distilled `kd-cont` with self rescoring ([evaluation](reports/zh-kd-eval-20261117/report.md), 2026-11-17); no [round 3](reports/zh-kd-r3-eval-20261117/report.md) arm replaced it | candidate, not final |
-| `vimeml-zh-v2-200m` | desktop | ~200M | 12K | 12K joint pinyin pretraining `zh200m-12k-pinyin-pt`, rescoring with its own scores | passed development evaluation ([report](reports/zh-200m-pinyin-eval-20261116/report.md)); latency and confirmation run pending |
+| `vimeml-zh-v2-200m` | desktop | ~200M | 12K | 12K joint pinyin pretraining `zh200m-12k-pinyin-pt`, rescoring with its own scores | passed development evaluation ([report](reports/zh-200m-pinyin-eval-20261116/report.md)); desktop latency 83/205 ms p50/p95 with CUDA graphs in FP16 ([report](reports/zh-desktop-latency-20261118/report.md)); confirmation run pending |
 | `vimeml-zh-v2-800m` | desktop | 784M | 12K | [zh-800m training plan](training-zh-800m-plan.md) plus pinyin ability | data in preparation |
 
 - **20M** is the mobile model and keeps v1's deployment: Core ML INT8, batched KV decoding and bucketed beam search.
@@ -53,7 +53,7 @@ These are principles. The exact numbers and tests go into each model's confirmat
    - Prediction results do not decide whether a model ships.
 4. **Latency.**
    - The 20M is measured on an iPhone (v1's batched KV packages have not been measured there yet).
-   - The desktop models get full-search p50/p95 measured on a Mac.
+   - The desktop models get full-search p50/p95 measured on Windows in PyTorch (deviation, 2026-11-18: a desktop client would be a Windows client, so not a Mac; [report](reports/zh-desktop-latency-20261118/report.md)).
 5. **One confirmation run.**
    - Each released model's candidate and scoring rule are fixed before its blind and public test split are opened, and the run is done once.
    - Settings tuned on development (λ, beam width and so on) are frozen at that point and not changed afterwards.
