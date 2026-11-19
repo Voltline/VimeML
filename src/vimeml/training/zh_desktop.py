@@ -1,8 +1,10 @@
-"""Model classes of the zh desktop checkpoints (zh-200m, zh-800m), looked up from a checkpoint's header."""
+"""Model classes of the zh desktop checkpoints (zh-200m, zh-800m, zh-800m arch2), looked up from a checkpoint's header."""
 import importlib
 
 DESKTOP = {("vimeml_tiny_gpt_zh200m", "tiny_gpt_zh200m"): ("model_zh200m", "GPTZh200mConfig", "TinyGPTZh200m"),
-           ("vimeml_tiny_gpt_zh800m", "tiny_gpt_zh800m"): ("model_zh800m", "GPTZh800mConfig", "TinyGPTZh800m")}
+           ("vimeml_tiny_gpt_zh800m", "tiny_gpt_zh800m"): ("model_zh800m", "GPTZh800mConfig", "TinyGPTZh800m"),
+           ("vimeml_tiny_gpt_zh800m_arch2", "tiny_gpt_zh800m_arch2"): ("model_zh800m_arch2", "GPTZh800mArch2Config",
+                                                                     "TinyGPTZh800mArch2")}
 
 
 def desktop_family(saved):

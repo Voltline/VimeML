@@ -286,7 +286,7 @@ def update_joint(model, optimizer, lm_batch, extra, weights, s, device, precisio
     # With lm_microbatch < lm_batch every task's share on this rank runs in pieces of at most the LM share's
     # rows / (lm_batch / lm_microbatch); losses are sums, so the gradient is unchanged. Equal sizes: one piece.
     work = [(kind, batch) for kind, batch in work if batch is not None]
-    if s["lm_microbatch"] < s["lm_batch"]:
+    if s.get("lm_batch", s["lm_microbatch"]) > s["lm_microbatch"]:
         cap = -(-len(work[0][1]["lengths"]) // (s["lm_batch"] // s["lm_microbatch"]))
         work = [(kind, piece) for kind, batch in work for piece in split_rows(batch, cap)]
     for i, (kind, batch) in enumerate(work):

@@ -268,6 +268,21 @@ arch2 and arch1 use the same data and the same number of tokens (batch and learn
 - FP8 and any other matmul precision below BF16 (prohibited).
 - Changing the loss normalization. Batch, learning rate, warmup and step count change only by the Larger updates scaling, with no separate tuning.
 
+## Implementation (2026-11-19)
+
+Done, with unit tests (`tests/test_zh800m_arch2.py`, `tests/test_zh_batch_precheck.py`):
+
+- `model_zh800m_arch2`: the frozen shape (776,524,928 parameters, checked at construction), RoPE, GQA through `enable_gqa`, QK-norm; the ordinary forward, the packed forward (`segments`: positions restart per segment, causal within a segment; flex_attention on CUDA, a dense mask elsewhere) and `forward_cached`. Tests: GQA equals per-head repetition; the KV path matches the full forward; packed loss, gradients and logits equal separate per-window forwards; the CUDA flex mask equals the dense mask.
+- Trainer: stage `zh-800m-arch2` in `joint_zh200m` (8192 or 16384 windows per update). Each rank's rows of every task are packed first-fit decreasing into 2048-token rows and run in passes of `lm_microbatch × 512 ÷ 2048` rows, with arch1's per-token weights and normalization; the gradient equals the padded update's (test). The compiled hidden stack takes positions and the mask as inputs.
+- Evaluation: the search backend, Standard scoring, pinyin generation, prediction and the distillation teacher load arch2 checkpoints through `zh_desktop`.
+- Configs: `configs/train-zh800m-arch2-k4.toml` and `-k8.toml` (only the one the precheck picks runs) and the precheck's three 200M configs.
+
+Not yet done; each waits for step 0's report, which fixes the execution scope:
+
+- data-parallel balance by tokens (rows are still shared as contiguous blocks);
+- removing the per-update host syncs, CUDA Graphs, communication overlap and GEMM tuning (More speedups 1–4);
+- Core ML export of arch2.
+
 ## Deviations
 
 (None yet.)

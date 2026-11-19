@@ -251,6 +251,21 @@ arch2 与 arch1 用同样的数据、同样的 token 数（批量和学习率按
 - FP8 及其他低于 BF16 精度的矩阵乘（禁止）；
 - 改 loss 归一化；批量、学习率、warmup 和步数只按「加大批量」的换算改，不另调。
 
+## 实现情况（2026-11-19）
+
+已完成，有单元测试（`tests/test_zh800m_arch2.py`、`tests/test_zh_batch_precheck.py`）：
+
+- `model_zh800m_arch2`：冻结的形状（776,524,928 参数，构造时检查）、RoPE、GQA（`enable_gqa`）、QK-norm；普通前向、打包前向（`segments`：每段位置从 0 开始，只在段内因果注意；CUDA 上用 flex_attention，其他设备用稠密掩码）和 `forward_cached`。测试：GQA 等于逐头复制；KV 路径与完整前向一致；打包后的 loss、梯度和 logits 与逐窗口单独前向一致；CUDA 上 flex 掩码与稠密掩码一致。
+- 训练器：`joint_zh200m` 新增 stage `zh-800m-arch2`（每次更新 8192 或 16384 个窗口）。每张卡上所有任务的行按首次适配降序打包成 2048 token 的行，每次前向 `lm_microbatch × 512 ÷ 2048` 行；逐 token 权重和归一化与 arch1 相同，梯度与不打包的更新一致（有测试）。编译的隐藏层栈以位置和掩码为输入。
+- 评测：搜索后端、Standard 打分、拼音生成、预测和蒸馏教师都通过 `zh_desktop` 加载 arch2 检查点。
+- 配置：`configs/train-zh800m-arch2-k4.toml` 和 `-k8.toml`（只运行预检选中的那个），以及预检的三个 200M 配置。
+
+尚未完成，都等第 0 步报告确定执行范围后再做：
+
+- 数据并行按 token 数均衡（目前仍按连续行块分给各卡）；
+- 去掉每次更新的主机同步、CUDA Graphs、通信重叠和 GEMM 调优（更多提速第 1–4 项）；
+- arch2 的 Core ML 导出。
+
 ## 偏离记录
 
 （暂无）

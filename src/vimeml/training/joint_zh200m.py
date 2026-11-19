@@ -12,7 +12,9 @@ the end (final.pt).
 
 The same trainer runs the zh-800m model (stage "zh-800m", docs/zh-CN/training-zh-800m-plan.md):
 its own shape, its three-web-store mixture and 2048 windows per update; everything
-else (loop, validation, milestones, checkpoints, data parallelism) is shared.
+else (loop, validation, milestones, checkpoints, data parallelism) is shared. Stage "zh-800m-arch2"
+(docs/training-zh-800m-arch2-plan.md) is the arch2 model on the same data at 8192 or 16384 windows per
+update; its training rows are packed into 2048-token rows of per-segment causal attention (packed_update).
 
 Joint pinyin pretraining (optional [pinyin] section, the zh-800m deviation of 2026-11-17): the
 arm's mixture, seed, schedule and budget stay unchanged, and every update adds pinyin.mix samples
@@ -46,7 +48,7 @@ import numpy as np
 import torch
 
 from vimeml.training.data import SentenceWindowDataset, file_sha, write_json
-from vimeml.training import model_zh800m, zh200m_data, zh800m_data
+from vimeml.training import model_zh800m, model_zh800m_arch2, zh200m_data, zh800m_data
 from vimeml.training.model_zh200m import SHAPES, GPTZh200mConfig, TinyGPTZh200m
 from vimeml.training.train import (optimizer_for, learning_rate, atomic_checkpoint, rng_state,
                                    restore_rng, resolve_precision, amp_context)
@@ -77,9 +79,11 @@ TASK_CONTRACT = {
 
 class Family:
     def __init__(self, stage, architecture, fmt, config_class, model_class, shapes, data, windows, tags):
+        """windows: the LM windows per update, or a tuple of the allowed ones."""
         self.stage, self.architecture, self.format = stage, architecture, fmt
         self.config_class, self.model_class, self.shapes = config_class, model_class, shapes
         self.data, self.windows, self.tags = data, windows, tags
+        self.allowed = windows if isinstance(windows, tuple) else (windows,)
 
     def arm(self, name):
         """(vocab, context, pool or None, epochs, seed) of a registered arm."""
@@ -99,6 +103,12 @@ FAMILIES = {
     # over ~100B tokens, too small a batch for the model and for data parallelism.
     "zh-800m": Family("zh-800m", "tiny_gpt_zh800m", "vimeml_tiny_gpt_zh800m", model_zh800m.GPTZh800mConfig,
                       model_zh800m.TinyGPTZh800m, model_zh800m.SHAPES, zh800m_data, 2048, ["zh-800m"]),
+    # arch2 (docs/training-zh-800m-arch2-plan.md): the zh-800m data at k = 4 or 8 times arch1's 2048 windows,
+    # training rows packed to 2048 tokens with per-segment causal attention (model_zh800m_arch2).
+    "zh-800m-arch2": Family("zh-800m-arch2", "tiny_gpt_zh800m_arch2", "vimeml_tiny_gpt_zh800m_arch2",
+                            model_zh800m_arch2.GPTZh800mArch2Config, model_zh800m_arch2.TinyGPTZh800mArch2,
+                            {(12_288, 512): (model_zh800m_arch2.LAYERS, model_zh800m_arch2.PARAMETERS)}, zh800m_data,
+                            (8192, 16384), ["zh-800m", "arch2"]),
 }
 
 
@@ -131,8 +141,8 @@ def build_plan(config, root=ROOT, verify_files=True):
     if ((model.vocab_size, model.context_length, model.n_layers, s["seed"])
             != (vocab, context, family.shapes[(vocab, context)][0], seed)):
         raise ValueError(f"{arm} configuration differs from its registered arm")
-    if s["lm_batch"] != family.windows:
-        raise ValueError(f"{family.stage} fixes {family.windows} windows per update; "
+    if s["lm_batch"] not in family.allowed:
+        raise ValueError(f"{family.stage} takes {family.windows} windows per update; "
                          f"{s['lm_batch']} does not match")
     for key in ("lm_batch", "lm_microbatch", "num_workers", "cpu_threads", "log_every", "eval_every",
                 "checkpoint_every", "validation_batch", "bucket_multiplier", "warmup_steps"):
@@ -208,7 +218,7 @@ def build_plan(config, root=ROOT, verify_files=True):
             "budget": {"web_characters_total": mix["web_characters_total"], "chat_passes": mix["chat_passes"],
                        "effective_tokens": sum(r["effective_tokens"] for r in mix["epochs"])},
             "required_files": {Path(p).resolve().as_posix(): h for p, h in required.items()},
-            "task_contract": {**TASK_CONTRACT, "windows_per_update": family.windows, "arm": arm, "pool": pool,
+            "task_contract": {**TASK_CONTRACT, "windows_per_update": s["lm_batch"], "arm": arm, "pool": pool,
                               "epochs": epochs,
                               "context_length": context, "lm_batch": s["lm_batch"]}}
     if "pinyin" in config:
@@ -355,6 +365,9 @@ def update_joint(model, optimizer, batches, weights, s, device, precision, ctx=N
             parts.append((kinds.index(kind), part))
     scale = torch.tensor([weights[k] * ctx.world / tokens[k] for k in kinds], dtype=torch.float32)
     budget = s["lm_microbatch"] * model.config.context_length
+    if getattr(model, "packed_training", False):
+        return packed_update(model, optimizer, batches, kinds, tokens, parts, scale, budget, s, device, precision,
+                             ctx, net)
     work = packed_rows(parts, budget)
     totals = torch.zeros(len(kinds), dtype=torch.float32, device=device)
     positions = 0
@@ -385,6 +398,61 @@ def update_joint(model, optimizer, batches, weights, s, device, precision, ctx=N
         raise FloatingPointError("Non-finite joint training loss")
     grad_norm = float(torch.nn.utils.clip_grad_norm_(model.parameters(), s["grad_clip"], error_if_nonfinite=True))
     optimizer.step()
+    return {"loss": sums["lm"] / tokens["lm"], "supervised_tokens": tokens["lm"],
+            "input_tokens": int(lm["lengths"].sum()), "examples": len(lm["lengths"]),
+            "padded_positions": positions, "grad_norm": grad_norm,
+            "pinyin": {k: {"loss": sums[k] / tokens[k], "supervised_tokens": tokens[k],
+                           "examples": len(batches[k]["lengths"])} for k in kinds if k != "lm"}}
+
+
+def segment_microbatches(parts, length, limit, rows_per_pass):
+    """Packed training rows of this rank (arch2): every row of every task is one segment, packed first-fit
+    decreasing into rows of `length` tokens (model_zh800m_arch2.pack), then cut into passes of at most
+    rows_per_pass rows. Returns [(input_ids, labels, segments, position kind), ...]; padding positions have
+    label -100 and kind 0. A one-row pass gets an empty second row (segment -1, no labels), as packed_rows'
+    microbatches do, so compiled shapes never specialize on one row."""
+    sequences, kinds = [], []
+    for k, batch in parts:
+        for r, n in enumerate(batch["lengths"].tolist()):
+            sequences.append((batch["input_ids"][r, :n].long(), batch["labels"][r, :n].long()))
+            kinds.append(k)
+    ids, labels, segments, _ = model_zh800m_arch2.pack(sequences, length, limit)
+    kind = torch.tensor(kinds, dtype=torch.long)[segments.clamp(min=0)]
+    out = []
+    for a in range(0, len(ids), rows_per_pass):
+        part = [t[a:a + rows_per_pass] for t in (ids, labels, segments, kind)]
+        if len(part[0]) == 1:
+            pads = (0, -100, -1, 0)
+            part = [torch.cat([t, torch.full_like(t, pad)]) for t, pad in zip(part, pads)]
+        out.append(tuple(part))
+    return out
+
+
+def packed_update(model, optimizer, batches, kinds, tokens, parts, scale, budget, s, device, precision, ctx, net):
+    """update_joint for a packing model: same per-token weights and normalization, rows packed into segments."""
+    length = model.config.pack_length
+    work = segment_microbatches(parts, length, model.config.context_length, max(1, budget // length))
+    totals = torch.zeros(len(kinds), dtype=torch.float32, device=device)
+    positions = 0
+    for i, (ids, labels, segments, kind) in enumerate(work):
+        ids, labels = ids.to(device, non_blocking=True), labels.to(device, non_blocking=True)
+        segments, kind = segments.to(device, non_blocking=True), kind.to(device, non_blocking=True)
+        with ctx.no_sync(net, i == len(work) - 1):
+            with amp_context(device, precision):
+                out = net(ids, labels, token_weights=scale.to(device)[kind], segments=segments)
+            out["loss_sum"].backward()
+        totals += torch.bincount(kind[labels != -100], weights=out["token_losses"].float(), minlength=len(kinds))
+        positions += ids.numel()
+    sums = totals.tolist()
+    if ctx.active:
+        *sums, positions = ctx.sum(sums + [positions], device)
+        positions = int(positions)
+    sums = dict(zip(kinds, sums))
+    if not all(math.isfinite(v) for v in sums.values()):
+        raise FloatingPointError("Non-finite joint training loss")
+    grad_norm = float(torch.nn.utils.clip_grad_norm_(model.parameters(), s["grad_clip"], error_if_nonfinite=True))
+    optimizer.step()
+    lm = batches["lm"]
     return {"loss": sums["lm"] / tokens["lm"], "supervised_tokens": tokens["lm"],
             "input_tokens": int(lm["lengths"].sum()), "examples": len(lm["lengths"]),
             "padded_positions": positions, "grad_norm": grad_norm,
@@ -618,7 +686,10 @@ def run(config, resume=False, root=ROOT):
     put(output / "config.json", config)
     put(output / "plan.json", plan)
     if config["runtime"]["compile_backbone"]:
-        from vimeml.training.runtime_v2 import compile_backbone
+        if getattr(model, "packed_training", False):
+            from vimeml.training.model_zh800m_arch2 import compile_backbone
+        else:
+            from vimeml.training.runtime_v2 import compile_backbone
         compilation = compile_backbone(model)
     else:
         compilation = None

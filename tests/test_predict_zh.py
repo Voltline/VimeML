@@ -134,21 +134,26 @@ class DecoderTest(unittest.TestCase):
                     i += len(self.pieces[best])
                 return ids
 
+        from vimeml.training.model_zh800m_arch2 import Arch2Config, Arch2Decoder
         torch.manual_seed(0)
         config = GPTV2Config(vocab_size=13, context_length=48, d_model=32, n_heads=4, n_layers=2, d_ff=64)
-        lm = P.VimeLM(TinyGPTV2(config).eval(), Processor(), "cpu", {"bos": 2, "eos": 3, "pad": 0})
+        arch2 = Arch2Config(vocab_size=13, context_length=48, d_model=32, n_heads=4, n_kv_heads=2, n_layers=2,
+                            d_ff=64, pack_length=48)
+        for model in (TinyGPTV2(config), Arch2Decoder(arch2)):  # learned positions; RoPE + GQA (zh-800m arch2)
+            lm = P.VimeLM(model.eval(), Processor(), "cpu", {"bos": 2, "eos": 3, "pad": 0})
 
-        class Plain:  # the same model without prefill/extend: one search at a time, full passes
-            vocabulary, context_length, context, logprobs = lm.vocabulary, lm.context_length, lm.context, lm.logprobs
+            class Plain:  # the same model without prefill/extend: one search at a time, full passes
+                vocabulary, context_length, context, logprobs = lm.vocabulary, lm.context_length, lm.context, lm.logprobs
 
-        readings = {**READINGS, "，": set()}
-        jobs = [(["我们去"], "", None), ([], "去我们", None), ([], "去", P.Constraint("initials", "wm")),
-                ([], "去我", P.Constraint("syllable", "chi")), (["吃饭", "我们"], "吃饭，", None), ([], "吃", None)]
-        for beam in (2, 16):
-            got, want = P.predict_many(lm, jobs, readings, beam=beam), P.predict_many(Plain(), jobs, readings, beam=beam)
-            self.assertTrue(any(want))
-            for g, w in zip(got, want):
-                self.assert_same(g, w)
+            readings = {**READINGS, "，": set()}
+            jobs = [(["我们去"], "", None), ([], "去我们", None), ([], "去", P.Constraint("initials", "wm")),
+                    ([], "去我", P.Constraint("syllable", "chi")), (["吃饭", "我们"], "吃饭，", None), ([], "吃", None)]
+            for beam in (2, 16):
+                got = P.predict_many(lm, jobs, readings, beam=beam)
+                want = P.predict_many(Plain(), jobs, readings, beam=beam)
+                self.assertTrue(any(want))
+                for g, w in zip(got, want):
+                    self.assert_same(g, w)
 
     def test_select_drops_prefix_related_candidates(self):
         chosen = P.select({"我们": -1.0, "我们去": -0.5, "我": -2.0, "去": -3.0, "吃饭": -4.0}, top=5)

@@ -69,7 +69,8 @@ SOURCE_FILES = ("src/vimeml/training/joint_zh_pinyin.py", "src/vimeml/training/m
                 "src/vimeml/training/model_v2.py", "src/vimeml/training/train.py",
                 "src/vimeml/training/runtime_v2.py", "src/vimeml/posttraining/streams.py",
                 "scripts/training/train_zh_pinyin.py", "src/vimeml/training/model_zh200m.py",
-                "src/vimeml/training/model_zh800m.py", "src/vimeml/training/zh_desktop.py")
+                "src/vimeml/training/model_zh800m.py", "src/vimeml/training/model_zh800m_arch2.py",
+                "src/vimeml/training/zh_desktop.py")
 
 
 def read(path):

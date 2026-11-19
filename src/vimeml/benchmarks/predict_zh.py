@@ -370,7 +370,16 @@ class VimeLM:
         config = self.model.config
         return max(1, (1 << 30) // (8 * config.n_layers * config.d_model * width))
 
-    def _qkv(self, block, hidden):
+    def _embed(self, tokens, positions):
+        m = self.model
+        if hasattr(m, "layer_qkv"):  # zh-800m arch2: RoPE inside attention, no position table
+            return m.embed(tokens, positions)
+        return m.token_embedding(tokens) + m.position_embedding(positions)
+
+    def _qkv(self, block, hidden, positions):
+        """query [batch, heads, size, head_dim]; key and value with the model's KV heads (GQA: fewer)."""
+        if hasattr(self.model, "layer_qkv"):
+            return self.model.layer_qkv(block, hidden, positions)
         heads = self.model.config.n_heads
         batch, size, width = hidden.shape
         qkv = block.attention.qkv(block.attention_norm(hidden)).reshape(batch, size, 3, heads, width // heads)
@@ -393,11 +402,12 @@ class VimeLM:
         tokens = torch.tensor([c + [0] * (width - len(c)) for c in contexts], device=device)
         positions = torch.arange(width, device=device)
         mask = ((positions[:, None] >= positions[None, :])[None] & (positions[None, :] < n[:, None])[:, None])[:, None]
-        hidden = m.token_embedding(tokens) + m.position_embedding(positions)
+        hidden = self._embed(tokens, positions)
         keys, values = [], []
         for block in m.blocks:
-            query, key, value = self._qkv(block, hidden)
-            attended = torch.nn.functional.scaled_dot_product_attention(query, key, value, attn_mask=mask)
+            query, key, value = self._qkv(block, hidden, positions)
+            attended = torch.nn.functional.scaled_dot_product_attention(query, key, value, attn_mask=mask,
+                                                                        enable_gqa=True)
             hidden = self._block(block, hidden, attended)
             keys.append(key)
             values.append(value)
@@ -421,8 +431,8 @@ class VimeLM:
             keys, values, n = cache["keys"][:, rows], cache["values"][:, rows], cache["n"][rows]
             width = keys.shape[3]
             offsets = torch.arange(size, device=device)
-            hidden = (m.token_embedding(part) + m.position_embedding(n[:, None] + offsets)[:, None]).reshape(
-                batch, beams * size, -1)
+            where = (n[:, None] + offsets).repeat(1, beams)                                 # [batch, B*s]
+            hidden = self._embed(part.reshape(batch, beams * size), where)
             beam = torch.arange(beams, device=device).repeat_interleave(size)
             at = offsets.repeat(beams)
             own = (beam[:, None] == beam[None, :]) & (at[:, None] >= at[None, :])          # [B*s, B*s]
@@ -430,9 +440,10 @@ class VimeLM:
             mask = torch.cat([seen[:, None, :].expand(batch, beams * size, width),
                               own[None].expand(batch, -1, -1)], 2)[:, None]
             for layer, block in enumerate(m.blocks):
-                query, key, value = self._qkv(block, hidden)
+                query, key, value = self._qkv(block, hidden, where)
                 attended = torch.nn.functional.scaled_dot_product_attention(
-                    query, torch.cat([keys[layer], key], 2), torch.cat([values[layer], value], 2), attn_mask=mask)
+                    query, torch.cat([keys[layer], key], 2), torch.cat([values[layer], value], 2), attn_mask=mask,
+                    enable_gqa=True)
                 hidden = self._block(block, hidden, attended)
             out.append(self._head(hidden.reshape(batch, beams, size, -1)[:, :, -1]))
         return torch.cat(out)
