@@ -116,7 +116,10 @@ class GQAttention(nn.Module):
         query = self.query_norm(self.query(hidden).view(batch, time, self.heads, self.head_dim)).transpose(1, 2)
         key = self.key_norm(self.key(hidden).view(batch, time, self.kv_heads, self.head_dim)).transpose(1, 2)
         value = self.value(hidden).view(batch, time, self.kv_heads, self.head_dim).transpose(1, 2)
-        return rope(query, positions, self.theta), rope(key, positions, self.theta), value
+        # RMSNorm multiplies its FP32 weight, so under BF16 autocast query and key come out FP32 while value
+        # stays BF16; flex_attention and SDPA need one dtype. rope keeps its input dtype, so cast after it.
+        return (rope(query, positions, self.theta).to(value.dtype),
+                rope(key, positions, self.theta).to(value.dtype), value)
 
     def forward(self, hidden, positions, mask=None):
         """mask None: causal; a BlockMask: flex_attention; a bool tensor [B, 1, T, T]: dense SDPA."""

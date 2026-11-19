@@ -83,6 +83,34 @@ Decision:
 - **Host work above 15%**: move packing into the DataLoader workers and merge the per-update syncs into one.
 - Step 0 ends with a short report that fixes the scope of the execution changes.
 
+### Step 0 result (2026-11-19)
+
+Measured with `scripts/training/step0_zh800m.py` on the arch1 pinyin config, random weights, 10 untimed updates then 30 timed:
+
+| | 8 ranks | rank 0's share in one process |
+| --- | ---: | ---: |
+| Update time, median (p90) | 0.144 s (0.299 s) | 0.104 s (0.212 s) |
+| Data wait + packing | 1.6 ms | 1.5 ms |
+| Padding ratio | 1.38 | 1.38 |
+| Profile: compute / exposed communication / GPU idle | 43% / 26% / 32% | 79% / 0 / 21% |
+
+- FP32 all-reduce of the 3.1 GB gradient: 6.6 ms as one tensor, 17 ms as 25 MB buckets; the transport is direct GPU-to-GPU.
+- **Communication and synchronization**: 0.040 s per update (0.144 − 0.104), 28% of an update, below the 30% threshold. The all-reduce itself takes at most 17 ms, so most of this time is ranks waiting for the slowest rank. Rows are shared by count, not by tokens, and the p90 is twice the median.
+- **Host work**: data wait and packing are about 1% of an update, below the 15% threshold.
+- **GPU idle in a single process**: 21% (about 0.025 s per update), from the synchronizations and kernel launches inside the update.
+- The formal arch1 run takes 0.182 s per update, 0.038 s more than the update measured here; the difference is the trainer loop outside the update (the stop-flag all-reduce, bookkeeping, logging, checkpoints and validation).
+- The profiler adds overhead (a profiled update takes 0.255 s instead of 0.144 s), so its shares are indicative only.
+
+Scope fixed by step 0:
+
+1. Data-parallel balance by tokens: in scope; it targets the waiting time above.
+2. DDP buckets (`gradient_as_bucket_view`, a larger `bucket_cap_mb`): in scope. BF16 gradient communication: not needed.
+3. Packing stays in the main process.
+4. Merge the per-update host synchronizations into one, and fold the stop flag into the update's existing all-reduce: in scope, aimed at the GPU idle time and the loop overhead.
+5. CUDA Graphs: only if idle time remains after item 4.
+6. The padding ratio of 1.38 is what arch2's packing removes.
+7. The first arch2 CUDA smoke failed at its first update under BF16 autocast: QK-norm's FP32 weight left query and key in FP32 next to a BF16 value. Fixed in `GQAttention.qkv` (query and key cast to the value's dtype after RoPE), with a CPU BF16 autocast test.
+
 ## Architecture
 
 | Item | arch1 | arch2 (frozen) |

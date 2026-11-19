@@ -31,7 +31,9 @@ from vimeml.training.distributed import Context, setup as setup_parallel
 from vimeml.training.train import optimizer_for, learning_rate, resolve_precision
 from vimeml.posttraining.streams import CommittedStream, loader_for
 
-SYNC_CALLS = ("cudaStreamSynchronize", "cudaDeviceSynchronize", "cudaEventSynchronize")
+# Synchronizations inside an update (.item(), .tolist(), copies to the host). cudaDeviceSynchronize is left out:
+# it is the timing barrier at the end of every measured update, not the trainer's own work.
+SYNC_CALLS = ("cudaStreamSynchronize", "cudaEventSynchronize")
 
 
 class EmulatedRank(Context):
@@ -85,7 +87,7 @@ def breakdown(trace):
     """Per-update time split from a chrome trace (torch.profiler export) with one "update" annotation per
     update. Times in seconds; compute + exposed_communication + gpu_idle = wall."""
     events = trace["traceEvents"] if isinstance(trace, dict) else trace
-    updates, compute, comm, syncs = [], [], [], []
+    updates, compute, comm, syncs, memcpy = [], [], [], [], []
     for e in events:
         if e.get("ph") != "X" or "dur" not in e:
             continue
@@ -98,6 +100,8 @@ def breakdown(trace):
             (comm if "nccl" in name.lower() else compute).append(span)
         elif cat == "cuda_runtime" and name in SYNC_CALLS:
             syncs.append(span)
+        elif cat == "cuda_runtime" and name == "cudaMemcpyAsync":
+            memcpy.append(span)
     rows = []
     for start, end in sorted(updates):
         wall = end - start
@@ -105,7 +109,9 @@ def breakdown(trace):
         busy_compute, busy_comm, busy = union(c), union(n), union(c + n)
         rows.append({"wall": wall / 1e6, "compute": busy_compute / 1e6,
                      "communication": busy_comm / 1e6, "exposed_communication": (busy - busy_compute) / 1e6,
-                     "gpu_idle": (wall - busy) / 1e6, "host_sync_calls": union(clip(syncs, start, end)) / 1e6})
+                     "gpu_idle": (wall - busy) / 1e6, "host_sync_calls": union(clip(syncs, start, end)) / 1e6,
+                     "sync_call_count": len(clip(syncs, start, end)),
+                     "host_memcpy_calls": union(clip(memcpy, start, end)) / 1e6})
     if not rows:
         return {"updates": 0}
     mean = {k: statistics.fmean(r[k] for r in rows) for k in rows[0]}
@@ -267,8 +273,9 @@ def run_updates(config, out, updates, warmup, profile=0, emulate_world=0, root=J
                     "packing": statistics.fmean(r["packing_seconds"] for r in records[-profile:])}
             split["host_seconds"] = host
             mean_wall = statistics.fmean(r["seconds"] for r in records[-profile:])
-            split["host_share_of_update"] = (host["data_wait"] + host["packing"]
-                                             + split.get("mean_seconds", {}).get("host_sync_calls", 0)) / mean_wall
+            # host work proper: waiting for data and packing. Sync calls are the CPU waiting for the GPU,
+            # reported apart (host_sync_calls); they overlap GPU work and do not add to it.
+            split["host_share_of_update"] = (host["data_wait"] + host["packing"]) / mean_wall
             summary["profile"] = split
         (out / "summary.json").write_text(json.dumps(summary, indent=1) + "\n", encoding="utf-8")
     ctx.close()

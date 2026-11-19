@@ -101,6 +101,20 @@ class Forward(unittest.TestCase):
             alone = packed_model(sequences[n][0][None])[0]
             torch.testing.assert_close(logits[row, offset:offset + len(alone)], alone, rtol=1e-4, atol=1e-5)
 
+    def test_bf16_autocast(self):
+        """QK-norm's FP32 weight must not leave query/key FP32 next to a BF16 value under autocast."""
+        model = small()
+        ids = torch.randint(4, 97, (2, 12))
+        segments = torch.tensor([[0] * 5 + [1] * 7, [0] * 12])
+        with torch.autocast("cpu", dtype=torch.bfloat16):
+            query, key, value = model.layer_qkv(model.blocks[0], model.token_embedding(ids), torch.arange(12))
+            self.assertEqual({query.dtype, key.dtype, value.dtype}, {torch.bfloat16})
+            out = model(ids, ids.clone(), token_weights=torch.ones(2, 12), segments=segments)
+        out["loss_sum"].backward()
+        self.assertTrue(math.isfinite(float(out["loss_sum"])))
+        with torch.autocast("cpu", dtype=torch.bfloat16):
+            self.assertEqual(model(ids).shape, (2, 12, 97))
+
     def test_pack_rules(self):
         self.assertEqual(A.segment_positions(torch.tensor([[0, 0, 0, 1, 1, -1, -1]])).tolist(), [[0, 1, 2, 0, 1, 0, 1]])
         with self.assertRaises(ValueError):

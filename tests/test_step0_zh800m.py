@@ -25,6 +25,7 @@ class Step0Test(unittest.TestCase):
             event("kernel", "ncclDevKernel_AllReduce_Sum_f32_RING_LL", 40, 40),
             event("cuda_runtime", "cudaStreamSynchronize", 85, 10),
             event("cuda_runtime", "cudaLaunchKernel", 1, 1),
+            event("cuda_runtime", "cudaDeviceSynchronize", 95, 5),       # the timing barrier: not counted
             event("kernel", "outside", 200, 10),
         ]}
         out = S.breakdown(trace)
@@ -36,6 +37,7 @@ class Step0Test(unittest.TestCase):
         self.assertAlmostEqual(row["exposed_communication"], 20e-6)    # 50-60 and 70-80
         self.assertAlmostEqual(row["gpu_idle"], 30e-6)                 # 0-10 and 80-100
         self.assertAlmostEqual(row["host_sync_calls"], 10e-6)
+        self.assertEqual(row["sync_call_count"], 1)
         self.assertAlmostEqual(row["compute"] + row["exposed_communication"] + row["gpu_idle"], row["wall"])
         self.assertAlmostEqual(out["share_of_wall"]["compute"], 0.5)
 
