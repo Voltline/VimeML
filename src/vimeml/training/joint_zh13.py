@@ -162,6 +162,8 @@ def build_plan(config, root=ROOT, verify_files=True):
     s["updates_per_epoch"] = [math.ceil(r["windows"] / s["lm_batch"]) for r in mix["epochs"]]
     s["windows_per_epoch"] = [r["windows"] for r in mix["epochs"]]
     s["max_steps"] = sum(s["updates_per_epoch"])
+    if "budget_fraction" in s:
+        truncate(s)
     s["milestone_steps"] = milestone_steps(s["smoke_updates"] if smoke else s["max_steps"])
     web_manifest = read(root / request["web"]["token_dir"] / "manifest.json")
     identity = {"tokenizer_model_sha256": request["tokenizer_model_sha256"], "vocab_size": vocab,
@@ -172,6 +174,25 @@ def build_plan(config, root=ROOT, verify_files=True):
                        "effective_tokens": sum(r["effective_tokens"] for r in mix["epochs"])},
             "required_files": {Path(p).resolve().as_posix(): h for p, h in required.items()},
             "task_contract": {**TASK_CONTRACT, "arm": arm, "pool": pool, "epochs": epochs}}
+
+
+def truncate(s):
+    """budget_fraction f in (0, 1): train the first round(f * max_steps) updates of the arm's data order as a
+    complete run (the cosine schedule, warmup and milestones span the shortened run). Epochs past the cut are
+    dropped and the last one kept ends at the cut."""
+    fraction = s["budget_fraction"]
+    if type(fraction) is not float or not 0 < fraction < 1:
+        raise ValueError("budget_fraction is a float in (0, 1)")
+    left = round(fraction * s["max_steps"])
+    updates, windows = [], []
+    for count, total in zip(s["updates_per_epoch"], s["windows_per_epoch"]):
+        if left <= 0:
+            break
+        take = min(count, left)
+        updates.append(take)
+        windows.append(total if take == count else take * s["lm_batch"])
+        left -= take
+    s.update(epochs=len(updates), updates_per_epoch=updates, windows_per_epoch=windows, max_steps=sum(updates))
 
 
 def pinyin_plan(config, root=ROOT, verify_files=True):
@@ -220,8 +241,8 @@ def pinyin_plan(config, root=ROOT, verify_files=True):
                 raise ValueError("Changed training dependency: " + str(path))
     s = plan["settings"]
     examples = int(p.get("validation_examples", 4096))
-    if examples < 1 or s["lm_microbatch"] != s["lm_batch"]:
-        raise ValueError("Joint pinyin pretraining takes whole LM batches and a positive validation size")
+    if examples < 1 or s["lm_batch"] % s["lm_microbatch"]:
+        raise ValueError("Joint pinyin pretraining needs lm_microbatch dividing lm_batch and a positive validation size")
     batch = s["lm_batch"] + sum(mix.values())
     train = {k: manifest["stores"]["train"][k]["examples"] for k in PINYIN_KINDS}
     plan["signatures"]["pinyin"] = p["manifest_sha256"]
@@ -240,6 +261,14 @@ def pinyin_plan(config, root=ROOT, verify_files=True):
     return plan
 
 
+def split_rows(batch, cap):
+    """A collated batch as row slices of at most `cap` rows (input_ids, labels, lengths), in row order."""
+    rows = len(batch["lengths"])
+    if rows <= cap:
+        return [batch]
+    return [{k: batch[k][a:a + cap] for k in ("input_ids", "labels", "lengths")} for a in range(0, rows, cap)]
+
+
 def update_joint(model, optimizer, lm_batch, extra, weights, s, device, precision, ctx=None, net=None):
     """One update over the LM batch plus one batch per pinyin kind, per_kind normalized.
 
@@ -254,7 +283,12 @@ def update_joint(model, optimizer, lm_batch, extra, weights, s, device, precisio
     positions = int(lm_batch["input_ids"].numel())
     sums = {kind: 0.0 for kind in batches if tokens[kind]}
     work = [(kind, ctx.share(batches[kind]) if ctx.active else batches[kind]) for kind in sums]
+    # With lm_microbatch < lm_batch every task's share on this rank runs in pieces of at most the LM share's
+    # rows / (lm_batch / lm_microbatch); losses are sums, so the gradient is unchanged. Equal sizes: one piece.
     work = [(kind, batch) for kind, batch in work if batch is not None]
+    if s["lm_microbatch"] < s["lm_batch"]:
+        cap = -(-len(work[0][1]["lengths"]) // (s["lm_batch"] // s["lm_microbatch"]))
+        work = [(kind, piece) for kind, batch in work for piece in split_rows(batch, cap)]
     for i, (kind, batch) in enumerate(work):
         ids = batch["input_ids"].to(device, non_blocking=True)
         labels = batch["labels"].to(device, non_blocking=True)
@@ -263,7 +297,7 @@ def update_joint(model, optimizer, lm_batch, extra, weights, s, device, precisio
                 loss_sum = net(ids, labels)["loss_sum"]
                 loss = loss_sum * (weights[kind] * ctx.world / tokens[kind])
             loss.backward()
-        sums[kind] = float(loss_sum.detach())
+        sums[kind] += float(loss_sum.detach())
     if ctx.active:
         sums = dict(zip(sums, ctx.sum(list(sums.values()), device)))
     if not all(math.isfinite(v) for v in sums.values()):

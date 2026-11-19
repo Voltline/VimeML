@@ -196,6 +196,7 @@ Three arms on the 12K joint-pinyin 200M recipe (`configs/train-zh200m-12k-pinyin
 - **Decision**: take the largest k that passes. An arm passes if its web BPC is at most 0.01 above the 1× arm, each of the four pinyin validation losses is at most 0.01 above the 1× arm, and training shows no loss spike (0.5 or more above the mean of the previous 1000 updates).
 - If 8× fails and 4× passes, use 4×. If 4× also fails, run a 2× arm (1024 windows, LR 8.5e-4) and decide then.
 - The precheck runs as cluster jobs; its report freezes the arch2 recipe.
+- Configs: `configs/train-zh200m-batch-precheck-{1x,4x,8x}.toml`. `budget_fraction = 0.1` makes the first 10% of updates a complete run (cosine, warmup and milestones over the shortened run); `lm_microbatch = 512` runs the 4× and 8× batches in 4 and 8 pieces per rank with the same gradient.
 
 ### Expected speed
 
