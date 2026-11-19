@@ -70,6 +70,19 @@ The data requirements for the mainland China launch apply only to **v2-20m**.
 - Client-side filtering is handled by Vime and is not part of this repository. It is the backstop: rule filters have limited recall, and both batches may miss a little.
 - The desktop models (200M, 800M) are not under this requirement.
 
+## Final item: Chinese–Japanese–English 800M
+
+The last item, after all three v2 models are final (added 2026-11-19). It is not part of the v2 release.
+
+- **Scope**: 800M only, desktop experiments only. No 20M or 200M, nothing on phones, and no commitment to release.
+- **Vocabulary**: starting from 32K. The 12K Chinese vocabulary cannot hold kana, Japanese kanji and English subwords; the exact size is set in its own plan.
+- **Data gaps**:
+  - Japanese: the current Japanese corpus is two orders of magnitude smaller than the Chinese one, so a large new export from FineWeb2 `jpn_Jpan` is needed; reading annotation has to scale to that size; cleaning rules are per language, with no Traditional-to-Simplified conversion for Japanese.
+  - English: web text comes from FineWeb / FineWeb-Edu; short-message and chat text is missing.
+  - Dialogue text is short in all three languages.
+- **Evaluation**: Chinese and Japanese keep their Standard benchmarks; English needs a new public benchmark for prediction and correction.
+- Data, training config and evaluation go into its own plan, committed before training starts.
+
 ## Open decisions
 
 - Final `vimeml-zh-v2-20m`: the current candidate is the distilled `kd-cont` (2026-11-17). Round 3 replaces it if better; iPhone latency and confirmation scoring are still to come.
