@@ -141,3 +141,16 @@ Recorded 2026-11-18, as the work started.
 [data-zh-pinyin-typo.toml](../configs/data-zh-pinyin-typo.toml), label `zh-pinyin-v1`: 7,730,142 train samples (242.8M tokens) and 17,009 validation samples. Bases: full 70.0%, mixed 30.0%. Two typos: 15.0%. Edits: substitution 41.0%, deletion 25.7%, insertion 20.5%, swap 12.7% (a swap that does not fit is redrawn). 26.4% of full-pinyin bases stay valid pinyin after the typos. The five existing stores are unchanged.
 
 The arm trains on a rebuild of the same config with sentencepiece 0.2.2 (manifest `3bc0164b…`). Its row structure, lengths and statistics equal the 0.2.1 build above, but 21 of 17,009 validation rows hold other token ids: the two versions break ties in runs of a repeated character differently (`...` + `.` against `.` + `...`, the same for `---`, `??` and doubled key letters such as `xx`). Re-encoding the 0.2.1 rows with 0.2.2 reproduces the rebuild's validation file byte for byte.
+
+## Result (2026-11-19)
+
+**The 20M typo arm does not pass** ([report](reports/zh-typo-eval-20261119/report.md)).
+
+- Primary: typo @2 with the arm's task rule is 32.2, against 34.3 for the control's LM rule at margin 3 (−2.2, p = 0.0001). Typo training lifts the task rule from 13.0 to 32.2, but not past the LM rule, which gives 34.0–34.3 with v1, r3-ctrl and the arm alike.
+- The guards pass: self-rescored Top-1 54.2 vs 54.6, Standard 0.9354 vs v1 0.9361, clean false display 9.7 vs 14.2.
+
+Consequences:
+
+- Vime keeps the LM rule. `calibration.json` ships the rescoring λ and the LM-rule margin calibrated on this benchmark (margin 3 shows corrections on 12.6–14.2% of clean sentences; calibrated 3.5–3.9 keeps it under 10% at −0.3 typo @2).
+- No taskScore reference or fixture.
+- The 800M does not get `typo` data, and neither does round 4.
