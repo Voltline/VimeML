@@ -63,3 +63,15 @@ The gates are therefore judged as follows, for both the Mac search and the Vime 
 - set differences are allowed only at the tenth-place boundary, with scores within about 0.6.
 
 The change was made after seeing the result and is recorded here as a deviation. The Mac result passes it with 125/125. The stateless Standard evaluation was skipped on the Mac, which has no Standard development split; the INT8 package aligns with the stateless INT8 package at 2.4e-5, as for v1.
+
+## Decision (2026-11-21): v2 is the default for Rime reranking; generation stays behind its switch
+
+Results: [Mac and Vime report](../reports/mac-20261121/zh-v2-20m.md). Mac, search and fixture gates pass. On the iPhone 13 Pro, Rime reranking with v2 stays within 60 ms for every key (p50 4.12 ms, p95 7.47 ms, as v1). Key-by-key task-mode generation does not: p50 51.8 ms, p95 134.5 ms, 56.8% within 60 ms against v1's 100%, because the keys are in the prompt and every key restarts the search.
+
+The device gate in Vime step 7 is therefore not met for generation, and this release departs from it:
+
+- v2 is the default model for Rime reranking, prediction and typo correction. Its rerank is level with v1 (Standard blind net −2, not significant); prediction is weaker (development track A Top-3 25.6 vs 27.6), which is accepted. The typo margin stays as calibrated on v1.
+- Sentence generation stays behind its development switch for both models.
+- v1's package ships as a fallback behind `vime.chineseModelVersion`.
+
+The test-confirmed gain (all inputs 31.0 → 49.1) comes from v2's generation, so it does not reach users in this release. The next step is generation that does not block the key: rerank shown at once, v2 generation after a pause or in the background (one-shot generation on the 13 Pro: p50 91 ms, 2.4× faster than v1).
