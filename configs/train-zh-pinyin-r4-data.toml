@@ -1,5 +1,5 @@
 # zh v2-20m distillation round 4, arm r4-data: r4 with r3-data's mix: half r1 and half r2 for every kind (512 per update in total).
-# teacher_sha256 is filled in once the 800M's final.pt exists; until then the dry run fails.
+# Teacher: the 800M arch1 final.pt (step 1,198,964).
 stage = "zh-pinyin-s1"
 architecture = "tiny_gpt_zh13"
 output_dir = "artifacts/models/tiny-zh13-12k-pinyin-r4-data"
@@ -13,7 +13,7 @@ checkpoint_sha256 = "412aee1d1c2d73c9f2ff52533188055e4655575472fe3be136e048fd240
 
 [distillation]
 teacher = "artifacts/models/tiny-zh800m-12k-pinyin-pt-d1536/final.pt"
-teacher_sha256 = "PENDING: sha256 of the 800M final.pt, filled in when arch1 finishes"
+teacher_sha256 = "ec3e90df4c113f84990918a2e7d3c54cb5affd64c325100a0d4121b58f85d80f"
 alpha = 0.5
 temperature = 1.0
 
