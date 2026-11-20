@@ -103,6 +103,9 @@ def main():
             command.add_argument("--bundle", type=Path, required=True)
         if name in ("align", "align-chunk", "evaluate"):
             command.add_argument("--model", type=Path, required=name == "align-chunk")
+        if name in ("align", "align-chunk"):
+            command.add_argument("--reference-fixtures", type=Path, default=REFERENCE,
+                                 help="PyTorch FP32 fixtures of the bundle's weights (default: v1's)")
     commands["align-chunk"].add_argument("--stateless", type=Path,
                                          help="Same-precision stateless package; default compares with PyTorch fixtures")
     commands["compress"].add_argument("--source", type=Path, required=True)
@@ -139,13 +142,13 @@ def main():
         zh.compress(args.source, args.output, args.alignment, args.recipe, args.chunk)
     elif args.stage == "align":
         lm = zh.CoreMLLMZh(args.bundle, args.model) if args.model else zh.BundleLMZh(args.bundle)
-        report = zh.align(lm, REFERENCE, args.output)
+        report = zh.align(lm, args.reference_fixtures, args.output)
         print(json.dumps({"passed": report["passed"], **report["summary"]}, indent=2))
         if not report["passed"]:
             raise SystemExit("Strict alignment failed; report preserved. Review ranking quality separately.")
     elif args.stage == "align-chunk":
         runtime = zh.ChunkRuntimeZh(args.bundle, args.model)
-        report = zh.align_chunk(runtime, args.bundle, REFERENCE, args.output, args.stateless)
+        report = zh.align_chunk(runtime, args.bundle, args.reference_fixtures, args.output, args.stateless)
         print(json.dumps({"passed": report["passed"], "comparison": report["comparison"], **report["summary"]}, indent=2))
         if not report["passed"]:
             raise SystemExit("KV chunk alignment failed; evidence preserved.")

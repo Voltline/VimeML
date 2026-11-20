@@ -32,6 +32,8 @@ from vimeml.training.joint_zh13 import ARCHITECTURE, FORMAT as CHECKPOINT_FORMAT
 from vimeml.training.model_zh13 import GPTZh13Config, TinyGPTZh13
 
 RELEASE = "vimeml-tiny-zh-v1"
+# Releases sharing this contract (same 12K tokenizer, nine-layer d384 block); the bundle names its own.
+RELEASES = (RELEASE, "vimeml-zh-v2-20m")
 VOCAB = 12288
 LAYERS = 9
 CACHE_SHAPE = (LAYERS, 1, 6, 128, 64)
@@ -68,8 +70,8 @@ def export_bundle(checkpoint, tokenizer_dir, output):
     saved = torch.load(checkpoint, map_location="cpu", weights_only=True)
     if (saved.get("format") != CHECKPOINT_FORMAT or saved.get("architecture") != ARCHITECTURE
             or not saved.get("deployment_only") or not saved.get("source_checkpoint_sha256")
-            or saved.get("release_name") != RELEASE):
-        raise ValueError("Expected the vimeml-tiny-zh-v1 deployment checkpoint with source provenance.")
+            or saved.get("release_name") not in RELEASES):
+        raise ValueError(f"Expected a deployment checkpoint of {' or '.join(RELEASES)} with source provenance.")
     model, processor, _ = zh13.load(checkpoint, tokenizer_dir / "tokenizer.model")
     state = saved["model"]
     if not torch.equal(state["lm_head.weight"], state["token_embedding.weight"]):
@@ -86,12 +88,12 @@ def export_bundle(checkpoint, tokenizer_dir, output):
     shutil.copyfile(tokenizer_dir / "tokenizer.model", output / "tokenizer.model")
     identity = saved["tokenizer_identity"]
     result = {"format": BUNDLE_FORMAT, "status": "complete", "architecture": ARCHITECTURE,
-              "release_name": RELEASE, "precision": "fp32", "parameter_count": model.parameter_count(),
+              "release_name": saved["release_name"], "precision": "fp32", "parameter_count": model.parameter_count(),
               "vocab_size": VOCAB, "n_layers": LAYERS, "cache_shape": list(CACHE_SHAPE),
               "special_ids": dict(SPECIAL), "reserved_ids": identity.get("reserved_ids", {}),
               "checkpoint_sha256": saved["source_checkpoint_sha256"],
               "deployment_checkpoint_sha256": file_sha(checkpoint),
-              "checkpoint_step": saved["step"], "checkpoint_epoch_index": saved["epoch"],
+              "checkpoint_step": saved["step"], "checkpoint_epoch_index": saved.get("epoch"),
               "arm": saved["config"].get("arm"), "training_signatures": saved["signatures"],
               "tokenizer_identity": identity, "tied_lm_head": True,
               "files": v2.inventory(output, hashes=True), "environment": environment(),
@@ -105,7 +107,8 @@ def verify_bundle(path, hashes=True):
     path = Path(path)
     manifest = read_json(path / "manifest.json")
     if (manifest.get("format") != BUNDLE_FORMAT or manifest.get("status") != "complete"
-            or manifest.get("architecture") != ARCHITECTURE or not manifest.get("tied_lm_head")):
+            or manifest.get("architecture") != ARCHITECTURE or not manifest.get("tied_lm_head")
+            or manifest.get("release_name", RELEASE) not in RELEASES):
         raise ValueError("Unsupported/incomplete zh-v1 bundle.")
     if set(manifest["files"]) != {"weights.pt", "config.json", "tokenizer.model"}:
         raise ValueError("Unexpected inference file list.")
@@ -133,7 +136,7 @@ class BundleLMZh:
                 or self.processor.vocab_size() != VOCAB or self.model.config.n_layers != LAYERS
                 or self.model.parameter_count() != manifest["parameter_count"]):
             raise ValueError("Bundle model/tokenizer contract mismatch.")
-        self.metadata = {"architecture": ARCHITECTURE, "release_name": RELEASE,
+        self.metadata = {"architecture": ARCHITECTURE, "release_name": manifest.get("release_name", RELEASE),
                          "checkpoint_sha256": manifest["checkpoint_sha256"],
                          "checkpoint_step": manifest["checkpoint_step"],
                          "deployment_checkpoint_sha256": manifest["deployment_checkpoint_sha256"],
@@ -156,7 +159,8 @@ def finish(output, model, fmt, metadata):
     model.save(str(output / "model.mlpackage"))
     files = v2.inventory(output / "model.mlpackage")
     write_json(output / "manifest.json", {"format": fmt, "status": "complete", "architecture": ARCHITECTURE,
-        "release_name": RELEASE, **metadata, "environment": environment(), "spec": inspect_spec(model),
+        "release_name": metadata.get("bundle", {}).get("release_name", RELEASE), **metadata,
+        "environment": environment(), "spec": inspect_spec(model),
         "package_files": files, "package_bytes": sum(entry["bytes"] for entry in files.values()),
         "note": "Logical package bytes; compiled size, resident memory and device footprint are separate."})
 
@@ -182,7 +186,7 @@ def convert(bundle, output):
         inputs=[ct.TensorType(name="input_ids", shape=(1, ct.RangeDim(lower_bound=1, upper_bound=CONTEXT, default=16)),
                               dtype=np.int32)],
         outputs=[ct.TensorType(name="logits", dtype=np.float32)], skip_model_load=True)
-    model.short_description = "vimeml-tiny-zh-v1 RMSNorm/SwiGLU 12K L9; FP32 computation; no KV cache."
+    model.short_description = f"{lm.metadata['release_name']} RMSNorm/SwiGLU 12K L9; FP32 computation; no KV cache."
     model.user_defined_metadata["bundle_manifest_sha256"] = lm.metadata["bundle_manifest_sha256"]
     finish(output, model, PACKAGE_FORMAT, {"kind": "fp32", "minimum_ios": 18, "bundle": lm.metadata,
         "compute_units": "CPU_ONLY",

@@ -35,6 +35,8 @@ COPIED = (f"{TOKENIZER_DIR}/tokenizer.model", f"{TOKENIZER_DIR}/tokenizer.vocab"
           "artifacts/models/tiny-zh13-12k-fresh-s1-d384-l9/config.json",
           "artifacts/models/tiny-zh13-12k-fresh-s1-d384-l9/summary.json",
           "artifacts/models/tiny-zh13-12k-fresh-s1-d384-l9/environment.json")
+RELEASE_NAME = "vimeml-tiny-zh-v1"
+ARM = "12k-fresh-s1"
 TEXT = "你好，我想找一家离地铁站近一点的酒店，晚上想吃火锅，你有推荐的餐馆吗？明天上午我们去故宫参观，下午再去逛街。"
 
 
@@ -68,14 +70,15 @@ def prepare_weights(payload):
 
     torch.set_num_threads(4)
     if file_sha(ROOT / CHECKPOINT) != CHECKPOINT_SHA256 or file_sha(ROOT / TOKENIZER_DIR / "tokenizer.model") != TOKENIZER_SHA256:
-        raise ValueError("Checkpoint or tokenizer differs from the confirmed vimeml-tiny-zh-v1")
+        raise ValueError(f"Checkpoint or tokenizer differs from the registered {RELEASE_NAME}")
     saved = torch.load(ROOT / CHECKPOINT, map_location="cpu", weights_only=True)
     if any(t.dtype != torch.float32 for t in saved["model"].values()):
         raise ValueError("Expected FP32 master weights")
-    exported = {key: saved[key] for key in ("format", "architecture", "model", "model_config", "step", "epoch",
+    exported = {key: saved[key] for key in ("format", "architecture", "model", "model_config", "step",
                                             "signatures", "tokenizer_identity")}
-    exported["config"] = {key: saved["config"][key] for key in ("arm", "architecture", "stage")}
-    exported.update(deployment_only=True, source_checkpoint_sha256=CHECKPOINT_SHA256, release_name="vimeml-tiny-zh-v1")
+    exported["epoch"] = saved.get("epoch")             # post-trained checkpoints (v2-20m) have none
+    exported["config"] = {key: saved["config"].get(key) for key in ("arm", "architecture", "stage")}
+    exported.update(deployment_only=True, source_checkpoint_sha256=CHECKPOINT_SHA256, release_name=RELEASE_NAME)
     destination = payload / DEPLOYMENT
     destination.parent.mkdir(parents=True, exist_ok=True)
     torch.save(exported, destination)
@@ -113,7 +116,7 @@ def prepare_weights(payload):
     np.savez_compressed(reference / "logits.npz", **arrays)
     write_json(reference / "reference.json", {
         "format": "vimeml_zh_v1_mac_preparation_reference_v1",
-        "release_name": "vimeml-tiny-zh-v1", "checkpoint_step": meta["step"],
+        "release_name": RELEASE_NAME, "checkpoint_step": meta["step"],
         "checkpoint_sha256": CHECKPOINT_SHA256, "deployment_checkpoint_sha256": file_sha(destination),
         "tokenizer_sha256": TOKENIZER_SHA256, "precision": "fp32", "device": "cpu", "torch_version": torch.__version__,
         "cases": {name: {"length": len(ids),
@@ -123,7 +126,7 @@ def prepare_weights(payload):
                      "method": "TinyGPTZh13.forward_cached one token at a time from an empty cache"},
         "policy": "PyTorch preparation fixtures; not Core ML validation, production quality or device timing.",
     })
-    return {"release_name": "vimeml-tiny-zh-v1", "arm": "12k-fresh-s1", "checkpoint_step": meta["step"],
+    return {"release_name": RELEASE_NAME, "arm": ARM, "checkpoint_step": meta["step"],
             "source_checkpoint": CHECKPOINT, "source_checkpoint_sha256": CHECKPOINT_SHA256,
             "deployment_checkpoint": DEPLOYMENT, "deployment_checkpoint_sha256": file_sha(destination),
             "tokenizer": TOKENIZER_DIR, "tokenizer_sha256": TOKENIZER_SHA256,

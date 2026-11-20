@@ -371,7 +371,10 @@ def stage_ios(a):
     if read_json(search / "summary.json")["package_manifest_sha256"] != sha or read_json(fixture / "meta.json")["package_manifest_sha256"] != sha:
         raise ValueError("Search check and fixture must belong to this package.")
     variant = manifest["variant"]["name"]
-    resource = f"TinyChineseKVBatchV4{variant.replace('-', '').upper()}INT8.mlmodelc"
+    # v1 keeps its resource name; v2-20m gets its own so both can ship side by side.
+    release = manifest["bundle"].get("release_name", zh_v1.RELEASE)
+    family = "TinyChinese" if release == zh_v1.RELEASE else "TinyChineseV2"
+    resource = f"{family}KVBatchV4{variant.replace('-', '').upper()}INT8.mlmodelc"
     fresh_directory(fresh(output))
     resources = output / "Resources"
     resources.mkdir()
