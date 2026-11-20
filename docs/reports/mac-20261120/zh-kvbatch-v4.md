@@ -172,4 +172,6 @@ For the client:
 - Load `scored` lazily, on the first generation request, not at start-up. Sessions that only score or rerank then keep the 27 MB saving.
 - Not measured: `scored>score>prefix` and `scored>prefix>score`. Vime adds these two orders to the next on-device run (both iPhones) before the client fixes its load order.
 
+Release: the `fp32kv` INT8 package was added to the vimeml-tiny-zh-v1 Hugging Face release as `coreml/ios18-int8-block32-kvbatch-v4/` (manifest sha256 `98f09637…`; its `weight.bin` is byte-identical to v3's). The README marks v3 as superseded. The release was updated in place at revision `4786b99ab42d2dfdc61d124927107e41c06f3cc0` (parent `19f509c3…`); a fresh download of that revision passes `verify_release.py --hashes` on 386 files.
+
 The same variant is rebuilt with the vimeml-zh-v2-20m weights once v2-20m is chosen.
