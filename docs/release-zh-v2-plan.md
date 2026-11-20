@@ -10,7 +10,7 @@ v2 is the Chinese model line after vimeml-tiny-zh-v1. Every v2 model can **gener
 
 | Release name | Platform | Size | Tokenizer | Candidate | Status |
 | --- | --- | ---: | --- | --- | --- |
-| `vimeml-zh-v2-20m` | mobile | ~20M | 12K (same as v1) | distilled `kd-cont` with self rescoring ([evaluation](reports/zh-kd-eval-20261117/report.md), 2026-11-17); neither [round 3](reports/zh-kd-r3-eval-20261117/report.md) nor round 4 (800M teacher, [distillation plan](training-zh-kd-plan.md)) replaced it | candidate, not final; test confirmation plan registered ([plan](benchmarks/confirmation-zh-v2-plan.md)) |
+| `vimeml-zh-v2-20m` | mobile | ~20M | 12K (same as v1) | distilled `kd-cont` with self rescoring ([evaluation](reports/zh-kd-eval-20261117/report.md), 2026-11-17); neither [round 3](reports/zh-kd-r3-eval-20261117/report.md) nor round 4 (800M teacher, [distillation plan](training-zh-kd-plan.md)) replaced it | passed the test confirmation (2026-11-20, [report](reports/zh-v2-confirmation-20261120/report.md): 49.1% vs the online path's 31.0%); iPhone latency still to come |
 | `vimeml-zh-v2-200m` | desktop | ~200M | 12K | 12K joint pinyin pretraining `zh200m-12k-pinyin-pt`, rescoring with its own scores | passed development evaluation ([report](reports/zh-200m-pinyin-eval-20261116/report.md)); desktop latency 83/205 ms p50/p95 with CUDA graphs in FP16 ([report](reports/zh-desktop-latency-20261118/report.md)); confirmation run is compared with v2-20m, under the same [confirmation plan](benchmarks/confirmation-zh-v2-plan.md), after v2-20m's run |
 | `vimeml-zh-v2-800m` | desktop | 784M | 12K | [zh-800m training plan](training-zh-800m-plan.md) plus pinyin ability | data in preparation |
 
@@ -85,7 +85,7 @@ The last item, after all three v2 models are final (added 2026-11-19). It is not
 
 ## Open decisions
 
-- Final `vimeml-zh-v2-20m`: the candidate is the distilled `kd-cont` (2026-11-17); rounds 3 and 4 did not replace it (2026-11-20). The test confirmation plan is registered ([plan](benchmarks/confirmation-zh-v2-plan.md)); confirmation scoring and iPhone latency are still to come.
+- Final `vimeml-zh-v2-20m`: the candidate is the distilled `kd-cont` (2026-11-17); rounds 3 and 4 did not replace it (2026-11-20). The test confirmation passed ([report](reports/zh-v2-confirmation-20261120/report.md)); iPhone latency is still to come.
 - ~~Whether 200M uses joint pretraining or post-training~~: decided 2026-11-16, joint pretraining with its own rescoring (see the [evaluation report](reports/zh-200m-pinyin-eval-20261116/report.md)).
 - The source of the 800M's pinyin ability, decided after the 200M evaluation and before 800M training starts.
 - ~~Default beam width~~: decided 2026-11-19, beam 16 (significantly better than 12; the rest of the sweep is not run).
