@@ -94,3 +94,18 @@ The entry point is shared with 200M: `train_zh200m.py` and `joint_zh200m.py` pic
    - Pinyin data: the same `zh-pinyin-pt-12k` stores the 200M used (full/mixed/initials/error, no plain). Each update adds 96/128/112/48 pinyin examples to the 2048 LM windows (384, 15.8% of examples), double the 200M's 48/64/56/24 rather than four times, so the 1,198,964 updates (dry-run) make 1.35 to 1.75 passes over the pinyin data (full 1.42, mixed 1.35, initials 1.38, error 1.75) instead of repeating the small stores many times.
    - Loss: the 200M's per_kind normalization (each task's mean loss times its batch share). Pinyin tasks are also split into `lm_microbatch` rows, so the LM windows still set the memory bound. Implementation: `joint_zh200m.update_joint`. `tests/test_zh800m_pinyin.py` checks that every microbatch split gives the 200M joint update's gradients.
    - Evaluation adds **pinyin generation**: public `ime-pinyin-zh-v1-r1` development, bucketed-search generation rescored with the model itself as prior (λ1.6), Top-1, with sentence-cluster sign-flip tests against v1 LM mode and the joint-pinyin 200M. The prediction primary metric and the rerank guard are unchanged.
+
+## Result (2026-11-20)
+
+Training finished on 2026-11-20: 1,198,964 updates, 58.07 h. The evaluation is in the [800M evaluation report](reports/zh-800m-eval-20261120/report.md). The 800M is ahead of both references on every registered metric, and all paired differences are significant:
+
+- **Prediction (primary metric)**: track A Top-3 is 0.3394.
+  - Against the 200M default arm (0.3164): +0.0230, more than the 200M seed range of 0.0165; Holm p 1e-4.
+  - Against v1 (0.2760): +0.0634.
+- **Pinyin generation**: rescored Top-1 is 65.3%.
+  - Against the joint-pinyin 200M rerun with the same pipeline (57.3%): +8.0.
+  - Against v1 LM mode (52.6%): +12.7.
+- **Rerank guard**: passes, net +26 against v1.
+- **Memorization**: no long verbatim recall. With 8 characters of context, 2.4% of its Top-1 strings occur in the r1 training text, against 2.3% for the human continuations.
+
+Question 1 has its three points: 0.276, 0.316 and 0.339 for 20M, 200M and 800M. Question 2 (teacher) is answered by distillation round 4.
