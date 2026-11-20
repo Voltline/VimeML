@@ -84,8 +84,7 @@ def main():
                        args.device, args.limit))
     elif args.command == "calibration":
         value = tz.calibration(args.set, args.rows, args.rescoring_lambda, args.prior, args.beam, args.topk)
-        text = json.dumps(value, ensure_ascii=False, indent=2) + "
-"
+        text = json.dumps(value, ensure_ascii=False, indent=2) + "\n"
         Path(args.out).write_text(text, "utf-8")
         print(text)
     else:
