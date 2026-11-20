@@ -3,12 +3,13 @@ import json
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from vimeml.benchmarks import pinyin_gen_zh as pg  # noqa: E402
-from vimeml.benchmarks.zh_v2_confirm import (check_identities, decide, preflight_check,  # noqa: E402
+from vimeml.benchmarks.zh_v2_confirm import (MODELS, check_identities, decide, preflight_check,  # noqa: E402
                                              production_rows)
 
 
@@ -30,9 +31,16 @@ class Decision(unittest.TestCase):
         self.assertTrue(decide("v2-20m", flip(2.0, 0.001), flip(-0.5, 0.4), standard(-3, 0.3))["passed"])
 
     def test_h1_needs_a_significant_gain(self):
-        self.assertFalse(decide("v2-200m", flip(1.0, 0.2), flip(1.0, 0.2))["passed"])
-        self.assertFalse(decide("v2-200m", flip(-1.0, 0.001), flip(1.0, 0.2))["passed"])
-        self.assertTrue(decide("v2-200m", flip(1.0, 0.01), flip(-3.0, 0.001))["passed"])  # no guards for 200M
+        self.assertFalse(decide("v2-200m", flip(1.0, 0.2), flip(1.0, 0.2), standard())["passed"])
+        self.assertFalse(decide("v2-200m", flip(-1.0, 0.001), flip(1.0, 0.2), standard())["passed"])
+        # 200M has no full-pinyin guard
+        self.assertTrue(decide("v2-200m", flip(1.0, 0.01), flip(-3.0, 0.001), standard())["passed"])
+
+    def test_200m_standard_guard(self):
+        result = decide("v2-200m", flip(1.0, 0.01), flip(1.0, 0.2), standard(-20, 0.01))
+        self.assertTrue(result["passed"])  # the desktop model keeps v1 as its reranker instead
+        self.assertTrue(result["rerank_stays_v1"])
+        self.assertFalse(decide("v2-200m", flip(1.0, 0.01), flip(1.0, 0.2), standard())["rerank_stays_v1"])
 
     def test_20m_guards(self):
         self.assertFalse(decide("v2-20m", flip(2.0, 0.001), flip(-2.0, 0.01), standard())["passed"])
@@ -69,8 +77,16 @@ class Production(unittest.TestCase):
 
 class Gating(unittest.TestCase):
     def test_unregistered_model_is_refused(self):
-        with self.assertRaisesRegex(SystemExit, "not registered"):
-            check_identities(ROOT, "v2-20m")
+        with mock.patch.dict(MODELS, {"v2-20m": {**MODELS["v2-20m"], "judged": None}}):
+            with self.assertRaisesRegex(SystemExit, "not registered"):
+                check_identities(ROOT, "v2-20m")
+
+    def test_registered_files_match(self):
+        for model in sorted(MODELS):
+            spec = MODELS[model]
+            if not (ROOT / spec["checkpoint"]).exists() or not (ROOT / spec["judged"]).exists():
+                self.skipTest(f"{model} files are not on this machine")
+            check_identities(ROOT, model)
 
     def test_test_split_needs_a_plan_and_contexts(self):
         frozen = ROOT / "outputs/benchmarks/ime-pinyin-zh-v1/frozen-r1"

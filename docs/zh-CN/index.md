@@ -14,6 +14,7 @@ V2系列实验已完成，此前部署版本为V2.1 extend5 step40000 / INT8 blo
 | [vimeml-tiny-zh-v1 八臂训练记录](reports/zh-v1-20261110/training.md) | 2026-11-10 八臂全部完成，无抢占无失败；第 20 测点 BPC 与记忆抽样 |
 | [vimeml-tiny-zh-v1 八臂 IME 打分与判定](reports/zh-v1-20261110/ime-benchmark.md) | 全拼 development 八臂 93.3%–94.4%，Rime 68.8%；五个对比都不有效，按计划默认新数据和 12K |
 | [vimeml-tiny-zh-v1 blind 确认计划](benchmarks/confirmation-zh-v1-plan.md) | 预注册：选定 `12k-fresh-s1`，在 blind 全拼上对比 Rime，只运行一次；2026-11-11 已执行，通过 |
+| [vimeml-zh-v2 test 确认计划](benchmarks/confirmation-zh-v2-plan.md) | 预注册：v2-20m（`kd-cont`）在公开拼音 test 上对比线上逻辑（Rime 16 句 + v1 重排），带全拼和 Standard 守卫；v2-200m 对比 v2-20m；各运行一次 |
 | [vimeml-tiny-zh-v1 对照基线计划](benchmarks/baselines-zh-v1-plan.md) | 预注册：雾凇、雾凇 + 万象语法模型、朙月拼音、Qwen2.5-0.5B、Qwen3-0.6B-Base，development 与 blind（参考测试） |
 | [vimeml-tiny-zh-v1 blind 确认与对照基线](reports/zh-v1-20261111/blind-and-baselines.md) | blind 全拼 Top-1 93.8%（Rime 72.3%），确认通过；胜过 Qwen2.5-0.5B（91.8%）、Qwen3-0.6B（89.2%）、雾凇 + 万象（82.2%）、朙月（68.9%） |
 | [vimeml-tiny-zh-v1 Mac 结果核对与 iOS 发布](reports/zh-v1-20261111/ios-release.md) | 交接包核对通过；INT8 b32 对 FP32 全拼 +2/−1、简拼 +0/−2；Mac 上约为 V4.2 的 1.3 倍；iPhone 未测；发布到 Hugging Face |
@@ -22,7 +23,7 @@ V2系列实验已完成，此前部署版本为V2.1 extend5 step40000 / INT8 blo
 | [zh-200m 六臂训练计划](training-zh-200m-plan.md) | 预注册：d1024，16K/L15、24K/L14、32K/L14 × 上下文 512，另加 24K 上下文 128 对照；每更新 512 窗口（偏离记录第 2 条），同 v1 数据与配方，三个 seed |
 | [v2-20m 蒸馏计划](training-zh-kd-plan.md) | 12K 联合拼音 200M 当老师，在线蒸馏 20M（α 0.5，T 1）；kd-base 与 kd-cont 两臂；判定看自身重打分 Top-1 是否显著高于 v1 |
 | [zh-800m 训练计划](training-zh-800m-plan.md) | 预注册：d1536/L27、7.84 亿参数、12K 分词器、上下文 512；export-r1 全部 + export-r2 一遍，LCCC 2%，每更新 2048 窗口 |
-| [zh-800m 第二版架构（arch2）](training-zh-800m-arch2-plan.md) | 设计，未开工：d1792/L23、Q 28 × 64 + KV 7 × 64（GQA）、RoPE、QK-norm，7.77 亿参数；多个段落窗口打包进 2048 长的行，段内因果 mask，数据和顺序与 arch1 相同，批量加大到 4 或 8 倍（由 200M 前置检查定，学习率按平方根换算），不用 FP8；先定位瓶颈（通信/主机/计算）再动手；目标一遍 1.5 天以内，质量不低于 arch1 |
+| [zh-800m 第二版架构（arch2）](training-zh-800m-arch2-plan.md) | 正式训练 k = 4，学习率同 arch1（3e-4 → 3e-5，前置检查对照轮定）：d1792/L23、Q 28 × 64 + KV 7 × 64（GQA）、RoPE、QK-norm，7.77 亿参数；多个段落窗口打包进 2048 长的行，段内因果 mask，数据和顺序与 arch1 相同，批量加大到 4 倍（200M 前置检查定，8 倍未试），不用 FP8；先定位瓶颈（通信/主机/计算）再动手；目标一遍 1.5 天以内，质量不低于 arch1 |
 | [键盘错字计划](training-zh-typo-plan.md) | 新增 `typo` 拼音任务（公开文本上的 26 键编辑）、按实际按键的 task mode 打分、导出附带校准参数、公开 `ime-typo-zh-v1` 评测集；20M 加/不加两臂；2026-11-19 结果：typo 臂未通过，继续用 LM 规则（[报告](../reports/zh-typo-eval-20261119/report.md)） |
 | [公开中文键盘错字集](benchmarks/typo-ime-zh.md) | `ime-typo-zh-v1`：578 个公开开发集句子，干净、一处错字、两处错字三种全拼输入；候选池由 v1 冻结生成；LM 与 task mode 显示规则、@2 与干净输入误显示率、校准 margin |
 | [vimeml-zh-v2 发布范围](release-zh-v2-plan.md) | 发布 `vimeml-zh-v2-20m`（手机）、`vimeml-zh-v2-200m`、`vimeml-zh-v2-800m`（桌面），都用 12K、都能拼音生成；200M 六臂与 20M 联合预训练只作研发记录；发布门槛；数据合规只针对 20M |

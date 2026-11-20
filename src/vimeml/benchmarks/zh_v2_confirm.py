@@ -9,7 +9,7 @@ refuses while any entry is missing. run(model):
    rescored Top-1 hit with the judged development rows; more than PREFLIGHT_FLIPS of inputs flipping, or the
    Top-1 moving by more than PREFLIGHT_TOP1 points, keeps test closed;
 3. writes a consumption record, builds the test split's contexts and generates the test split;
-4. compares with the registered baseline and decides by the plan's rule; v2-20m also scores the
+4. compares with the registered baseline and decides by the plan's rule; both models also score the
    ime-standard-zh-v1-r1 blind full-pinyin rerank guard against v1's confirmation scores.
 
 The production baseline of v2-20m (Rime 16 sentences + v1 rerank with the in-field context, Vime #70 logic)
@@ -44,10 +44,16 @@ PREFLIGHT_TOP1 = 0.2
 # Filled in at registration: checkpoint, its SHA256, the judged development rows (a pinyin_gen_zh run with
 # the checkpoint as its own prior) and their SHA256. "against": the H1 baseline.
 MODELS = {
-    "v2-20m": {"checkpoint": None, "sha256": None, "judged": None, "judged_sha256": None, "against": "production"},
+    "v2-20m": {"checkpoint": "artifacts/models/tiny-zh13-12k-pinyin-kd-cont/final.pt",
+               "sha256": "412aee1d1c2d73c9f2ff52533188055e4655575472fe3be136e048fd240268a4",
+               "judged": "outputs/eval-zh-20261117/eval-zh/self-prior/kd-cont",
+               "judged_sha256": "0003a012b4b750bccc26c8013ada2aec089b15b8a6dacf0d0f92256b2f9b6a46",
+               "against": "production"},
     "v2-200m": {"checkpoint": "artifacts/models/tiny-zh200m-12k-pinyin-pt-d1024/final.pt",
                 "sha256": "90e48fe4cbaeacf5c58774ded243e57d94c86923a51d191555fbbfc7954150f8",
-                "judged": None, "judged_sha256": None, "against": "v2-20m"},
+                "judged": "outputs/eval-zh-20261116/eval-zh/self-prior/pinyin-pt-200m",
+                "judged_sha256": "9e1be73704483e0b298c2b1a18c03de24ea88de1bdb7b32e48b3e0e32b7a397c",
+                "against": "v2-20m"},
 }
 SHA256 = {
     TOKENIZER: "68bd37c45bcb018b32b2eef5b241561ab5b6dc1b77c1c3aadcc1b41c4bf47e5a",
@@ -70,15 +76,20 @@ def significant_loss(test):
     return test["diff"] < 0 and test["p"] < ALPHA
 
 
-def decide(model, h1, full, standard=None):
+def decide(model, h1, full, standard):
     """h1, full: pinyin_gen_zh.sign_flip of baseline -> model on all inputs / full pinyin only;
-    standard: the Standard compare output of v1 -> model (v2-20m only)."""
+    standard: the Standard compare output of v1 -> model. The phone loads one model, so for v2-20m a
+    significant Standard drop fails the run; the desktop model can keep v1 as its reranker instead
+    (rerank_stays_v1), which the release notes then state."""
+    top1 = standard["top1"]
+    standard_drop = top1["net"] < 0 and top1["exact_mcnemar_p"] < ALPHA
     result = {"h1": significant_gain(h1)}
     if model == "v2-20m":
         result["full_pinyin_no_significant_drop"] = not significant_loss(full)
-        top1 = standard["top1"]
-        result["standard_no_significant_drop"] = not (top1["net"] < 0 and top1["exact_mcnemar_p"] < ALPHA)
+        result["standard_no_significant_drop"] = not standard_drop
     result["passed"] = all(result.values())
+    if model != "v2-20m":
+        result["rerank_stays_v1"] = standard_drop
     return result
 
 
@@ -198,14 +209,14 @@ def open_test(root, model, device="cuda", preflight_only=False):
     return out
 
 
-def standard_guard(root, out, plan, device):
+def standard_guard(root, model, out, plan, device):
     from vimeml.benchmarks.zh13_lm_scores import run as score_lm
     scores = out / "standard-blind.jsonl"
-    score_lm(root / MODELS["v2-20m"]["checkpoint"], root / TOKENIZER, root / STANDARD_FROZEN, scores, "full", device,
+    score_lm(root / MODELS[model]["checkpoint"], root / TOKENIZER, root / STANDARD_FROZEN, scores, "full", device,
              split="blind", blind_plan=plan)
     python = [sys.executable, "-I", "-X", "utf8", str(root / STANDARD_SCORER)]
     for command in (["score", str(root / STANDARD_FROZEN), str(out / "standard-full"), "--track", "full",
-                     "--split", "blind", "--scores", str(scores), "--name", "vimeml-zh-v2-20m",
+                     "--split", "blind", "--scores", str(scores), "--name", f"vimeml-zh-{model}",
                      "--blind-plan", str(root / PLAN)],
                     ["compare", str(root / V1_STANDARD_BLIND), str(out / "standard-full"), str(out / "standard-vs-v1.json")]):
         done = subprocess.run(python + command, capture_output=True, text=True, encoding="utf-8")
@@ -237,11 +248,11 @@ def finish(root, model, production=None, device="cuda"):
     h1 = pg.sign_flip(base, rows, base_lambda, LAMBDA)
     full = pg.sign_flip([r for r in base if r["kind"] == "full"], [r for r in rows if r["kind"] == "full"],
                         base_lambda, LAMBDA)
-    standard = standard_guard(root, out, attempt["plan"], device) if model == "v2-20m" else None
+    standard = standard_guard(root, model, out, attempt["plan"], device)
     result = {"model": model, "version": VERSION, "split": "test", "plan": attempt["plan"], "baseline": baseline,
               "settings": {"mode": MODE, "beam": BEAM, "topk": TOPK, "lambda": LAMBDA, "prior": "self"},
               "decision": decide(model, h1, full, standard), "h1": h1, "full_pinyin": full,
-              "standard_vs_v1": standard and {k: standard[k] for k in ("top1",)},
+              "standard_vs_v1": {"top1": standard["top1"]},
               "table": {"model": pg.table(rows, LAMBDA), "baseline": pg.table(base, base_lambda)}}
     (out / "summary.json").write_text(json.dumps(result, ensure_ascii=False, indent=1) + "\n", "utf-8")
     attempt.update(status="finished", summary_sha256=file_sha(out / "summary.json"), passed=result["decision"]["passed"])
