@@ -325,7 +325,7 @@ class Judge:
                 raise AssertionError(f"differs by {error}")
 
 
-def check_step(reference, runner, function, batch=16, tokens=1, prefix=11, seed=1118, strict=True):
+def check_step(reference, runner, function, batch=16, tokens=1, prefix=11, seed=1118, strict=True, tolerance=TOLERANCE):
     """Three kinds of calls, each row's last-token scores vs the reference's full forward:
     1. the prompt (B=1, no prefix, junk in the masked P=1 and S=1 slots);
     2. each row's own first tokens (B=1 per row, after the shared prefix padded with junk slots);
@@ -337,7 +337,7 @@ def check_step(reference, runner, function, batch=16, tokens=1, prefix=11, seed=
     ids[:, :prefix] = ids[0, :prefix]
     allowed = rng.choice(np.arange(8, VOCAB), 149, replace=False).astype(np.int32) if function == "scored" else None
     extra = {"allowed": allowed} if allowed is not None else {}
-    judge = Judge(strict)
+    judge = Judge(strict, tolerance)
 
     def want(seq):
         last = _full(reference, seq)[-1]
@@ -366,7 +366,7 @@ def check_step(reference, runner, function, batch=16, tokens=1, prefix=11, seed=
             "max_abs": judge.worst, "rows_outside_tolerance": judge.outside}
 
 
-def check_score(reference, runner, seed=1120, count=37, prefix=9, prefill="scored"):
+def check_score(reference, runner, seed=1120, count=37, prefix=9, prefill="scored", sum_tolerance=SUM_TOLERANCE):
     """score_continuations vs the full forward: one shared prefix, `count` continuations of 1..12 tokens
     (three score calls of up to 16 rows), plus a one-token prefix (no prompt call)."""
     rng = np.random.default_rng(seed)
@@ -381,8 +381,8 @@ def check_score(reference, runner, seed=1120, count=37, prefix=9, prefill="score
             want = float(sum(lp[len(head) - 1 + j, c[j]] for j in range(len(c))))
             worst = max(worst, abs(g - want))
             total += 1
-    return {"kind": "score", "continuations": total, "max_abs": worst, "tolerance_sum": SUM_TOLERANCE,
-            "rows_outside_tolerance": 0 if worst <= SUM_TOLERANCE else 1}
+    return {"kind": "score", "continuations": total, "max_abs": worst, "tolerance_sum": sum_tolerance,
+            "rows_outside_tolerance": 0 if worst <= sum_tolerance else 1}
 
 
 CASES = ({"batch": 16}, {"batch": 1}, {"batch": 5, "tokens": 3}, {"batch": 16, "seed": 2026, "prefix": 64})
