@@ -58,7 +58,7 @@ The 200M runs only after v2-20m's run has finished. It has no full-pinyin guard:
 
 ### How to read it
 
-- On development, v2-20m is 23.2 points above the online path (54.8 vs 31.6), full pinyin 85.8 vs 81.3; Standard reranking against v1 is −4 items (p 0.63). So v2-20m's H1 and full-pinyin guard are almost certain to pass, and the Standard guard is the only one of the three with real risk.
+- On development (computed through this plan's code path), v2-20m is 22.5 points above the online path (54.8 vs 32.4, +869/−95, p 5e-5), full pinyin 85.8 vs 81.8 (+40/−17, p 0.003); Standard reranking against v1 is −4 items (p 0.63). So v2-20m's H1 and full-pinyin guard are almost certain to pass, and the Standard guard is the only one of the three with real risk.
 - On development, the 200M is 3.9 points above v2-20m (+292/−156, p 1e-4) and +23 items over v1 on Standard reranking (p 0.0002). H1 will very likely pass and reranking will very likely not fall back to v1.
 - **Pass**: the model is confirmed on test; the release notes report test Top-1 with its confidence interval in place of the development numbers.
 - **Fail**: this checkpoint is not released under the name, and test is not reopened for another arm. The analysis goes into the report, and test can no longer be called an unused independent set. If v2-20m fails, the phone keeps v1; if the 200M fails, the plan is discussed separately.
