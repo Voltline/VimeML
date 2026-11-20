@@ -1,0 +1,68 @@
+# arch2 batch precheck control: the 4x arm with 1x's learning rates (peak 6e-4, final 6e-5); everything else
+# as 4x. Separates the sqrt(k) learning-rate scaling from the batch itself.
+stage = "zh-pinyin-pt"
+arm = "pinyin-pt-200m-batch-4x-lr"
+architecture = "tiny_gpt_zh200m"
+output_dir = "artifacts/models/tiny-zh200m-batch-precheck-4x-lr"
+log_dir = "runs/training/tiny-zh200m-batch-precheck-4x-lr"
+dataset_sha256 = "03bd8d21cf30b21c160362aa13bddbb47b59ee6657a024df38aa03adc94fec1d"
+
+[initialization]
+mode = "random"
+
+[data_mixture]
+directory = "artifacts/training-data/zh13-12k-fresh-s1-c128"
+
+[pinyin]
+plain_arm = "12k-fresh-s1"
+directory = "artifacts/training-data/zh-pinyin-pt-12k"
+manifest_sha256 = "562e0340234f9040ad949e9f9730f67d4fc18a470a543a02f1c22ce858c9c39b"
+mix = { full = 192, mixed = 256, initials = 224, error = 96 }
+validation_examples = 4096
+[model]
+vocab_size = 12288
+context_length = 128
+d_model = 1024
+n_heads = 16
+n_layers = 15
+d_ff = 2560
+dropout = 0.0
+norm = "rmsnorm"
+norm_eps = 0.00001
+activation = "swiglu"
+bias = false
+tie_embeddings = true
+position_embedding = "learned"
+
+[runtime]
+compile_backbone = true
+
+[training]
+device = "cuda"
+precision = "bf16"
+seed = 1591996171
+cpu_threads = 4
+num_workers = 4
+bucket_multiplier = 16
+budget_fraction = 0.1
+lm_batch = 2048
+lm_microbatch = 512
+smoke_updates = 0
+learning_rate = 0.0006
+min_learning_rate = 0.00006
+warmup_steps = 250
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+prefix_crop_probability = 0.30
+log_every = 100
+eval_every = 5000
+checkpoint_every = 5000
+validation_batch = 256
+
+[tracking]
+enabled = true
+project = "vimeml"
+group = "zh200m-batch-precheck"
+mode = "online"

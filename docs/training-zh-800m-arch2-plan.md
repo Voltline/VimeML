@@ -248,6 +248,24 @@ Three arms on the 12K joint-pinyin 200M recipe (`configs/train-zh200m-12k-pinyin
 - The precheck runs as cluster jobs; its report freezes the arch2 recipe.
 - Configs: `configs/train-zh200m-batch-precheck-{1x,4x,8x}.toml`. `budget_fraction = 0.1` makes the first 10% of updates a complete run (cosine, warmup and milestones over the shortened run); `lm_microbatch = 512` runs the 4× and 8× batches in 4 and 8 pieces per rank with the same gradient.
 
+#### Precheck result (2026-11-20) and one control round
+
+| m20 | 1× | 4× | 8× |
+| --- | ---: | ---: | ---: |
+| Web BPC | 4.3071 | 5.9088 | 6.2594 |
+| Pinyin full / mixed / initials / error | 0.301 / 0.808 / 1.391 / 0.544 | 2.436 / 2.811 / 3.098 / 2.740 | 3.508 / 3.625 / 3.714 / 3.683 |
+
+- 1× matches the full 200M run (web BPC 4.99 at the same update with the long schedule).
+- No spikes in any arm; 4× and 8× trail from the first milestone to the last.
+- A gap this large is not a plausible batch effect at about 80k tokens per update. 4× and 8× differ from 1× in two ways that could each cause it: the √k learning rate (doubled peak, warmup 250) on a model without QK-norm, and the microbatch-pieces code path, which only these arms use.
+- So instead of the 2× arm, one control round of two arms, each the 4× arm with one change: `4x-lr` (1×'s learning rates) and `4x-whole` (`lm_microbatch` 2048, no pieces).
+
+Decision after this round, with no further rounds:
+
+1. `4x-whole` passes: the pieces path is at fault. Fix it, rerun 4× and 8×, and take the largest k that passes.
+2. `4x-lr` passes: the learning-rate scaling is at fault. arch2 uses k = 4 at arch1's peak learning rate (3e-4, no √k). k = 8 is not tried.
+3. Neither passes: larger updates cost quality at this scale. arch2 keeps arch1's batch (k = 1); the speed then comes from packing and step 0's scope only.
+
 ### Expected speed
 
 With larger updates the compute per update grows k-fold and the fixed costs stay. A rough estimate from arch1's measurements (about 0.12 s of compute and about 60 ms of other costs per update):
