@@ -49,7 +49,10 @@ def fp32_evaluation(model):
     training, forward = model.training, model.forward
     tf32 = torch.backends.cuda.matmul.allow_tf32
     model.eval()
-    model.forward = MethodType(TinyGPTV4.forward, model)
+    # The plain class forward, not the compiled one. Packed-training models (arch2: RoPE, no dropout, no
+    # position embedding) are not TinyGPTV4 descendants and carry their own eager forward.
+    plain = type(model).forward if getattr(model, "packed_training", False) else TinyGPTV4.forward
+    model.forward = MethodType(plain, model)
     torch.backends.cuda.matmul.allow_tf32 = False
     try:
         with torch.inference_mode(), torch.autocast(next(model.parameters()).device.type, enabled=False):
