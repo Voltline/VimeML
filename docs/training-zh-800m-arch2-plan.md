@@ -220,8 +220,8 @@ An arch1 update is only about 100k tokens (about 79k LM supervised tokens plus p
 | Pinyin mix full/mixed/initials/error | 96/128/112/48 | each × k | 384/512/448/192 | 768/1024/896/384 |
 | Tokens per update (approx.) | 100k | 100k × k | 400k | 800k |
 | Updates | 1,198,964 | 1,198,964 ÷ k (dry run exact) | about 299,741 | about 149,871 |
-| Peak learning rate | 3e-4 | 3e-4 × √k | 6e-4 | 8.5e-4 |
-| Final learning rate | 3e-5 | peak ÷ 10 | 6e-5 | 8.5e-5 |
+| Peak learning rate | 3e-4 | 3e-4 × √k (precheck: 3e-4, no √k) | **3e-4** (was 6e-4) | 8.5e-4 (not run) |
+| Final learning rate | 3e-5 | peak ÷ 10 | **3e-5** (was 6e-5) | 8.5e-5 (not run) |
 | Warmup (updates) | 2000 | 2000 ÷ k (equal tokens) | 500 | 250 |
 | `bucket_multiplier` | 64 | 64 ÷ k | 16 | 8 |
 | Milestones | 20 | 20, aligned by tokens | | |
@@ -265,6 +265,19 @@ Decision after this round, with no further rounds:
 1. `4x-whole` passes: the pieces path is at fault. Fix it, rerun 4× and 8×, and take the largest k that passes.
 2. `4x-lr` passes: the learning-rate scaling is at fault. arch2 uses k = 4 at arch1's peak learning rate (3e-4, no √k). k = 8 is not tried.
 3. Neither passes: larger updates cost quality at this scale. arch2 keeps arch1's batch (k = 1); the speed then comes from packing and step 0's scope only.
+
+#### Control round result (2026-11-20): rule 2, k = 4 at 3e-4
+
+| m20 | 1× | 4× | `4x-lr` | `4x-whole` |
+| --- | ---: | ---: | ---: | ---: |
+| Web BPC | 4.3071 | 5.9088 | **4.1690** | 6.0219 |
+| Chat BPC | 5.5511 | 6.4649 | **5.4505** | 6.5359 |
+| Memorization probe BPC | 4.2927 | 5.9102 | **4.1548** | 6.0239 |
+| Pinyin full / mixed / initials / error | 0.301 / 0.808 / 1.391 / 0.544 | 2.436 / 2.811 / 3.098 / 2.740 | **0.248 / 0.706 / 1.249 / 0.454** | 2.637 / 2.952 / 3.197 / 2.925 |
+
+- `4x-lr` (4× batch at 1×'s 6e-4) is better than 1× on every validation loss, with no spikes. It passes.
+- `4x-whole` (√k learning rate, no pieces) is as bad as 4×, so the pieces path is not at fault. One whole-batch step took 0.107 s against 0.131 s in pieces, at 2.6 times the peak memory.
+- Rule 2 applies: arch2 uses k = 4 at arch1's peak learning rate, 3e-4 → 3e-5, warmup 500 (`configs/train-zh800m-arch2-k4.toml`). The 6e-4 of the precheck is the 200M's own learning rate; the rule carries over "no √k", not the number. k = 8 is not tried.
 
 ### Expected speed
 

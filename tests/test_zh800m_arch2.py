@@ -208,7 +208,9 @@ class Configs(unittest.TestCase):
             t, b = c["training"], base["training"]
             self.assertEqual(t["lm_batch"], b["lm_batch"] * k)
             self.assertEqual(c["pinyin"]["mix"], {q: v * k for q, v in base["pinyin"]["mix"].items()})
-            self.assertAlmostEqual(t["learning_rate"], b["learning_rate"] * k ** 0.5, delta=5e-6)
+            # k = 4 keeps arch1's peak LR (precheck control round, 2026-11-20); k = 8 is not run and keeps sqrt(k).
+            lr = b["learning_rate"] if k == 4 else b["learning_rate"] * k ** 0.5
+            self.assertAlmostEqual(t["learning_rate"], lr, delta=5e-6)
             self.assertAlmostEqual(t["min_learning_rate"] * 10, t["learning_rate"])
             self.assertEqual((t["warmup_steps"] * k, t["bucket_multiplier"] * k, t["checkpoint_every"] * k),
                              (b["warmup_steps"], b["bucket_multiplier"], b["checkpoint_every"]))
