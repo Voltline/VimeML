@@ -131,6 +131,37 @@ Seven more arms run alongside r4; the arms are independent and run in parallel (
 
 The teacher comparison counts only if r4 − r3-ctrl and r4-s2 − r3-ctrl-s2 have the same sign. A recipe arm replaces r4 only if it beats r4 by more than r4 − r4-s2.
 
+### Round 4 result (2026-11-20)
+
+The 800M teacher does not replace the 200M teacher, and no round 4 arm replaces `kd-cont`.
+
+Prediction track A Top-3 (7,200 items, paired by dialogue, 2,400 clusters) and pinyin generation Top-1 after self-rescoring (λ = 1.6, 3,444 development inputs, sentence-cluster sign-flip):
+
+| Arm | Prediction Top-3 | Pinyin rescored Top-1 | Standard Top-1 net vs v1 |
+| --- | ---: | ---: | ---: |
+| `kd-cont` | 0.2561 | 54.8 | −4 |
+| r3-ctrl | 0.2582 | 54.6 | +1 |
+| r3-ctrl-s2 | 0.2597 | 54.8 | +1 |
+| r4 | 0.2519 | 54.8 | −1 |
+| r4-s2 | 0.2535 | 55.0 | −5 |
+| r4-t2 | 0.2449 | 53.0 | −21 (p 0.0023) |
+| r4-a07 | 0.2560 | 54.8 | −9 |
+| r4-60k | 0.2512 | 54.8 | −4 |
+| r4-data | 0.2556 | 55.1 | −9 |
+| r4-r2 | 0.2537 | 55.1 | −9 |
+| v1 (LM mode) | 0.2760 | 52.6 | – |
+
+- **Teacher.** r4 − r3-ctrl is −45 items (p 0.0096) and r4-s2 − r3-ctrl-s2 is −45 (p 0.0069). The two seeds agree, so the comparison counts, and the 800M teacher is worse for prediction. Pinyin generation is flat (+0.2 and +0.2 rescored), and so are Standard and typo correction.
+- **Recipe arms against r4** (noise band r4-s2 − r4 = +11):
+  - T = 2 is worse on all three: −51 (p 0.010), pinyin −2.6 in generation order (p 1e-4);
+  - α = 0.7 (+29, p 0.019), r1 + r2 (+26, p 0.14) and starting from r2-cont (+13, p 0.47) pass the band, but stay below both 200M-teacher arms, so replacing r4 changes nothing;
+  - 60,000 updates: −5 (p 0.82), and pinyin +0.0; r4 had stopped improving at 30,000.
+- r4-r2 against `kd-cont`: −17 (p 0.41).
+- Every arm keeps clean false display at or below 10% (7.8–9.9%) with typo@2 33.2–34.0.
+- The pinyin rows of `kd-cont` and r3-ctrl uploaded with round 4 were rescored with v1 as the prior; the table uses their self-prior rows from round 3 (same checkpoints).
+
+`kd-cont` stays the v2-20m candidate.
+
 ## Deviations
 
 (None yet.)
