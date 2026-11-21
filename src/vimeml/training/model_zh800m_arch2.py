@@ -98,6 +98,17 @@ def flex_block_mask(segments):
     return create_block_mask(same_segment_causal, batch, None, time, time, device=segments.device)
 
 
+def sdpa_gqa(query, key, value, **options):
+    """SDPA with grouped KV heads. FP32 (validation, the KV research path) has no fused kernel for enable_gqa and
+    falls back to the math backend (4x slower attention, the full score matrix in memory), so FP32 repeats the KV
+    heads and uses the memory-efficient kernel; same values within float rounding. BF16 training keeps enable_gqa."""
+    if query.dtype == torch.float32:
+        groups = query.shape[1] // key.shape[1]
+        return F.scaled_dot_product_attention(query, key.repeat_interleave(groups, 1),
+                                              value.repeat_interleave(groups, 1), **options)
+    return F.scaled_dot_product_attention(query, key, value, enable_gqa=True, **options)
+
+
 class GQAttention(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -126,9 +137,9 @@ class GQAttention(nn.Module):
         batch, time = hidden.shape[:2]
         query, key, value = self.qkv(hidden, positions)
         if mask is None:
-            out = F.scaled_dot_product_attention(query, key, value, is_causal=True, enable_gqa=True)
+            out = sdpa_gqa(query, key, value, is_causal=True)
         elif isinstance(mask, torch.Tensor):
-            out = F.scaled_dot_product_attention(query, key, value, attn_mask=mask, enable_gqa=True)
+            out = sdpa_gqa(query, key, value, attn_mask=mask)
         else:
             from torch.nn.attention.flex_attention import flex_attention
             out = flex_attention(query, key, value, block_mask=mask, enable_gqa=True)
@@ -249,8 +260,7 @@ class Arch2Decoder(nn.Module):
             query, key, value = self.layer_qkv(block, hidden, positions)
             cache.key[layer, :, :, start:end].copy_(key)
             cache.value[layer, :, :, start:end].copy_(value)
-            attended = F.scaled_dot_product_attention(query, cache.key[layer, :, :, :end], cache.value[layer, :, :, :end],
-                                                      attn_mask=causal, enable_gqa=True)
+            attended = sdpa_gqa(query, cache.key[layer, :, :, :end], cache.value[layer, :, :, :end], attn_mask=causal)
             hidden = hidden + block.attention.projection(attended.transpose(1, 2).reshape(batch, size, c.d_model))
             hidden = hidden + block.ffn(block.ffn_norm(hidden))
         cache.length = end

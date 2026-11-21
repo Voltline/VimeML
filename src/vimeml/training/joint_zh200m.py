@@ -34,6 +34,7 @@ background thread from a CPU copy; milestone, epoch, final and stop checkpoints 
 synchronous, and last.pt is always replaced atomically.
 """
 import copy
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import math
@@ -431,7 +432,9 @@ def segment_microbatches(parts, length, limit, rows_per_pass):
 def packed_update(model, optimizer, batches, kinds, tokens, parts, scale, budget, s, device, precision, ctx, net):
     """update_joint for a packing model: same per-token weights and normalization, rows packed into segments."""
     length = model.config.pack_length
+    packing = time.perf_counter()
     work = segment_microbatches(parts, length, model.config.context_length, max(1, budget // length))
+    packing = time.perf_counter() - packing
     totals = torch.zeros(len(kinds), dtype=torch.float32, device=device)
     positions = 0
     for i, (ids, labels, segments, kind) in enumerate(work):
@@ -457,26 +460,40 @@ def packed_update(model, optimizer, batches, kinds, tokens, parts, scale, budget
             "input_tokens": int(lm["lengths"].sum()), "examples": len(lm["lengths"]),
             "padded_positions": positions, "grad_norm": grad_norm,
             "pinyin": {k: {"loss": sums[k] / tokens[k], "supervised_tokens": tokens[k],
-                           "examples": len(batches[k]["lengths"])} for k in kinds if k != "lm"}}
+                           "examples": len(batches[k]["lengths"])} for k in kinds if k != "lm"},
+            "timing": {"pack": packing, "passes": len(work)}}
 
 
 def shared_validate(model, loader, device, ctx, expected_tokens=None, characters=None):
     """posttraining.train.validate over this rank's share of the loader's batches (batch i on
     rank i % world), summed over ranks: the same batches and per-batch sums as one device."""
-    nll, total, inputs, examples = 0.0, 0, 0, 0
-    for i, indices in enumerate(loader.batch_sampler):
-        if i % ctx.world != ctx.rank:
-            continue
+    # The next batch is read and collated on a thread while the GPU runs this one, and the per-batch sums
+    # stay on the GPU until the end: no host sync per batch. The sums are the same values, added in order.
+    mine = [indices for i, indices in enumerate(loader.batch_sampler) if i % ctx.world == ctx.rank]
+
+    def read(indices):
         batch = loader.collate_fn([loader.dataset[j] for j in indices])
-        labels = batch["labels"].to(device, non_blocking=True)
-        result = model(batch["input_ids"].to(device, non_blocking=True), labels)
-        count = int((batch["labels"] != -100).sum())
-        if int(result["token_count"]) != count:
+        if torch.device(device).type == "cuda":
+            batch = {k: v.pin_memory() if torch.is_tensor(v) else v for k, v in batch.items()}
+        return batch
+    sums, counts, total, inputs, examples = [], [], 0, 0, 0
+    with ThreadPoolExecutor(1) as pool:
+        upcoming = pool.submit(read, mine[0]) if mine else None
+        for n in range(len(mine)):
+            batch = upcoming.result()
+            upcoming = pool.submit(read, mine[n + 1]) if n + 1 < len(mine) else None
+            labels = batch["labels"].to(device, non_blocking=True)
+            result = model(batch["input_ids"].to(device, non_blocking=True), labels)
+            sums.append(result["loss_sum"].detach())
+            counts.append((result["token_count"], int((batch["labels"] != -100).sum())))
+            inputs += int(batch["lengths"].sum())
+            examples += len(batch["lengths"])
+    nll = 0.0
+    for loss_sum, (counted, count) in zip(sums, counts):
+        if int(counted) != count:
             raise ValueError("Model/dataset supervised token counts disagree")
         total += count
-        nll += float(result["loss_sum"])
-        inputs += int(batch["lengths"].sum())
-        examples += len(batch["lengths"])
+        nll += float(loss_sum)
     if ctx.active:
         nll, total, inputs, examples = ctx.sum([nll, total, inputs, examples], device)
         total, inputs, examples = int(total), int(inputs), int(examples)
@@ -793,6 +810,7 @@ def run(config, resume=False, root=ROOT):
             atomic_checkpoint(output / f"{name}.pt", payload)
 
     def milestone(k):
+        began = time.perf_counter()
         save()
         put(output / "progress.json", progress(state, plan, "validating"))
         report = ctx.broadcast(measure(k))      # every rank validates its share; rank 0 adds pinyin
@@ -807,13 +825,13 @@ def run(config, resume=False, root=ROOT):
         if k in KEEP_MILESTONES:
             save(f"milestone-{k:02d}")
         save()
-        print(f"[milestone {k}] " + " ".join(f"{n}={report[n].get('bpc', report[n]['loss']):.6f}" for n in full),
-              flush=True)
+        print(f"[milestone {k}] " + " ".join(f"{n}={report[n].get('bpc', report[n]['loss']):.6f}" for n in full)
+              + f" validation={report['validation_seconds']:.0f}s total={time.perf_counter() - began:.0f}s", flush=True)
 
     def measure(k):
         if ctx.main:
             print(f"[milestone {k}/{MILESTONES}] full web, chat and probe validation", flush=True)
-        before = rng_state()
+        before, began = rng_state(), time.perf_counter()
         report = {"milestone": k, "step": state["step"], "epoch_position": state["epoch"] + (
             state["epoch_batch"] / s["updates_per_epoch"][state["epoch"]] if state["epoch"] < s["epochs"] else 0),
             "supervised_tokens": state["totals"]["lm"]["supervised_tokens"]}
@@ -823,8 +841,10 @@ def run(config, resume=False, root=ROOT):
                     report[name] = shared_validate(model, loader, device, ctx)
                 else:
                     report[name] = shared_validate(model, loader, device, ctx, pairs, characters)
+        report["lm_validation_seconds"] = round(time.perf_counter() - began, 1)
         if joint and ctx.main:
             report["pinyin"] = pinyin_validation(state["step"], "milestone")
+        report["validation_seconds"] = round(time.perf_counter() - began, 1)
         restore_rng(before)
         return report
 
@@ -848,12 +868,15 @@ def run(config, resume=False, root=ROOT):
             while state["epoch_batch"] < updates and not requested:
                 began = time.perf_counter()
                 lm_batch = lm_stream.next_batch()
+                fetched = time.perf_counter()
                 rate = learning_rate(state["step"] + 1, s)
                 for group in optimizer.param_groups:
                     group["lr"] = rate
                 pinyin = None
                 if joint:
-                    result = update_joint(model, optimizer, {"lm": lm_batch, **next(pinyin_stream)},
+                    extra = next(pinyin_stream)
+                    fetched_pinyin = time.perf_counter()
+                    result = update_joint(model, optimizer, {"lm": lm_batch, **extra},
                                           joint["weights"], s, device, precision, ctx, net)
                     pinyin = result.pop("pinyin")
                     for kind, r in pinyin.items():
@@ -870,11 +893,31 @@ def run(config, resume=False, root=ROOT):
                 state["lm_cursor"] = lm_stream.state_dict()
                 seconds = time.perf_counter() - began
                 state["training_seconds"] += seconds
+                # Step breakdown on every rank (GPU idle until the first forward: data, then packing on the CPU;
+                # "gpu" is the rest, including waits for slower ranks in the gradient all-reduce).
+                timing = result.pop("timing", {})
+                timing.update(lm_data=fetched - began, step=seconds)
+                if joint:
+                    timing["pinyin_data"] = fetched_pinyin - fetched
+                timing["gpu"] = seconds - timing["lm_data"] - timing.get("pinyin_data", 0) - timing.get("pack", 0)
                 requested = ctx.any(requested, device)      # every rank stops after the same update
                 for field in state["totals"]["lm"]:
                     state["totals"]["lm"][field] += result[field]
+                if state["step"] % s["log_every"] == 0:
+                    # every rank's breakdown at log steps (one small all-reduce, same steps on all ranks)
+                    fields = ("lm_data", "pinyin_data", "pack", "gpu", "step")
+                    slots = [0.0] * (len(fields) * ctx.world)
+                    for f, name in enumerate(fields):
+                        slots[ctx.rank * len(fields) + f] = float(timing.get(name, 0.0))
+                    slots = ctx.sum(slots, device)
+                    timing["ranks"] = {name: [round(slots[r * len(fields) + f], 3) for r in range(ctx.world)]
+                                       for f, name in enumerate(fields)}
+                    if compilation is not None:
+                        from torch._dynamo.utils import counters
+                        timing["compiled_graphs"] = int(counters["stats"]["unique_graphs"])
                 if state["step"] % s["log_every"] == 0 and ctx.main:
-                    latest = {"step": state["step"], "learning_rate": rate, "seconds": seconds, **result}
+                    latest = {"step": state["step"], "learning_rate": rate, "seconds": seconds, **result,
+                              "timing": {k: round(v, 4) if isinstance(v, float) else v for k, v in timing.items()}}
                     if pinyin is not None:
                         latest["pinyin"] = pinyin
                         for kind, r in pinyin.items():
@@ -888,8 +931,12 @@ def run(config, resume=False, root=ROOT):
                     print(f"step={state['step']}/{s['max_steps']} epoch={e + 1}/{s['epochs']} "
                           f"lm={result['loss']:.4f} seconds={seconds:.3f}", flush=True)
                 if state["step"] % s["checkpoint_every"] == 0:
-                    save(background=True)
+                    blocked = time.perf_counter()
+                    save(background=True)       # waits for the previous write, then copies to the CPU
+                    if ctx.main:
+                        print(f"[checkpoint step {state['step']}] blocked={time.perf_counter() - blocked:.1f}s", flush=True)
                 if state["step"] % s["eval_every"] == 0:
+                    evaluated = time.perf_counter()
                     with fp32_evaluation(model):
                         subset_result = shared_validate(model, subset_loader, device, ctx)
                     writer.add_scalar("web/fixed_subset_loss", subset_result["loss"], state["step"])
@@ -897,7 +944,11 @@ def run(config, resume=False, root=ROOT):
                         before = rng_state()
                         subset_result["pinyin"] = pinyin_validation(state["step"], "validation")
                         restore_rng(before)
+                    subset_result["seconds"] = round(time.perf_counter() - evaluated, 1)
                     put(output / "subset-validation.json", {"step": state["step"], **subset_result})
+                    if ctx.main:
+                        print(f"[subset step {state['step']}] loss={subset_result['loss']:.4f} "
+                              f"seconds={subset_result['seconds']:.0f}", flush=True)
                 pending()
                 net.train()
                 if smoke and state["step"] >= smoke:
