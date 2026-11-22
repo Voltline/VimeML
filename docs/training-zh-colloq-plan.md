@@ -62,20 +62,22 @@ Everything runs on development. Neither test nor blind is read.
   | Source | Items | From |
   | --- | ---: | --- |
   | LCCC | 600 | test |
-  | r1 colloquial | 600 | heldout |
+  | r1 colloquial | 600 | heldout, outside the zh13 pool P1 |
   | Douban | 300 | heldout, screened ok |
   | MMChat | 300 | heldout, screened ok |
   | Tieba | 200 | heldout, screened ok |
 
 - Clauses are 4–20 characters, and about half end in a sentence-final particle. Readings are kept only where three tools agree.
-- Before freezing, an overlap scan runs against all training corpora (Aho-Corasick, minimum 8 characters), and flagged items are dropped.
+- The 20M and the 200M teacher pretrained on P1 only, and the r1 pinyin data is drawn from it, so r1 items come only from documents outside P1.
+- Before freezing, an overlap scan runs against all training corpora (Aho-Corasick, minimum 8 characters), and flagged items are dropped. For an r1 item, the scan skips the item's own document and counts every other.
 - Development and test are half each; test is held back for the confirmation run.
+- Frozen result (2026-11-22, `frozen-r1`, manifest sha256 `f94a76df…`): the overlap scan dropped 455 items (r1 176, Tieba 117, LCCC 96, MMChat 55, Douban 11), mostly Tieba floors repeated across scraped posts, MMChat and LCCC both coming from Weibo, and reposted web text in r1. Development has 770 sentences (LCCC 252, r1 211, Douban 146, MMChat 118, Tieba 43), 458 of them ending in a particle and 143 with in-sentence context; test has 775.
 - Significance: paired sign-flip test over sentence clusters.
 
 **Secondary** (descriptive only, not part of the decision):
 
 - prediction track A Top-3, with the CPED stratum (TV-drama lines) reported separately;
-- final-particle prediction: on the colloquial set's items that end in a particle, predict at the position before the particle with single-character candidates allowed (`min_chars = 1`), reporting Top-1 and Top-3.
+- final-particle prediction: on the colloquial set's items that end in a particle, predict at the position before the particle with single-character candidates allowed (`min_chars = 1`), reporting Top-1 and Top-3 ([predict_colloq_zh.py](../scripts/benchmarks/predict_colloq_zh.py)).
 
 **Gates**:
 

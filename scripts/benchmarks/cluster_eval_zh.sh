@@ -69,6 +69,21 @@ step "predict"
 "$py" -X utf8 scripts/benchmarks/predict_ime_zh.py score --run "$out/predict" || echo "FAIL predict score"
 }
 
+colloq="outputs/benchmarks/ime-pinyin-zh-colloq-v1/frozen-r1"
+if [[ -f "$colloq/development.jsonl" ]]; then  # colloquial post-training (training-zh-colloq-plan.md)
+  step "colloquial pinyin"
+  [[ -f "$out/colloq/pinyin/rows.jsonl" ]] && echo "reuse $out/colloq/pinyin" || \
+    "$py" -X utf8 scripts/benchmarks/pinyin_gen_zh.py run --checkpoint "$ckpt" --mode "$mode" --frozen "$colloq" \
+      --out "$out/colloq/pinyin" --device "$device" || echo "FAIL colloquial pinyin"
+  [[ -f "$out/colloq/pinyin/rows.jsonl" && ! -d "$out/colloq/self" ]] && { "$py" -X utf8 scripts/benchmarks/pinyin_gen_zh.py \
+    reprior --rows "$out/colloq/pinyin" --prior "$ckpt" --frozen "$colloq" --out "$out/colloq/self" --device "$device" \
+    || echo "FAIL colloquial rescore"; }
+  step "final-particle prediction"
+  [[ -f "$out/colloq/particle/rows.jsonl" ]] && echo "reuse $out/colloq/particle" || \
+    "$py" -X utf8 scripts/benchmarks/predict_colloq_zh.py run --checkpoint "$ckpt" --out "$out/colloq/particle" \
+      --device "$device" || echo "FAIL particle"
+fi
+
 step "report"
 runs=()
 for ref in v1-lm r2-cont; do

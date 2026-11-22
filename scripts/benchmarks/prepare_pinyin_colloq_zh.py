@@ -14,7 +14,9 @@ usage:
 Sources (all evaluation-only splits, never in any training mix):
   lccc    LCCC test (outputs/zh-corpus/lccc-v2/test.jsonl), one message per dialogue
   r1      export-r1 paragraphs in the zh-colloq heldout split with p_chat >= P_CHAT (zh_colloq.py select),
-          one paragraph per document
+          one paragraph per document, only documents outside the zh13 pool P1 (the 20M and the 200M teacher
+          pretrained on P1 only, and the pinyin data r1 is drawn from it); overlap screening skips the item's
+          own document (own_doc) and still counts every other
   douban, mmchat, tieba
           chat-ext-v2 heldout turns that passed the LLM quality screen; one message per dialogue,
           tieba up to TIEBA_PER_POST per post (its heldout split has only 45 posts)
@@ -23,8 +25,8 @@ Items: as ime-pinyin-zh-v1 (prepare_pinyin_ime_zh.py): a clause is a maximal Han
 punctuation, not starting with a predict-set particle, each clause text once; readings kept only where pypinyin,
 pypinyin over jieba and g2pM agree; keys are full pinyin, all initials and up to four mixed abbreviations.
 Differences: clauses are 4-20 characters (buckets 4-7, 8-12, 13-20, rotating), and every other item prefers a
-clause ending in a sentence-final particle (zh_colloq.PARTICLES; relaxed when the message has none), so the
-"final particle" stratum is about half the set. Context is infield only (the text before the clause in its
+clause ending in a sentence-final particle (FINAL): such an item skips groups without one, and the preference
+is dropped only after every group was tried, so the "final particle" stratum is about half the set. Context is infield only (the text before the clause in its
 own message, contexts_pinyin_ime_zh.infield): the keyboard sees nothing of earlier turns.
 Splits: development/test by a seeded hash, half each. Test is held back for the confirmation run.
 """
@@ -39,6 +41,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts/benchmarks"))
 sys.path.insert(0, str(ROOT / "scripts/corpus"))
+sys.path.insert(0, str(ROOT / "src"))
 import prepare_pinyin_ime_zh as P  # noqa: E402
 from contexts_pinyin_ime_zh import infield  # noqa: E402
 
@@ -53,6 +56,7 @@ LCCC = ROOT / "outputs/zh-corpus/lccc-v2/test.jsonl"
 SELECT = ROOT / "outputs/zh-colloq/select-r1"
 CHAT_EXT = ROOT / "outputs/zh-corpus/chat-ext-v2"
 SCREEN = ROOT / "outputs/zh-colloq/screen"
+POOLS = ROOT / "artifacts/training-data/zh13-pools/pools.json"
 
 
 def text_id(t):
@@ -77,10 +81,13 @@ def units(source):
             yield f'{r["dialogue"]}/{r["turn"]}', str(r["dialogue"]), r["text"]
     elif source == "r1":
         import pyarrow.parquet as pq
+        from vimeml.tokenizer.encode_zh13 import doc_hash
+        pools = json.loads(POOLS.read_text(encoding="utf-8"))
+        p1, label = pools["thresholds"]["p1"], pools["labels"]["pool"]
         for path in sorted(SELECT.glob("*.parquet")):
             t = pq.read_table(path, columns=["id", "para", "text", "p_chat", "split"]).to_pylist()
             for r in t:
-                if r["split"] == "heldout" and r["p_chat"] >= P_CHAT:
+                if r["split"] == "heldout" and r["p_chat"] >= P_CHAT and doc_hash(label, r["id"]) >= p1:
                     yield f'{r["id"]}#{r["para"]}', r["id"], r["text"]
     else:
         ok = screened_ok(source)
@@ -105,53 +112,60 @@ def build(args):
         rng.shuffle(order)
         cap = TIEBA_PER_POST if source == "tieba" else 1
         stats[source]["groups"] = len(order)
-        made, rounds = 0, 0
+        made = 0
         taken = collections.Counter()
-        while made < want_n and rounds < cap:
-            rounds += 1
-            for group in order:
-                if made >= want_n:
-                    break
-                if taken[group] >= rounds:
-                    continue
-                bucket = BUCKETS[made % len(BUCKETS)]
-                prefer_final = made % 2 == 0
-                options = []
-                for key, text in groups[group]:
-                    if not 2 <= len(text) <= 300:
+        # phase 0: an item that prefers a final particle skips groups without one (the group stays available);
+        # phase 1, only if phase 0 ran out of groups: the preference may be dropped
+        for phase in (0, 1):
+            rounds = 0
+            while made < want_n and rounds < cap:
+                rounds += 1
+                for group in order:
+                    if made >= want_n:
+                        break
+                    if taken[group] >= rounds:
                         continue
-                    for s, e in P.clauses(text, set(), predict.HAN):
-                        c = text[s:e]
-                        if 4 <= len(c) <= 20 and c[0] not in predict.PARTICLES and c not in seen_text:
-                            options.append((key, text, s, c))
-                rng.shuffle(options)
-                pick = None
-                for relax in (0, 1, 2):
-                    for key, text, s, c in options:
-                        if relax < 2 and prefer_final and c[-1] not in FINAL:
+                    bucket = BUCKETS[made % len(BUCKETS)]
+                    prefer_final = made % 2 == 0
+                    options = []
+                    for key, text in groups[group]:
+                        if not 2 <= len(text) <= 300:
                             continue
-                        if relax < 1 and not bucket[0] <= len(c) <= bucket[1]:
+                        for s, e in P.clauses(text, set(), predict.HAN):
+                            c = text[s:e]
+                            if 4 <= len(c) <= 20 and c[0] not in predict.PARTICLES and c not in seen_text:
+                                options.append((key, text, s, c))
+                    rng.shuffle(options)
+                    pick = None
+                    for relax in (0, 1, 2)[:2 + phase]:
+                        for key, text, s, c in options:
+                            if relax < 2 and prefer_final and c[-1] not in FINAL:
+                                continue
+                            if relax < 1 and not bucket[0] <= len(c) <= bucket[1]:
+                                continue
+                            syllables, readers = reader.readings(c)
+                            if syllables is None or any(len(set(v)) > 1 for v in zip(*readers)):
+                                stats[source]["reading_disagreement"] += 1
+                                continue
+                            pick = (key, text, s, c, syllables)
+                            break
+                        if pick:
+                            stats[source][f"phase{phase}_relax{relax}"] += 1
+                            break
+                    if pick is None:
+                        if phase == 0 and prefer_final:
+                            stats[source]["skipped_no_final"] += 1
                             continue
-                        syllables, readers = reader.readings(c)
-                        if syllables is None or any(len(set(v)) > 1 for v in zip(*readers)):
-                            stats[source]["reading_disagreement"] += 1
-                            continue
-                        pick = (key, text, s, c, syllables)
-                        break
-                    if pick:
-                        stats[source][f"relax{relax}"] += 1
-                        break
-                if pick is None:
-                    stats[source]["no_clause"] += 1
-                    taken[group] = cap  # nothing usable left in this group
-                    continue
-                key, text, s, c, syllables = pick
-                seen_text.add(c)
-                taken[group] += 1
-                rec = P.record(c, syllables, reader.jieba, rng)
-                records.append(dict(source=source, unit=key, group=group, message=text, span=[s, s + len(c)],
-                                    infield=infield(text[:s]), final_particle=c[-1] in FINAL, **rec))
-                made += 1
+                        stats[source]["no_clause"] += 1
+                        taken[group] = cap  # nothing usable left in this group
+                        continue
+                    key, text, s, c, syllables = pick
+                    seen_text.add(c)
+                    taken[group] += 1
+                    rec = P.record(c, syllables, reader.jieba, rng)
+                    records.append(dict(source=source, unit=key, group=group, message=text, span=[s, s + len(c)],
+                                        infield=infield(text[:s]), final_particle=c[-1] in FINAL, **rec))
+                    made += 1
         if made < want_n:
             raise SystemExit(f"{source}: only {made} usable items")
         stats[source]["items"] = made
@@ -160,12 +174,13 @@ def build(args):
                       key=lambda r: hashlib.sha256(f'{SEED}/{r["group"]}'.encode()).hexdigest())
         for n, r in enumerate(rows):
             r["split"] = ("development", "test")[n % 2]
-            r["id"] = f'zh-colloq-{source}-{hashlib.sha256((source + "|" + r["unit"]).encode()).hexdigest()[:10]}'
+            r["id"] = f'zh-colloq-{source}-{hashlib.sha256(f'{source}|{r["unit"]}|{r["span"][0]}'.encode()).hexdigest()[:10]}'
     records.sort(key=lambda r: r["id"])
     if len({r["id"] for r in records}) != len(records):
         raise SystemExit("duplicate ids")
     P.write(out / "items.jsonl", [dict(id=r["id"], source=r["source"], split=r["split"], message=r["message"],
-                                       span=r["span"], target=r["text"]) for r in records])
+                                       span=r["span"], target=r["text"],
+                                       **({"own_doc": r["group"]} if r["source"] == "r1" else {})) for r in records])
     P.write(out / "records.jsonl", records)
     manifest = dict(version=VERSION + "-draft", seed=SEED, per_source=PER_SOURCE, p_chat=P_CHAT,
                     build={k: dict(v) for k, v in stats.items()}, counts=counts(records),

@@ -8,7 +8,9 @@ Two patterns per item, matched as exact substrings (Aho-Corasick):
   run      the maximal Han run of the message that contains the target, if >= MIN_LEN chars;
            robust to punctuation differences around it
   message  the whole message, if >= MIN_LEN chars
-Shorter runs are generic phrases (苏州旅游) and are not screened. Writes <out>/overlap.jsonl
+Shorter runs are generic phrases (苏州旅游) and are not screened. An item may name its own source document
+("own_doc", e.g. an export-r1 heldout paragraph's document id): in parquet files with an id column, hits in
+that document are not counted for that item. Writes <out>/overlap.jsonl
 (one row per item with hits, counts per corpus file) and <out>/overlap-summary.json; never
 overwrites. Corpus files are data and only read; run with python -I.
 """
@@ -36,26 +38,33 @@ def patterns(items):
 
 
 def texts(path):
+    """(document id or None, text)"""
     if path.endswith('.parquet'):
         import pyarrow.parquet as pq
         pf=pq.ParquetFile(path)
-        if 'text' not in pf.schema_arrow.names: raise SystemExit(f'{path} has no text column')
-        for batch in pf.iter_batches(batch_size=20000,columns=['text']):
-            yield from batch.column(0).to_pylist()
+        names=pf.schema_arrow.names
+        if 'text' not in names: raise SystemExit(f'{path} has no text column')
+        cols=['text']+(['id'] if 'id' in names else [])
+        for batch in pf.iter_batches(batch_size=20000,columns=cols):
+            ids=batch.column(1).to_pylist() if len(cols)==2 else [None]*batch.num_rows
+            yield from zip(ids,batch.column(0).to_pylist())
     else:
-        with open(path,encoding='utf-8') as fh: yield from fh
+        with open(path,encoding='utf-8') as fh:
+            for line in fh: yield None,line
 
 
 def scan(job):
-    path,pats=job
+    path,pats,own=job
     A=ahocorasick.Automaton()
     for p in pats: A.add_word(p,p)
     A.make_automaton()
-    hits=collections.Counter(); docs=0
-    for t in texts(path):
+    hits=collections.Counter(); own_hits=collections.Counter(); docs=0
+    for doc,t in texts(path):
         docs+=1
-        for p in {v for _,v in A.iter(t)}: hits[p]+=1   # documents containing the pattern
-    return path,docs,hits
+        for p in {v for _,v in A.iter(t)}:
+            hits[p]+=1   # documents containing the pattern
+            if doc is not None and doc in own: own_hits[p,doc]+=1
+    return path,docs,hits,own_hits
 
 
 def main():
@@ -63,13 +72,17 @@ def main():
     if (out/'overlap.jsonl').exists(): raise SystemExit(f'{out}/overlap.jsonl exists; use a new out dir')
     items=[json.loads(l) for l in open(items_path,encoding='utf-8') if l.strip()]
     pats=patterns(items); plist=sorted(pats)
+    own_of={it['id']:it['own_doc'] for it in items if it.get('own_doc')}
+    own=set(own_of.values())
     per_item=collections.defaultdict(lambda: collections.defaultdict(collections.Counter))
     total_docs={}
     with Pool(min(len(corpus),12)) as pool:
-        for path,docs,hits in pool.imap_unordered(scan,[(c,plist) for c in corpus]):
+        for path,docs,hits,own_hits in pool.imap_unordered(scan,[(c,plist,own) for c in corpus]):
             total_docs[path]=docs; print(f'{Path(path).name}: {docs} docs, {len(hits)} patterns hit',flush=True)
             for p,n in hits.items():
-                for i,kind in pats[p]: per_item[i][kind][Path(path).name]+=n
+                for i,kind in pats[p]:
+                    n_other=n-own_hits.get((p,own_of.get(i)),0)
+                    if n_other>0: per_item[i][kind][Path(path).name]+=n_other
     out.mkdir(parents=True,exist_ok=True)
     by_id={it['id']:it for it in items}
     with open(out/'overlap.jsonl','w',encoding='utf-8') as fh:
