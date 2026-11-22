@@ -197,5 +197,95 @@ class TypoExtraTest(ExtraTest):
                                               "temperature": 1.0, "ce_only_kinds": ["typo"]})
         self.assertEqual(plan["distillation"]["ce_only_kinds"], ["typo"])
 
+
+class TinyLM(__import__("torch").nn.Module):
+    """model(ids) -> logits; model(ids, labels) -> {"loss_sum"} like the 12K student."""
+
+    def __init__(self, seed):
+        import torch
+        super().__init__()
+        torch.manual_seed(seed)
+        self.embed = torch.nn.Embedding(1000, 8)
+        self.head = torch.nn.Linear(8, 1000)
+
+    def forward(self, ids, labels=None):
+        import torch
+        logits = self.head(self.embed(ids))
+        if labels is None:
+            return logits
+        valid = labels != -100
+        return {"loss_sum": torch.nn.functional.cross_entropy(logits[valid], labels[valid], reduction="sum")}
+
+
+class CeOnlyExtraTest(ExtraTest):
+    """[[data.extra]] ce_only = true: the c10-hard arm trains its extra rows on cross-entropy alone."""
+
+    distill = {"teacher": "t.pt", "teacher_sha256": "0", "alpha": 0.5, "temperature": 1.0}
+
+    def test_batches_unchanged_without_ce_only(self):
+        both = JP.Schedule(self.r1, self.mix, 7, 0.3, [(self.r2, self.extra_mix)])
+        flagged = JP.Schedule(self.r1, self.mix, 7, 0.3, [(self.r2, self.extra_mix)], [1])
+        for step in range(6):
+            a, b = both[step], flagged[step]
+            for kind in a:
+                self.assertNotIn("hard", a[kind])
+                self.assertEqual(ids(a[kind]), ids(b[kind]))
+                self.assertEqual(a[kind]["labels"].tolist(), b[kind]["labels"].tolist())
+                n = self.mix[kind]
+                self.assertEqual(b[kind]["hard"].tolist(), [False] * n + [True] * self.extra_mix[kind])
+
+    def test_pickle_keeps_ce_only(self):
+        import pickle
+        flagged = JP.Schedule(self.r1, self.mix, 7, 0.3, [(self.r2, self.extra_mix)], [1])
+        again = pickle.loads(pickle.dumps(flagged))
+        self.assertEqual(again[3]["full"]["hard"].tolist(), flagged[3]["full"]["hard"].tolist())
+
+    def extra(self, flag):
+        return {"extra": [{"directory": "r2", "manifest_sha256": self.r2_sha, "mix": self.extra_mix,
+                           "ce_only": flag}]}
+
+    def test_plan(self):
+        self.assertEqual(self.plan(self.extra(True), self.distill)["ce_only_sources"], [1])
+        self.assertNotIn("ce_only_sources", self.plan(self.extra(False), self.distill))
+        with self.assertRaises(ValueError):
+            self.plan(self.extra(True))
+        with self.assertRaises(ValueError):
+            self.plan(self.extra("yes"), self.distill)
+
+    def test_update_is_ce_on_hard_rows_plus_kd_on_the_rest(self):
+        import torch
+        schedule = JP.Schedule(self.r1, self.mix, 7, 0.0, [(self.r2, self.extra_mix)], [1])
+        batches = schedule[2]
+        mix = {k: self.mix[k] + self.extra_mix[k] for k in JP.BASE_STORES}
+        d = dict(self.distill, ce_only_kinds=[])
+        teacher = TinyLM(1)
+        cpu = torch.device("cpu")
+        for normalization in ("tokens", "per_kind"):
+            plan = {"settings": {"normalization": normalization, "grad_clip": 1e9}, "distillation": d,
+                    "mix": mix, "batch": sum(mix.values())}
+            model = TinyLM(0)
+            report = JP.update(model, torch.optim.SGD(model.parameters(), lr=0.0), batches, plan, cpu, "fp32",
+                               teacher)
+            got = [p.grad.clone() for p in model.parameters()]
+            ref = TinyLM(0)
+            tokens = {k: int((b["labels"] != -100).sum()) for k, b in batches.items()}
+            total = 0
+            for kind, b in batches.items():
+                hard, labels = b["hard"], b["labels"]
+                logits = ref(b["input_ids"])
+                with torch.no_grad():
+                    tl = teacher(b["input_ids"])
+                soft, _, _ = JP.distilled_loss(logits[~hard], tl[~hard], labels[~hard], 0.5, 1.0)
+                h = labels[hard]
+                ce = torch.nn.functional.cross_entropy(logits[hard][h != -100], h[h != -100], reduction="sum")
+                scale = (1 / sum(tokens.values()) if normalization == "tokens"
+                         else mix[kind] / plan["batch"] / tokens[kind])
+                total = total + (soft + ce) * scale
+                self.assertEqual(int(hard.sum()), self.extra_mix[kind])
+            total.backward()
+            for g, p in zip(got, ref.parameters()):
+                self.assertTrue(torch.allclose(g, p.grad, atol=1e-6, rtol=1e-5))
+            self.assertIn("kl", report["kinds"]["full"])
+
 if __name__ == "__main__":
     unittest.main()

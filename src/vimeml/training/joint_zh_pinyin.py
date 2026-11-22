@@ -29,7 +29,10 @@ joint-pinyin 200M) runs on the same batch in BF16 without gradients. On every su
 student's loss is (1 - alpha) * cross-entropy on the label + alpha * T^2 * KL(teacher_T || student_T)
 with both distributions at temperature T; normalization is the same as without distillation.
 distillation.ce_only_kinds (e.g. ["typo"], which the teacher never saw) train on cross-entropy
-alone and never run the teacher. The teacher's validation losses are written once, at the start, to teacher_validation.json.
+alone and never run the teacher. An extra directory with ce_only = true (the c10-hard arm of the colloquial
+post-training) trains its own rows on cross-entropy alone: those rows carry a per-row `hard` flag in the
+collated batch, the teacher still runs on the whole kind batch (same shapes) and only the other rows get the
+distilled loss; normalization is unchanged. Without ce_only sources batches carry no `hard` field. The teacher's validation losses are written once, at the start, to teacher_validation.json.
 
 Validation (FP32) at step 0 and every eval_every: loss per store, and for pinyin stores
 tf_exact = share of samples whose every output token (and EOS) is the argmax under
@@ -104,11 +107,14 @@ def shifted(ids, first, crop=0):
 class Schedule:
     """dataset[step] -> {store: collated batch}; picklable for spawn workers.
 
-    extra: [(directory, mix), ...], read after the primary directory as sources 1, 2, ..."""
+    extra: [(directory, mix), ...], read after the primary directory as sources 1, 2, ...
+    ce_only_sources: source indices whose rows train on cross-entropy alone; when non-empty every collated
+    batch gets a bool `hard` tensor (one per row), otherwise batches are unchanged."""
 
-    def __init__(self, directory, mix, seed, crop_probability, extra=()):
+    def __init__(self, directory, mix, seed, crop_probability, extra=(), ce_only_sources=()):
         self.directory, self.mix, self.seed, self.crop_probability = Path(directory), dict(mix), seed, crop_probability
         self.extra = [(Path(d), dict(m)) for d, m in extra]
+        self.ce_only_sources = sorted(set(ce_only_sources))
         self._open()
 
     def _open(self):
@@ -121,11 +127,13 @@ class Schedule:
 
     def __getstate__(self):
         return {"directory": self.directory, "mix": self.mix, "seed": self.seed,
-                "crop_probability": self.crop_probability, "extra": self.extra}
+                "crop_probability": self.crop_probability, "extra": self.extra,
+                "ce_only_sources": self.ce_only_sources}
 
     def __setstate__(self, state):
         self.__dict__.update(state)
         self.extra = state.get("extra", [])
+        self.ce_only_sources = state.get("ce_only_sources", [])
         self._open()
 
     def permutation(self, kind, epoch, source=0):
@@ -150,7 +158,7 @@ class Schedule:
 
     def __getitem__(self, step):
         rng = np.random.default_rng([self.seed, 1 << 20, step])
-        samples = {}
+        samples, hard = {}, {}
         for source, kind, store, _ in self.sources:
             for index in self.indices(kind, step, source):
                 ids, first = store.get(index)
@@ -159,7 +167,12 @@ class Schedule:
                         and rng.random() < self.crop_probability):
                     crop = 1 + int(rng.integers(len(ids) - 1 - CROP_MINIMUM))
                 samples.setdefault(kind, []).append(shifted(ids, first, crop))
-        return {kind: self.collate(group) for kind, group in samples.items()}
+                hard.setdefault(kind, []).append(source in self.ce_only_sources)
+        out = {kind: self.collate(group) for kind, group in samples.items()}
+        if self.ce_only_sources:
+            for kind, batch in out.items():
+                batch["hard"] = torch.tensor(hard[kind], dtype=torch.bool)
+        return out
 
     def epochs(self, step):
         return {(kind if source == 0 else f"{kind}@{source}"): step * count / len(store)
@@ -254,7 +267,14 @@ def build_plan(config, root=ROOT, verify_files=True):
         signatures["teacher"] = distillation["teacher_sha256"]
     train = {k: manifest["stores"]["train"][k]["examples"] for k in STORES if k in held}
     passes = {k: s["max_steps"] * v / train[k] for k, v in mix.items() if v}
+    flags = [e.get("ce_only", False) for e in extras]
+    if any(type(f) is not bool for f in flags):
+        raise ValueError("data.extra ce_only is true or false")
+    if any(flags) and distillation is None:
+        raise ValueError("data.extra ce_only needs a [distillation] section")
     extra = {}
+    if any(flags):
+        extra["ce_only_sources"] = [i for i, f in enumerate(flags, 1) if f]
     if extras:
         signatures["extra_data"] = [e["manifest_sha256"] for e in extras]
         for i, (m, examples) in enumerate(zip(extra_mixes, extra_train), 1):
@@ -306,14 +326,29 @@ def update(model, optimizer, batches, plan, device, precision, teacher=None):
         ids = batch["input_ids"].to(device, non_blocking=True)
         labels = batch["labels"].to(device, non_blocking=True)
         with amp_context(device, precision):
-            if teacher is None or kind in d.get("ce_only_kinds", ()):
+            hard = batch.get("hard")
+            if teacher is None or kind in d.get("ce_only_kinds", ()) or (hard is not None and bool(hard.all())):
                 loss_sum = ce_sum = model(ids, labels)["loss_sum"]
-            else:
+            elif hard is None or not bool(hard.any()):
                 with torch.no_grad():
                     teacher_logits = teacher(ids)
                 loss_sum, ce_sum, kl_sum = distilled_loss(model(ids), teacher_logits, labels, d["alpha"],
                                                           d["temperature"])
-                kls[kind] = float(kl_sum.detach())
+                kls[kind] = (float(kl_sum.detach()), tokens[kind])
+            else:
+                hard = hard.to(device)
+                with torch.no_grad():
+                    teacher_logits = teacher(ids)
+                logits = model(ids)
+                loss_sum, ce_soft, kl_sum = distilled_loss(logits[~hard], teacher_logits[~hard], labels[~hard],
+                                                           d["alpha"], d["temperature"])
+                hard_labels = labels[hard]
+                valid = hard_labels != -100
+                ce_hard = torch.nn.functional.cross_entropy(logits[hard][valid].float(), hard_labels[valid],
+                                                            reduction="sum")
+                loss_sum = loss_sum + ce_hard
+                ce_sum = ce_soft + ce_hard
+                kls[kind] = (float(kl_sum.detach()), int((labels[~hard] != -100).sum()))
             if s["normalization"] == "tokens":
                 loss = loss_sum / total
             else:
@@ -327,7 +362,7 @@ def update(model, optimizer, batches, plan, device, precision, teacher=None):
     return {"loss": sum(sums.values()) / total, "grad_norm": grad_norm, "supervised_tokens": total,
             "kinds": {k: {"loss": sums[k] / tokens[k], "supervised_tokens": tokens[k],
                           "examples": len(batches[k]["lengths"]),
-                          **({"kl": kls[k] / tokens[k]} if k in kls else {})} for k in sums}}
+                          **({"kl": kls[k][0] / max(kls[k][1], 1)} if k in kls else {})} for k in sums}}
 
 
 def validation_sets(directory, plan, seed, root=ROOT):
@@ -467,7 +502,7 @@ def run(config, resume=False, root=ROOT, log=print):
     data_dir = root / config["data"]["directory"]
     sources = plan.get("sources") or [{"directory": config["data"]["directory"], "mix": plan["mix"]}]
     schedule = Schedule(data_dir, sources[0]["mix"], s["seed"], s["prefix_crop_probability"],
-                        [(root / x["directory"], x["mix"]) for x in sources[1:]])
+                        [(root / x["directory"], x["mix"]) for x in sources[1:]], plan.get("ce_only_sources", ()))
     sets = validation_sets(data_dir, plan, s["seed"], root)
     limit = s.get("smoke_validation_examples", 0)
     writer = SummaryWriter(str(log_dir), purge_step=state["step"] + 1 if resume else None, flush_secs=5)
