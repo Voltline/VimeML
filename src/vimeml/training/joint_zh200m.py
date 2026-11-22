@@ -446,6 +446,7 @@ def packed_update(model, optimizer, batches, kinds, tokens, parts, scale, budget
             out["loss_sum"].backward()
         totals += torch.bincount(kind[labels != -100], weights=out["token_losses"].float(), minlength=len(kinds))
         positions += ids.numel()
+    local_positions = positions
     sums = totals.tolist()
     if ctx.active:
         *sums, positions = ctx.sum(sums + [positions], device)
@@ -461,7 +462,7 @@ def packed_update(model, optimizer, batches, kinds, tokens, parts, scale, budget
             "padded_positions": positions, "grad_norm": grad_norm,
             "pinyin": {k: {"loss": sums[k] / tokens[k], "supervised_tokens": tokens[k],
                            "examples": len(batches[k]["lengths"])} for k in kinds if k != "lm"},
-            "timing": {"pack": packing, "passes": len(work)}}
+            "timing": {"pack": packing, "passes": len(work), "padded": local_positions}}
 
 
 def shared_validate(model, loader, device, ctx, expected_tokens=None, characters=None):
@@ -904,8 +905,12 @@ def run(config, resume=False, root=ROOT):
                 for field in state["totals"]["lm"]:
                     state["totals"]["lm"][field] += result[field]
                 if state["step"] % s["log_every"] == 0:
-                    # every rank's breakdown at log steps (one small all-reduce, same steps on all ranks)
-                    fields = ("lm_data", "pinyin_data", "pack", "gpu", "step")
+                    # every rank's breakdown at log steps (one small all-reduce, same steps on all ranks);
+                    # packed stages also report each rank's pass count and padded positions, which is what
+                    # the balanced share in distributed.Context controls.
+                    fields = ["lm_data", "pinyin_data", "pack", "gpu"]
+                    fields += [name for name in ("passes", "padded") if name in timing]
+                    fields += ["step"]
                     slots = [0.0] * (len(fields) * ctx.world)
                     for f, name in enumerate(fields):
                         slots[ctx.rank * len(fields) + f] = float(timing.get(name, 0.0))

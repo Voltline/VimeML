@@ -1,7 +1,7 @@
 """Single-node data parallelism for the zh pretraining trainers (launched with torchrun).
 
 Every rank draws the same global batch from the same seeded loaders, then trains on its
-own contiguous share of the rows. The data order, the cursor and the per-update token
+own strided share of the rows. The data order, the cursor and the per-update token
 normalization therefore stay exactly those of a one-device run: each rank scales its loss
 by the global supervised-token count and by the world size (DDP averages gradients), so
 the summed gradient is the one-device gradient up to floating-point order. Rank 0 writes
@@ -17,8 +17,6 @@ from contextlib import nullcontext
 
 import torch
 import torch.distributed as dist
-
-from vimeml.posttraining.streams import slice_batch
 
 # Rank 0 may validate alone at milestones while the others wait at a barrier; a full
 # FP32 validation of a large model can take far longer than NCCL's default 10 minutes.
@@ -55,13 +53,20 @@ class Context:
         return nullcontext() if last or not self.active else module.no_sync()
 
     def share(self, batch):
-        """This rank's contiguous rows of a global batch, trimmed to its own width
-        (as posttraining.streams.microbatches trims). None when this rank gets no rows."""
-        rows = len(batch["lengths"])
-        start, end = rows * self.rank // self.world, rows * (self.rank + 1) // self.world
-        if start == end:
+        """This rank's rows of a global batch, taken with stride `world` from `rank` and trimmed to
+        this share's width (as posttraining.streams.microbatches trims). None when this rank gets
+        no rows.
+
+        The bucketed loaders sort a batch by window length (data.LengthBucketBatchSampler), so a
+        contiguous share hands every rank a different slice of the length distribution: the last
+        ranks pack the longest windows of every batch into several times as many padded rows and
+        pay more attention per token, while DDP makes every other rank wait for them at the
+        final all-reduce of the update. Striding gives every rank a uniform sample of the batch
+        instead. The gradient is unchanged either way: each row of the global batch contributes
+        its tokens exactly once and the per-token weights are global counts."""
+        part = {name: value[self.rank::self.world] for name, value in batch.items()}
+        if not len(part["lengths"]):
             return None
-        part = slice_batch(batch, start, end)
         width = math.ceil(int(part["lengths"].max()) / 8) * 8
         part["input_ids"] = part["input_ids"][:, :width]
         part["labels"] = part["labels"][:, :width]

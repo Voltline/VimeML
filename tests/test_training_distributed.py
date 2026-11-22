@@ -134,13 +134,15 @@ class DataParallelUpdateTest(unittest.TestCase):
         for key in ("supervised_tokens", "input_tokens", "examples"):
             self.assertEqual(one[key], share[key])
 
-    def test_shares_cover_the_batch_in_order(self):
+    def test_shares_partition_the_batch(self):
         rows = batch(7, 10, 9)
         parts = [Context(3, r).share(rows) for r in range(3)]
-        self.assertEqual(torch.cat([p["lengths"] for p in parts]).tolist(), rows["lengths"].tolist())
-        for p in parts:
-            self.assertLessEqual(int(p["lengths"].max()), p["input_ids"].shape[1])
-        self.assertIsNone(Context(8, 0).share(batch(3, 10, 10)))   # rows 0..0 of 3
+        for rank, part in enumerate(parts):
+            self.assertEqual(part["lengths"].tolist(), rows["lengths"][rank::3].tolist())
+            self.assertLessEqual(int(part["lengths"].max()), part["input_ids"].shape[1])
+        stated = torch.cat([p["lengths"] for p in parts])
+        self.assertEqual(sorted(stated.tolist()), sorted(rows["lengths"].tolist()))
+        self.assertIsNone(Context(8, 7).share(batch(3, 10, 10)))   # rank 7 of 8 gets rows 7::8 of 3
 
 
 if __name__ == "__main__":
