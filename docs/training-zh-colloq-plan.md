@@ -23,9 +23,9 @@ Colloquial data enters through `[[data.extra]]`. Builder, sample rules, tokenize
 - Every turn goes through an LLM quality screen (hate, abuse, sexual, political, illegal, junk and other low-quality text). Only turns judged ok are kept, and an unscreened turn counts as not ok. The screen inputs are shuffled, so a partly screened source is a random subset.
 - `zh_colloq.py export-chat` exports by row count: Douban 800k, MMChat 600k, Tieba 120k. Tieba has only 51k turns after screening, so they are repeated about 2.35 times, each copy under its own dialogue key.
 - Each turn gives one sample, with context only from inside the turn, as deployed: 30% plain, 70% pinyin.
-- The store's manifest sha256 is filled into the configs after the build and before training. That step is not a deviation.
+- The store's manifest sha256 is filled into the configs after the build and before training (`d97cb59d…`). That step is not a deviation. Train samples: plain 318,457, full 311,428, mixed 310,867, initials 311,656, error 97,667.
 
-**Composition of the colloquial part** (by sample): r1 chat about 52%, r1 spoken about 10%, Douban 20%, MMChat 15%, Tieba 3%. At c20 the r1 store is read at most 0.7 times for any kind, and the chat store less than once.
+**Composition of the colloquial part** (by sample): r1 chat about 52%, r1 spoken about 10%, Douban 20%, MMChat 15%, Tieba 3%. At c20 the r1 store is read at most 0.7 times for any kind, and the chat store's plain samples about 1.13 times (the build drops plain windows under 8 tokens, and chat turns are short); its other kinds at most 0.97 times.
 
 ## Arms
 

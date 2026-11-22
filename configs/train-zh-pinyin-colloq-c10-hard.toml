@@ -31,7 +31,7 @@ ce_only = true
 
 [[data.extra]]
 directory = "artifacts/training-data/zh-colloq-chat-12k"
-manifest_sha256 = "PENDING_CHAT_STORE_MANIFEST_SHA256"
+manifest_sha256 = "d97cb59d044daac1631d7f12bf6a02400615597727a7df87c62e29db47da68dc"
 mix = { plain = 6, full = 4, mixed = 5, initials = 4, error = 1 }
 ce_only = true
 
