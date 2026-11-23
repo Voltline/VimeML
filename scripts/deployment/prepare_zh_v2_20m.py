@@ -1,6 +1,7 @@
 """vimeml-zh-v2-20m handoff for the Mac (Core ML) and Vime (iOS): weights, fixtures and one ZIP.
 
-Brief: docs/reference/mac-zh-v2-20m.md. v2-20m (`kd-cont`) has v1's shape (12K, d384, nine layers, context
+Brief: docs/reference/mac-zh-v2-20m.md (kd-cont) and docs/reference/mac-zh-v2-20m-colloq.md (colloq-c40, which
+replaced kd-cont as vimeml-zh-v2-20m on 2026-11-23). Both have v1's shape (12K, d384, nine layers, context
 128), so the zh-v1 Core ML code is reused; only the weights and the decoding contract (task mode with
 self rescoring) change.
 
@@ -10,7 +11,8 @@ self rescoring) change.
             lambda 1.6; the 125 cases (keys, contexts) of the v1 fixture zh-generation-v1-lm-r2
   package   ZIP of bundle, FP32 fixtures, generation fixture and reading dictionary, with SHA256SUMS
 
-usage: python -X utf8 scripts/deployment/prepare_zh_v2_20m.py <stage> [--output ZIP]
+usage: python -X utf8 scripts/deployment/prepare_zh_v2_20m.py <stage> [--model kd-cont|colloq-c40] [--output ZIP]
+--model selects the checkpoint and its own output directories (kd-cont, the default, keeps the original paths).
 """
 import argparse
 import hashlib
@@ -36,6 +38,27 @@ READINGS_SHA256 = "3a1654cd5ce20ecacd88046186c34ad87e748a494f7078f23c1ad15492eb0
 V1_CASES = "outputs/vime-fixtures/zh-generation-v1-lm-r2/cases.jsonl"
 FIXTURE = "outputs/vime-fixtures/zh-generation-v2-20m-task-r1"
 MODE, BEAM, TOPK, LAMBDA = "task", 16, 10, 1.6
+ARM = "pinyin-kd-cont"
+PHASE = "v2-20m: task mode with self rescoring (replaces v1 lm mode on the phone)"
+MODELS = {
+    "kd-cont": {},
+    "colloq-c40": {
+        "MODEL_DIR": "artifacts/models/tiny-zh13-12k-pinyin-colloq-c40",
+        "CHECKPOINT_SHA256": "0ec5ffb110fc3959534858fe1a931f4c177878daa8db33bea861c843ca1c1027",
+        "REFERENCE": "outputs/deployment/vimeml-zh-v2-20m-c40-fp32-input",
+        "BUNDLE": f"artifacts/releases/{RELEASE}-c40/inference",
+        "FIXTURE": "outputs/vime-fixtures/zh-generation-v2-20m-c40-task-r1",
+        "ARM": "pinyin-colloq-c40",
+        "PHASE": "v2-20m colloq-c40 (replaces kd-cont): same task mode with self rescoring, same cases"},
+}
+
+
+def select(model):
+    """Point the module constants at one model's checkpoint and output directories."""
+    g = globals()
+    g.update(MODELS[model])
+    g["CHECKPOINT"] = f"{g['MODEL_DIR']}/final.pt"
+    g["DEPLOYMENT"] = f"{g['MODEL_DIR']}/deployment.pt"
 
 
 def write_json(path, value):
@@ -54,7 +77,7 @@ def sha(path):
 def stage_weights():
     import prepare_mac_zh_v1 as P
     P.CHECKPOINT, P.CHECKPOINT_SHA256, P.DEPLOYMENT, P.REFERENCE = CHECKPOINT, CHECKPOINT_SHA256, DEPLOYMENT, REFERENCE
-    P.RELEASE_NAME, P.ARM = RELEASE, "pinyin-kd-cont"
+    P.RELEASE_NAME, P.ARM = RELEASE, ARM
     if (ROOT / DEPLOYMENT).exists() or (ROOT / REFERENCE).exists():
         raise SystemExit("deployment.pt or the FP32 fixtures exist already")
     print(json.dumps(P.prepare_weights(ROOT), ensure_ascii=False, indent=1))
@@ -109,7 +132,7 @@ def stage_fixture():
         kinds[c["kind"]] = kinds.get(c["kind"], 0) + 1
     write_json(out / "meta.json", {
         "format": "vime_zh_generation_fixture_v2",
-        "phase": "v2-20m: task mode with self rescoring (replaces v1 lm mode on the phone)",
+        "phase": PHASE,
         "model": {"release": RELEASE, "checkpoint_sha256": CHECKPOINT_SHA256,
                   "bundle_manifest_sha256": lm.metadata["bundle_manifest_sha256"], "precision": "fp32 (PyTorch, CPU)"},
         "tokenizer_sha256": lm.metadata["tokenizer_sha256"],
@@ -161,8 +184,10 @@ def stage_package(output):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("stage", choices=["weights", "bundle", "fixture", "package"])
+    parser.add_argument("--model", choices=sorted(MODELS), default="kd-cont")
     parser.add_argument("--output")
     args = parser.parse_args()
+    select(args.model)
     if args.stage == "package":
         if not args.output:
             parser.error("package needs --output")
