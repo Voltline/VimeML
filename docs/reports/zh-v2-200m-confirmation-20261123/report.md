@@ -72,5 +72,5 @@ Both are lower on test than on development. `kd-cont` falls further (5.7 points 
 
 ## Next
 
-- Per the [release scope](../../release-zh-v2-plan.md), v2-200m goes into `200m/` of the Hugging Face repository `Voltline/vimeml-zh-v2`: the FP32 inference bundle and the evaluation summary. The desktop models get no Core ML packages.
+- Released 2026-11-23 in `200m/` of the Hugging Face repository `Voltline/vimeml-zh-v2` (revision `8ba471ab`): the FP32 inference bundle and the evaluation summary. The desktop models get no Core ML packages.
 - Desktop latency is already measured ([report](../zh-desktop-latency-20261118/report.md): 83/205 ms p50/p95 with CUDA graphs in FP16).

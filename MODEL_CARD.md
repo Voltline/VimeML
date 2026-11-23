@@ -59,7 +59,8 @@ The deployed V4.2 package uses the same INT8 recipe: 17.16 MB, output `float32[1
 | --- | ---: | --- | --- |
 | vimeml-tiny-zh-v1 | 20,036,736 | Reranks librime (rime-ice) pinyin candidates and predicts; Vime fallback | [Voltline/vimeml-tiny-zh-v1](https://huggingface.co/Voltline/vimeml-tiny-zh-v1) |
 | vimeml-zh-v2-20m | 20,036,736 | Pinyin-to-sentence generation, Rime rerank and prediction in one model; iPhone | [Voltline/vimeml-zh-v2](https://huggingface.co/Voltline/vimeml-zh-v2) `20m/` |
-| vimeml-zh-v2-200m / -800m | ~200M / 784M | The same three tasks on desktop (PyTorch) | Added to the v2 repository after their test confirmations |
+| vimeml-zh-v2-200m | 193,625,088 | The same three tasks on desktop (PyTorch); public pinyin test 54.7%, Standard rerank 95.2% | [Voltline/vimeml-zh-v2](https://huggingface.co/Voltline/vimeml-zh-v2) `200m/` |
+| vimeml-zh-v2-800m | ~780M | Desktop; in training | Added after its confirmation |
 
 Both 20M models share one shape: 12,288-piece SentencePiece Unigram tokenizer, d384, nine layers, six heads, SwiGLU 960, RMSNorm, learned positions, tied head, context 128. v1 was trained from random weights on FineWeb2 `cmn_Hani` and LCCC. v2-20m continues from v1 through pinyin-task training, token-level distillation from the 200M, and colloquial post-training. v2 generation runs a beam search restricted by a reading dictionary (16 hypotheses per key position), then reranks the top 10 with the model's own LM score (`gen + 1.6 × lm`).
 

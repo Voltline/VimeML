@@ -72,5 +72,5 @@ c40 的口语后训练在短句和 CPED（电视剧台词）上追回了一部�
 
 ## 接下来
 
-- 按[发布范围](../../release-zh-v2-plan.md)，v2-200m 加入 Hugging Face `Voltline/vimeml-zh-v2` 的 `200m/` 目录：FP32 推理包、评测汇总，桌面端不做 Core ML。
+- 2026-11-23 已发布到 Hugging Face `Voltline/vimeml-zh-v2` 的 `200m/`（revision `8ba471ab`）：FP32 推理包和评测汇总，桌面端不做 Core ML。
 - 桌面延迟已测（[报告](../../../reports/zh-desktop-latency-20261118/report.md)，CUDA graph + FP16 p50/p95 83/205 ms）。

@@ -8,7 +8,8 @@
 | --- | ---: | --- | --- |
 | vimeml-tiny-zh-v1 | 20,036,736 | 重排 librime（雾凇）拼音候选、联想；Vime 回退模型 | [Voltline/vimeml-tiny-zh-v1](https://huggingface.co/Voltline/vimeml-tiny-zh-v1) |
 | vimeml-zh-v2-20m | 20,036,736 | 一个模型完成拼音生成整句、Rime 重排和联想；iPhone | [Voltline/vimeml-zh-v2](https://huggingface.co/Voltline/vimeml-zh-v2) `20m/` |
-| vimeml-zh-v2-200m / -800m | 约 2 亿 / 7.84 亿 | 桌面端（PyTorch）的同样三项任务 | test 确认后加入 v2 仓库 |
+| vimeml-zh-v2-200m | 193,625,088 | 桌面端（PyTorch）的同样三项任务；公开拼音 test 54.7%，Standard 重排 95.2% | [Voltline/vimeml-zh-v2](https://huggingface.co/Voltline/vimeml-zh-v2) `200m/` |
+| vimeml-zh-v2-800m | 约 7.8 亿 | 桌面端；训练中 | 确认后加入 |
 
 两个 20M 模型形状相同：12,288 词 SentencePiece Unigram、d384、9 层、6 头、SwiGLU 960、RMSNorm、可学习位置、共享输出头、上下文 128。v1 在 FineWeb2 `cmn_Hani` 与 LCCC 上从随机初始化训练；v2-20m 从 v1 出发，依次经过拼音任务训练、200M 逐 token 蒸馏和口语后训练。v2 生成用读音词典约束的束搜索（每个键位 16 条），再用模型自身的 LM 分数重排前 10（`gen + 1.6 × lm`）。
 

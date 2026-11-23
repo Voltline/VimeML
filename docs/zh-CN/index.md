@@ -5,7 +5,7 @@
 **当前状态（2026-11-23）**
 
 - **中文**：`vimeml-zh-v2-20m`（`colloq-c40`）已发布在 [Voltline/vimeml-zh-v2](https://huggingface.co/Voltline/vimeml-zh-v2)：test 精确 Top-1 公开拼音 51.4%、口语拼音 42.3%，线上 v1 路径为 31.0%。Vime 默认用它做重排和联想，整句生成放在开发开关后面；vimeml-tiny-zh-v1 继续发布，作为回退。
-  - `vimeml-zh-v2-200m`（桌面）2026-11-23 test 确认通过：公开拼音 54.7%，Standard 重排 95.2%；接下来加入 v2 仓库。
+  - `vimeml-zh-v2-200m`（桌面）2026-11-23 test 确认通过：公开拼音 54.7%，Standard 重排 95.2%；同日发布到 v2 仓库的 `200m/`。
   - `vimeml-zh-v2-800m`（桌面）：第一版架构已评测（开发集 Top-1 65.3%），第二版架构训练中。
 - **日文**：当前部署 V4.2 第 20 轮 / INT8 block32，替换了 V2.1 extend5 step40000，V1 保留作基线。V4.4 测出 seed 噪声带；V4.5 蒸馏已注册未执行。日文线接下来恢复。总体取舍见[V2系列总结](reports/v2-summary.md)。
 

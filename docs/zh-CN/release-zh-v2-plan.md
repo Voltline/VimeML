@@ -11,7 +11,7 @@ v2 是 vimeml-tiny-zh-v1 之后的中文模型系列。v2 的模型都能直接*
 | 发布名称 | 端 | 规模 | 分词器 | 候选来源 | 状态 |
 | --- | --- | ---: | --- | --- | --- |
 | `vimeml-zh-v2-20m` | 手机 | 约 20M | 12K（与 v1 相同） | `colloq-c40`：蒸馏版 `kd-cont`（[评测](reports/zh-kd-eval-20261117/report.md)）再做口语后训练（[计划](training-zh-colloq-plan.md)），2026-11-23 取代 `kd-cont` | **已发布**（2026-11-23，Hugging Face `Voltline/vimeml-zh-v2` 的 `20m/`，revision `21ced6b7`）；test：公开集 51.4%，口语集 42.3%（[报告](reports/zh-colloq-confirmation-20261123/report.md)）；Mac：[交接与结果](../reference/mac-zh-v2-20m-colloq.md) |
-| `vimeml-zh-v2-200m` | 桌面 | 约 200M | 12K | 12K 联合拼音预训练 `zh200m-12k-pinyin-pt`，用自己的分数重打分 | 开发集评测通过（[报告](reports/zh-200m-pinyin-eval-20261116/report.md)），桌面延迟 p50/p95 83/205 ms（CUDA Graph + FP16，[报告](../reports/zh-desktop-latency-20261118/report.md)）；2026-11-23 test 确认通过：公开拼音 54.7%（`kd-cont` 49.1，c40 51.4），Standard 重排对 v1 净 +21（[报告](reports/zh-v2-200m-confirmation-20261123/report.md)）；待加入 `Voltline/vimeml-zh-v2` 的 `200m/` |
+| `vimeml-zh-v2-200m` | 桌面 | 约 200M | 12K | 12K 联合拼音预训练 `zh200m-12k-pinyin-pt`，用自己的分数重打分 | 开发集评测通过（[报告](reports/zh-200m-pinyin-eval-20261116/report.md)），桌面延迟 p50/p95 83/205 ms（CUDA Graph + FP16，[报告](../reports/zh-desktop-latency-20261118/report.md)）；2026-11-23 test 确认通过：公开拼音 54.7%（`kd-cont` 49.1，c40 51.4），Standard 重排对 v1 净 +21（[报告](reports/zh-v2-200m-confirmation-20261123/report.md)）；**已发布** 2026-11-23，`Voltline/vimeml-zh-v2` 的 `200m/`（revision `8ba471ab`；FP32 推理包由 `scripts/deployment/export_zh_desktop_bundle.py` 导出） |
 | `vimeml-zh-v2-800m` | 桌面 | 7.84 亿 | 12K | [zh-800m 训练计划](training-zh-800m-plan.md)，加上拼音能力 | 数据准备中 |
 
 - **20M** 是手机端模型，延续 v1 的部署方式：Core ML INT8、批量 KV 解码、按键位分桶的束搜索。**手机上只加载一个模型**（2026-11-16 决定）：r2-cont 要靠 v1 重打分才好用（见[推理期重打分](reports/zh-pinyin-rescore-20261115/report.md)），等于要加载两个 20M，手机上不可接受。v2-20m 必须用自己的分数重打分，而且要超过 v1 单独用 LM 模式的结果。r2-cont 拼音后训练会削弱 LM 能力，所以它自己打分不如 v1。用 200M（同一个 12K 词表）蒸馏，有望在一个模型里同时得到生成能力和 LM 能力，所以 v2-20m 选哪个要等蒸馏线的结果。
@@ -72,7 +72,7 @@ v2 三个模型都定版之后的最后一项（2026-11-19 加入），不属于
 
 ## 未决事项
 
-- ~~`vimeml-zh-v2-20m` 定版~~：`colloq-c40`，2026-11-23 test 确认通过，同日发布到 `Voltline/vimeml-zh-v2`。这个仓库按目录收录 v2 的全部模型，200M 和 800M 确认后再加入。口语后训练数据包含非商用的对话语料（MMChat、贴吧）和未声明许可的豆瓣语料，发布包在 `NOTICE.md` 中列明。
+- ~~`vimeml-zh-v2-20m` 定版~~：`colloq-c40`，2026-11-23 test 确认通过，同日发布到 `Voltline/vimeml-zh-v2`。这个仓库按目录收录 v2 的全部模型；200M 同日确认后加入（revision `8ba471ab`），800M 确认后再加入。口语后训练数据包含非商用的对话语料（MMChat、贴吧）和未声明许可的豆瓣语料，发布包在 `NOTICE.md` 中列明。
 - ~~200M 用联合预训练还是后训练~~：2026-11-16 定为联合预训练，用自己的分数重打分（见[评测报告](reports/zh-200m-pinyin-eval-20261116/report.md)）。
 - 800M 拼音能力的来源，在 200M 评估之后、开训之前确定。
 - ~~默认束宽~~：2026-11-19 定为 16（显著好于 12，其余扫描不再跑）。

@@ -14,6 +14,7 @@ These are custom PyTorch models for input methods. They are not instruction-tune
 | Model | Language | Parameters | Use | Hugging Face |
 | --- | --- | ---: | --- | --- |
 | **vimeml-zh-v2-20m** | Chinese | 20,036,736 | iPhone: pinyin generation, Rime rerank, prediction (Core ML INT8) | [Voltline/vimeml-zh-v2](https://huggingface.co/Voltline/vimeml-zh-v2) `20m/` |
+| **vimeml-zh-v2-200m** | Chinese | 193,625,088 | Desktop (PyTorch, GPU): the same three jobs | [Voltline/vimeml-zh-v2](https://huggingface.co/Voltline/vimeml-zh-v2) `200m/` |
 | vimeml-tiny-zh-v1 | Chinese | 20,036,736 | iPhone: Rime rerank and prediction; fallback for v2 | [Voltline/vimeml-tiny-zh-v1](https://huggingface.co/Voltline/vimeml-tiny-zh-v1) |
 | **V4.2** | Japanese | 15,070,848 | iPhone: AzooKey rerank (deployed) | [Voltline/vimeml-tiny-ja-v4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2) |
 | V2.1 | Japanese | 12,537,920 | Previous deployment | [Voltline/vimeml-tiny-ja-v2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1) |
@@ -28,7 +29,7 @@ Each release holds inference weights (no optimizer state), the tokenizer, Core M
 | Model | Target | Status |
 | --- | --- | --- |
 | `vimeml-zh-v2-20m` | iPhone | Released 2026-11-23 (`colloq-c40`) |
-| `vimeml-zh-v2-200m` | Desktop | Test confirmation passed 2026-11-23 (public pinyin 54.7%); release to follow |
+| `vimeml-zh-v2-200m` | Desktop | Released 2026-11-23 (`200m/`; public pinyin 54.7%) |
 | `vimeml-zh-v2-800m` | Desktop | First architecture evaluated; second architecture in training |
 
 All v2 models share v1's 12,288-piece tokenizer. The prompt is the text before the cursor (up to 64 characters), then the keys: full pinyin, initials, or a mix. Beam search keeps 16 hypotheses per key position, and a character is allowed only if its reading or initial matches the next keys. The top 10 sentences are rescored by the same model in language-model mode.
