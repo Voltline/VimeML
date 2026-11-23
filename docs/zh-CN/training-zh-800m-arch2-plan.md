@@ -2,6 +2,8 @@
 
 本文设计 800M 中文桌面模型的第二版架构，内部代号 `zh800m-arch2`。正在训练的 800M（[训练计划](training-zh-800m-plan.md)，下文称 arch1）不受影响。arch2 暂不开工，等 arch1 训完并评测后再排期。
 
+> 2026-11-23：k = 4 正式训练完成（299,741 次更新），在 development 上通过质量判定：重打分 Top-1 65.9%，arch1 65.3%（p 0.49）；Standard 净 −6（p 0.29）。arch2 取代 arch1，成为 `vimeml-zh-v2-800m` 的候选和第四轮蒸馏的老师（[评测报告](reports/zh-800m-arch2-eval-20261123/report.md)）。
+
 ## 为什么要改
 
 arch1 用 [8903f17](../../src/vimeml/training/joint_zh200m.py) 的打包代码训练，`lm_microbatch` 64。正式训练到 25% 时实测：

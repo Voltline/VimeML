@@ -1,6 +1,6 @@
 # vimeml-zh-v2 test-split confirmation plan (preregistered)
 
-> v2-20m ran on 2026-11-20 (run-02) and passed; results in the [confirmation report](../reports/zh-v2-confirmation-20261120/report.md). v2-200m ran on 2026-11-23 (run-01) and passed: 49.1 → 54.7 against `kd-cont`, p 5e-5; Standard rerank net +21 over v1 ([report](../reports/zh-v2-200m-confirmation-20261123/report.md)).
+> v2-20m ran on 2026-11-20 (run-02) and passed; results in the [confirmation report](../reports/zh-v2-confirmation-20261120/report.md). v2-200m ran on 2026-11-23 (run-01) and passed: 49.1 → 54.7 against `kd-cont`, p 5e-5; Standard rerank net +21 over v1 ([report](../reports/zh-v2-200m-confirmation-20261123/report.md)). v2-800m was [added](#amendment-v2-800m-2026-11-23) on 2026-11-23 and has not run yet.
 
 Drafted 2026-11-20. The plan counts as registered only once it and the run code are committed; the test split of `ime-pinyin-zh-v1-r1` stays closed until then. It covers two models, `vimeml-zh-v2-20m` and `vimeml-zh-v2-200m`, each run once, 20M first. Entry point [confirm_zh_v2.py](../../scripts/benchmarks/confirm_zh_v2.py); every fixed item is in [zh_v2_confirm.py](../../src/vimeml/benchmarks/zh_v2_confirm.py). The principles of the release gates are in the [v2 release scope](../release-zh-v2-plan.md#release-gates); this plan gives the exact numbers and tests. The registered text is the Chinese version, [docs/zh-CN/benchmarks/confirmation-zh-v2-plan.md](../zh-CN/benchmarks/confirmation-zh-v2-plan.md); this page is its translation.
 
@@ -65,6 +65,22 @@ The 200M runs only after v2-20m's run has finished. It has no full-pinyin guard:
 - **Pass**: the model is confirmed on test; the release notes report test Top-1 with its confidence interval in place of the development numbers.
 - **Fail**: this checkpoint is not released under the name, and test is not reopened for another arm. The analysis goes into the report, and test can no longer be called an unused independent set. If v2-20m fails, the phone keeps v1; if the 200M fails, the plan is discussed separately.
 - Passing does not mean ready to ship. iPhone latency (v2-20m), client keyword blocking and the other release gates are verified separately.
+
+## Amendment: v2-800m (2026-11-23)
+
+This section was added after both v2-20m and v2-200m had run. It counts as registered once committed together with the code; until then the 800M does not run on test. Apart from what this section states, the scoring settings, preflight, consumption record and running steps are those above.
+
+**Model**: zh-800m arch2 (k = 4), `artifacts/models/tiny-zh800m-arch2-k4/final.pt`, step 299,741, SHA256 `8af7dab5e134964678de99ac44aa671282683aaac82c0f83100dd10b44f2d58b`. The judged development rows are the self-rescored run of the 2026-11-23 evaluation, `rows.jsonl` SHA256 `a79cb5157e55eca2bc029dbf7a5b365ece8e63ba3c26fe9df3d25fae0f4586ee`, Top-1 65.91%.
+
+**Why this model**: under the quality decision preregistered in the [arch2 plan](../training-zh-800m-arch2-plan.md), arch2's primary metric on development is not lower than arch1's (65.9 vs 65.3, p 0.49) and its Standard rerank is not significantly lower either (net −6, p 0.29), so it replaces arch1 ([evaluation report](../reports/zh-800m-arch2-eval-20261123/report.md)). arch1 does not go to test.
+
+**Primary hypothesis H1**: all inputs, v2-200m's test rows (run-01) → `vimeml-zh-v2-800m` (self-rescored), exact Top-1. Passes if the difference is > 0 and p < 0.05. No full-pinyin guard, for the same reason as the 200M.
+
+**Standard rerank**: the same test, not deciding the pass. If the 800M is significantly worse than v1 (net < 0 and p < 0.05), the desktop reranks with the confirmed 200M instead, and the release notes say so.
+
+**How to read it**: on development the 800M is 7.1 points above the 200M (65.9 vs 58.8, +390/−144, p 5e-5), and its Standard rerank is net +20 over v1 (p 0.0045). H1 will very likely pass.
+
+This is the fourth use of the `ime-pinyin-zh-v1-r1` test split. The 800M runs once; if it fails, this checkpoint is not released as `vimeml-zh-v2-800m`, and test is not reopened for arch1 or any other arm.
 
 ## Descriptive reports (no decision)
 

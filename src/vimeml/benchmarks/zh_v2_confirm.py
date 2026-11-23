@@ -1,5 +1,5 @@
-"""Preregistered confirmation runs of vimeml-zh-v2-20m and vimeml-zh-v2-200m
-(docs/zh-CN/benchmarks/confirmation-zh-v2-plan.md).
+"""Preregistered confirmation runs of vimeml-zh-v2-20m, -200m and -800m
+(docs/zh-CN/benchmarks/confirmation-zh-v2-plan.md; v2-800m added by its 2026-11-23 amendment).
 
 Everything the plan fixes is a constant here; MODELS is filled in when the plan is registered, and run()
 refuses while any entry is missing. run(model):
@@ -15,7 +15,7 @@ refuses while any entry is missing. run(model):
 The production baseline of v2-20m (Rime 16 sentences + v1 rerank with the in-field context, Vime #70 logic)
 comes from the local Rime harness, which is not in this repository: after step 3 it reads the test records
 and contexts written into the run directory and writes rows {"id", "input", "v1-prod": [top texts]}, given
-to finish(). v2-200m's baseline is v2-20m's finished test rows. A model whose attempt has finished is never
+to finish(). v2-200m's baseline is v2-20m's finished test rows, v2-800m's is v2-200m's. A model whose attempt has finished is never
 run again.
 """
 import json
@@ -54,6 +54,13 @@ MODELS = {
                 "judged": "outputs/eval-zh-20261116/eval-zh/self-prior/pinyin-pt-200m",
                 "judged_sha256": "9e1be73704483e0b298c2b1a18c03de24ea88de1bdb7b32e48b3e0e32b7a397c",
                 "against": "v2-20m"},
+    # amendment 2026-11-23: zh-800m arch2 (k = 4), chosen over arch1 on development
+    # (docs/zh-CN/reports/zh-800m-arch2-eval-20261123/report.md)
+    "v2-800m": {"checkpoint": "artifacts/models/tiny-zh800m-arch2-k4/final.pt",
+                "sha256": "8af7dab5e134964678de99ac44aa671282683aaac82c0f83100dd10b44f2d58b",
+                "judged": "outputs/zh800m-results/tiny-zh800m-arch2-k4/eval-zh800m/pinyin",
+                "judged_sha256": "a79cb5157e55eca2bc029dbf7a5b365ece8e63ba3c26fe9df3d25fae0f4586ee",
+                "against": "v2-200m"},
 }
 SHA256 = {
     TOKENIZER: "68bd37c45bcb018b32b2eef5b241561ab5b6dc1b77c1c3aadcc1b41c4bf47e5a",
@@ -79,8 +86,8 @@ def significant_loss(test):
 def decide(model, h1, full, standard):
     """h1, full: pinyin_gen_zh.sign_flip of baseline -> model on all inputs / full pinyin only;
     standard: the Standard compare output of v1 -> model. The phone loads one model, so for v2-20m a
-    significant Standard drop fails the run; the desktop model can keep v1 as its reranker instead
-    (rerank_stays_v1), which the release notes then state."""
+    significant Standard drop fails the run; a desktop model can keep another reranker instead
+    (200M: v1, rerank_stays_v1; 800M: the 200M, rerank_uses_200m), which the release notes then state."""
     top1 = standard["top1"]
     standard_drop = top1["net"] < 0 and top1["exact_mcnemar_p"] < ALPHA
     result = {"h1": significant_gain(h1)}
@@ -88,8 +95,10 @@ def decide(model, h1, full, standard):
         result["full_pinyin_no_significant_drop"] = not significant_loss(full)
         result["standard_no_significant_drop"] = not standard_drop
     result["passed"] = all(result.values())
-    if model != "v2-20m":
+    if model == "v2-200m":
         result["rerank_stays_v1"] = standard_drop
+    elif model == "v2-800m":  # the desktop can rerank with the confirmed 200M instead
+        result["rerank_uses_200m"] = standard_drop
     return result
 
 

@@ -6,7 +6,7 @@
 
 - **中文**：`vimeml-zh-v2-20m`（`colloq-c40`）已发布在 [Voltline/vimeml-zh-v2](https://huggingface.co/Voltline/vimeml-zh-v2)：test 精确 Top-1 公开拼音 51.4%、口语拼音 42.3%，线上 v1 路径为 31.0%。Vime 默认用它做重排和联想，整句生成放在开发开关后面；vimeml-tiny-zh-v1 继续发布，作为回退。
   - `vimeml-zh-v2-200m`（桌面）2026-11-23 test 确认通过：公开拼音 54.7%，Standard 重排 95.2%；同日发布到 v2 仓库的 `200m/`。
-  - `vimeml-zh-v2-800m`（桌面）：第一版架构已评测（开发集 Top-1 65.3%），第二版架构训练中。
+  - `vimeml-zh-v2-800m`（桌面）：第二版架构（arch2）在开发集上取代第一版（重打分 Top-1 65.9% 对 65.3%，Standard 持平，联想 Top-3 0.360 对 0.339）；test 确认已补登。
 - **日文**：当前部署 V4.2 第 20 轮 / INT8 block32，替换了 V2.1 extend5 step40000，V1 保留作基线。V4.4 测出 seed 噪声带；V4.5 蒸馏已注册未执行。日文线接下来恢复。总体取舍见[V2系列总结](reports/v2-summary.md)。
 
 ## 中文线
@@ -63,6 +63,7 @@
 | [桌面延迟：Windows 上的 PyTorch](../reports/zh-desktop-latency-20261118/report.md)（英文） | 2026-11-18/19：完整流程（搜索 + 重打分）CUDA graph + FP16 p50/p95：200M 83/205 ms、kd-cont 34/68、v1 32/63；200M 靠 FP16 减半，20M 主要靠 CUDA graph |
 | [zh-800m 训练计划](training-zh-800m-plan.md) | 预注册：d1536/L27、7.84 亿参数、12K 分词器、上下文 512；export-r1 全部 + export-r2 一遍，LCCC 2%，每更新 2048 窗口 |
 | [zh-800m arch1 评测](../reports/zh-800m-eval-20261120/report.md)（英文） | 2026-11-20，只用开发集：联想轨道 A Top-3 0.3394（200M 0.3164），拼音重打分 Top-1 65.3%（200M 57.3%，v1 LM 模式 52.6%），Standard 对 v1 净 +26；没有长片段逐字背诵 |
+| [zh-800m arch2 评测与判定](reports/zh-800m-arch2-eval-20261123/report.md) | 2026-11-23，只用开发集：拼音重打分 Top-1 65.9%，arch1 65.3%（p 0.49）；Standard 94.99% 对 95.40%（净 −6，p 0.29）；arch2 取代 arch1；联想轨道 A Top-3 0.3604 对 0.3394（p 5e-5）；20 个测点 BPC 全部更低 |
 | [zh-800m 第二版架构（arch2）](training-zh-800m-arch2-plan.md) | 正式训练 k = 4，学习率同 arch1（3e-4 → 3e-5，前置检查对照轮定）：d1792/L23、Q 28 × 64 + KV 7 × 64（GQA）、RoPE、QK-norm，7.77 亿参数；多个段落窗口打包进 2048 长的行，段内因果 mask，数据和顺序与 arch1 相同，批量加大到 4 倍（200M 前置检查定，8 倍未试），不用 FP8；先定位瓶颈（通信/主机/计算）再动手；目标一遍 1.5 天以内，质量不低于 arch1 |
 
 ### Core ML 与部署

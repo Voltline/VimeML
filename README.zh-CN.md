@@ -30,7 +30,7 @@
 | --- | --- | --- |
 | `vimeml-zh-v2-20m` | iPhone | 2026-11-23 发布（`colloq-c40`） |
 | `vimeml-zh-v2-200m` | 桌面 | 2026-11-23 发布（`200m/`；公开拼音 54.7%） |
-| `vimeml-zh-v2-800m` | 桌面 | 第一版架构已评测；第二版架构训练中 |
+| `vimeml-zh-v2-800m` | 桌面 | 开发集上选定第二版架构；test 确认已补登 |
 
 v2 都沿用 v1 的 12,288 词分词器。提示由光标前的文本（最多 64 字）和按键组成，按键可以是全拼、首字母或混合简拼。束搜索按键位分桶，每个位置保留 16 条，一个字只有在读音或声母与后续按键匹配时才能加入。前 10 句再由同一个模型在语言模型模式下重打分。
 
@@ -46,7 +46,7 @@ Standard blind 全拼 Rime 候选重排：v2-20m 94.3%，v1 93.8%（净 +7，p 0
 
 手机上 v2-20m 是一个批量 KV 的 Core ML INT8 包（23.3 MB）。Vime 默认用它做 Rime 重排和联想；整句生成放在开发开关后面，等逐键生成在旧机型上够快再打开。用同形状、同格式的 `kd-cont` 实测：Rime 重排 p50 在 iPhone 13 Pro 上 4.1 ms、iPhone 16 Pro Max 上 3.0 ms；一次性整句生成 91 ms 和 59 ms（[iPhone 报告](docs/reports/mac-20261121/zh-v2-20m.md)（英文）、[c40 Mac 结果](docs/reference/mac-zh-v2-20m-colloq.md)（英文））。
 
-桌面模型用 PyTorch 运行。笔记本 GPU 上用 CUDA graph + FP16，200M 每个输入（含搜索和重打分）p50/p95 为 83/205 ms（[桌面延迟](docs/reports/zh-desktop-latency-20261118/report.md)（英文））。它在公开拼音 test 上为 54.7%（全拼 86.5%），Standard 重排 95.2%，v1 为 93.8%（[200M 确认](docs/zh-CN/reports/zh-v2-200m-confirmation-20261123/report.md)）。开发集上，800M 第一版架构重打分 Top-1 65.3%，200M 为 57.3%（[800M 评测](docs/reports/zh-800m-eval-20261120/report.md)（英文））。
+桌面模型用 PyTorch 运行。笔记本 GPU 上用 CUDA graph + FP16，200M 每个输入（含搜索和重打分）p50/p95 为 83/205 ms（[桌面延迟](docs/reports/zh-desktop-latency-20261118/report.md)（英文））。它在公开拼音 test 上为 54.7%（全拼 86.5%），Standard 重排 95.2%，v1 为 93.8%（[200M 确认](docs/zh-CN/reports/zh-v2-200m-confirmation-20261123/report.md)）。开发集上，800M 第二版架构重打分 Top-1 65.9%，200M 为 58.8%，第一版架构为 65.3%，第二版取代第一版（[arch2 评测](docs/zh-CN/reports/zh-800m-arch2-eval-20261123/report.md)）。
 
 ### v1：候选重排
 

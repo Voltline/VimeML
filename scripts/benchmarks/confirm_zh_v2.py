@@ -1,10 +1,11 @@
-"""Run the preregistered test-split confirmation of vimeml-zh-v2-20m or -200m (see its plan, once per model).
+"""Run the preregistered test-split confirmation of vimeml-zh-v2-20m, -200m or -800m (see its plan, once per model).
 
 usage:
   python -I -X utf8 scripts/benchmarks/confirm_zh_v2.py open v2-20m --preflight-only   # development only
   python -I -X utf8 scripts/benchmarks/confirm_zh_v2.py open v2-20m      # opens test: contexts, generation
   python -I -X utf8 scripts/benchmarks/confirm_zh_v2.py finish v2-20m --production ROWS
   python -I -X utf8 scripts/benchmarks/confirm_zh_v2.py open v2-200m && ... finish v2-200m
+  python -I -X utf8 scripts/benchmarks/confirm_zh_v2.py open v2-800m && ... finish v2-800m
 After `open v2-20m`, the local Rime harness reads RUN/test-contexts.jsonl and the test records and writes the
 production rows ({"id", "input", "v1-prod": [...]}) given to `finish`.
 """

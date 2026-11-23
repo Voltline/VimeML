@@ -42,6 +42,14 @@ class Decision(unittest.TestCase):
         self.assertTrue(result["rerank_stays_v1"])
         self.assertFalse(decide("v2-200m", flip(1.0, 0.01), flip(1.0, 0.2), standard())["rerank_stays_v1"])
 
+    def test_800m(self):
+        result = decide("v2-800m", flip(1.0, 0.01), flip(-3.0, 0.001), standard(-20, 0.01))
+        self.assertTrue(result["passed"])  # no full-pinyin guard; the desktop reranks with the 200M instead
+        self.assertTrue(result["rerank_uses_200m"])
+        self.assertNotIn("rerank_stays_v1", result)
+        self.assertFalse(decide("v2-800m", flip(1.0, 0.2), flip(1.0, 0.2), standard())["passed"])
+        self.assertEqual(MODELS["v2-800m"]["against"], "v2-200m")
+
     def test_20m_guards(self):
         self.assertFalse(decide("v2-20m", flip(2.0, 0.001), flip(-2.0, 0.01), standard())["passed"])
         self.assertFalse(decide("v2-20m", flip(2.0, 0.001), flip(0, 1), standard(-20, 0.01))["passed"])

@@ -1,6 +1,6 @@
 # vimeml-zh-v2 test 确认评分计划（预注册）
 
-> v2-20m 已于 2026-11-20 执行（run-02），判定通过，结果见[确认报告](../reports/zh-v2-confirmation-20261120/report.md)。v2-200m 已于 2026-11-23 执行（run-01），判定通过：对 `kd-cont` 49.1 → 54.7，p 5e-5；Standard 重排对 v1 净 +21（[报告](../reports/zh-v2-200m-confirmation-20261123/report.md)）。
+> v2-20m 已于 2026-11-20 执行（run-02），判定通过，结果见[确认报告](../reports/zh-v2-confirmation-20261120/report.md)。v2-200m 已于 2026-11-23 执行（run-01），判定通过：对 `kd-cont` 49.1 → 54.7，p 5e-5；Standard 重排对 v1 净 +21（[报告](../reports/zh-v2-200m-confirmation-20261123/report.md)）。v2-800m 于 2026-11-23 [补登](#补登v2-800m2026-11-23)，尚未运行。
 
 2026-11-20 起草。本计划和执行代码提交后才算注册；提交之前，`ime-pinyin-zh-v1-r1` 的 test 不打开。本计划覆盖 `vimeml-zh-v2-20m` 和 `vimeml-zh-v2-200m` 两个模型，每个模型各运行一次，先 20M 后 200M。执行入口是 [confirm_zh_v2.py](../../../scripts/benchmarks/confirm_zh_v2.py)，所有固定项都写在 [zh_v2_confirm.py](../../../src/vimeml/benchmarks/zh_v2_confirm.py) 中。发布门槛的原则见 [v2 发布范围](../release-zh-v2-plan.md#发布门槛)，本计划给出具体的数字和检验。
 
@@ -65,6 +65,22 @@
 - **通过**：模型在 test 上确认，发布说明报告 test Top-1 和置信区间，替换 development 上的数字。
 - **不通过**：这个 checkpoint 不以该名称发布，test 不为其他实验臂重新打开。分析写入报告，此后 test 不再称为未使用的独立集。v2-20m 不通过时，手机端继续使用 v1；200M 不通过时，计划另行讨论。
 - 通过不等于可以发布。iPhone 延迟（v2-20m）、客户端关键词屏蔽等发布门槛另行验证。
+
+## 补登：v2-800m（2026-11-23）
+
+本节在 v2-20m 和 v2-200m 都已运行之后补登，随代码一起提交后才算注册；提交之前，800M 不在 test 上运行。除本节写明的各项外，评分设置、预检、消耗记录和执行步骤都与上文相同。
+
+**模型**：zh-800m arch2（k = 4），`artifacts/models/tiny-zh800m-arch2-k4/final.pt`，step 299,741，SHA256 `8af7dab5e134964678de99ac44aa671282683aaac82c0f83100dd10b44f2d58b`。判定用的 development 结果是 2026-11-23 评测的自重打分运行，`rows.jsonl` SHA256 `a79cb5157e55eca2bc029dbf7a5b365ece8e63ba3c26fe9df3d25fae0f4586ee`，Top-1 65.91%。
+
+**选择依据**：按 [arch2 计划](../training-zh-800m-arch2-plan.md)预注册的质量判定，arch2 在 development 上主指标不低于 arch1（65.9 对 65.3，p 0.49），Standard 重排也不显著低于 arch1（净 −6，p 0.29），所以取代 arch1（[评测报告](../reports/zh-800m-arch2-eval-20261123/report.md)）。arch1 不进 test。
+
+**主假设 H1**：全部输入，v2-200m 的 test 结果（run-01）→ `vimeml-zh-v2-800m`（自重打分），精确 Top-1。通过条件：差值 > 0 且 p < 0.05。不设全拼守卫，理由同 200M。
+
+**Standard 重排**：同一检验，不决定是否通过。如果 800M 对 v1 显著退步（净值 < 0 且 p < 0.05），桌面端的重排改用已经确认的 200M，发布说明写明这一点。
+
+**怎么读**：development 上，800M 比 200M 高 7.1 个点（65.9 对 58.8，+390/−144，p 5e-5），Standard 重排对 v1 净 +20（p 0.0045）。H1 大概率通过。
+
+这是 `ime-pinyin-zh-v1-r1` test 的第四次使用。800M 只运行一次；不通过时，这个 checkpoint 不以 `vimeml-zh-v2-800m` 发布，test 不为 arch1 或其他实验臂重新打开。
 
 ## 描述性报告（不作判定）
 

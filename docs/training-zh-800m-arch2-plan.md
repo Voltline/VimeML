@@ -2,6 +2,8 @@
 
 This document designs the second architecture of the 800M Chinese desktop model, internal code name `zh800m-arch2`. The 800M now training ([training plan](training-zh-800m-plan.md), called arch1 below) is not affected. Work on arch2 starts after arch1 has finished training and been evaluated.
 
+> 2026-11-23: the k = 4 run finished (299,741 updates) and passed the quality decision on development: rescored Top-1 65.9% vs arch1 65.3% (p 0.49), Standard net −6 (p 0.29). arch2 replaces arch1 as the `vimeml-zh-v2-800m` candidate and the round-4 teacher ([evaluation report](reports/zh-800m-arch2-eval-20261123/report.md)).
+
 ## Why change
 
 arch1 trains with the packing code of [8903f17](../src/vimeml/training/joint_zh200m.py) at `lm_microbatch` 64. Measured at 25% of the formal run:

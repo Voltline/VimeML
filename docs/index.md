@@ -6,7 +6,7 @@ Primary documents are English; [Chinese documentation](zh-CN/index.md) mirrors t
 
 - **Chinese.** `vimeml-zh-v2-20m` (`colloq-c40`) is released in [Voltline/vimeml-zh-v2](https://huggingface.co/Voltline/vimeml-zh-v2): test Top-1 51.4% on public pinyin and 42.3% on colloquial pinyin, against 31.0% for the shipped v1 path. In the Vime client it reranks and predicts by default; sentence generation is behind a development switch. vimeml-tiny-zh-v1 stays released as the fallback.
   - `vimeml-zh-v2-200m` (desktop) passed its test confirmation on 2026-11-23: public pinyin 54.7%, Standard rerank 95.2%; released the same day in `200m/` of the v2 repository.
-  - `vimeml-zh-v2-800m` (desktop): the first architecture is evaluated (65.3% development Top-1); the second architecture is in training.
+  - `vimeml-zh-v2-800m` (desktop): the second architecture (arch2) replaced the first on development (rescored Top-1 65.9% vs 65.3%, Standard level, prediction Top-3 0.360 vs 0.339); its test confirmation is registered.
 - **Japanese.** V4.2 epoch 20 / INT8 block-32 is deployed; it replaced V2.1 `extend5` step 40,000, and V1 is the baseline. V4.4 measured the seed noise band; V4.5 distillation is registered but not run. The Japanese line resumes next.
 
 ## Model, data, and runtime
@@ -72,6 +72,7 @@ Primary documents are English; [Chinese documentation](zh-CN/index.md) mirrors t
 | [Desktop latency, PyTorch on Windows](reports/zh-desktop-latency-20261118/report.md) | 2026-11-18/19: full pipeline (search + rescoring) p50/p95 with CUDA graphs in FP16: 200M 83/205 ms, kd-cont 34/68, v1 32/63; FP16 halves the 200M, graphs carry the 20M |
 | [zh-800m training plan](training-zh-800m-plan.md) | Preregistration: d1536/L27, 784M parameters, 12K tokenizer, context 512; all of export-r1 + export-r2 in one pass, LCCC 2%, 2048 windows per update |
 | [zh-800m arch1 evaluation](reports/zh-800m-eval-20261120/report.md) | 2026-11-20, development only: prediction track A Top-3 0.3394 (200M 0.3164), rescored pinyin Top-1 65.3% (200M 57.3%, v1 LM mode 52.6%), Standard net +26 over v1; no long verbatim recall |
+| [zh-800m arch2 evaluation and decision](reports/zh-800m-arch2-eval-20261123/report.md) | 2026-11-23, development only: rescored pinyin Top-1 65.9% vs arch1 65.3% (p 0.49), Standard 94.99% vs 95.40% (net −6, p 0.29), so arch2 replaces arch1; prediction track A Top-3 0.3604 vs 0.3394 (p 5e-5); BPC lower at all 20 milestones |
 | [zh-800m second architecture (arch2)](training-zh-800m-arch2-plan.md) | Formal training at k = 4 with arch1's LR (3e-4 → 3e-5, set by the precheck control round): d1792/L23, Q 28 × 64 + KV 7 × 64 (GQA), RoPE, QK-norm, 777M parameters; paragraph windows packed into rows of 2048 with per-segment causal masks, same data and order as arch1, updates 4× larger (set by a 200M precheck; 8× not tried), no FP8; locate the bottleneck (communication/host/compute) first; target one pass under 1.5 days at no loss of quality |
 
 ### Core ML and deployment
