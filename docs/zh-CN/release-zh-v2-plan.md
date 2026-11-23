@@ -10,7 +10,7 @@ v2 是 vimeml-tiny-zh-v1 之后的中文模型系列。v2 的模型都能直接*
 
 | 发布名称 | 端 | 规模 | 分词器 | 候选来源 | 状态 |
 | --- | --- | ---: | --- | --- | --- |
-| `vimeml-zh-v2-20m` | 手机 | 约 20M | 12K（与 v1 相同） | `colloq-c40`：蒸馏版 `kd-cont`（[评测](reports/zh-kd-eval-20261117/report.md)）再做口语后训练（[计划](training-zh-colloq-plan.md)），2026-11-23 取代 `kd-cont` | **已发布**（2026-11-23，Hugging Face `Voltline/vimeml-zh-v2` 的 `20m/`，revision `4096d3af`）；test：公开集 51.4%，口语集 42.3%（[报告](reports/zh-colloq-confirmation-20261123/report.md)）；Mac：[交接与结果](../reference/mac-zh-v2-20m-colloq.md) |
+| `vimeml-zh-v2-20m` | 手机 | 约 20M | 12K（与 v1 相同） | `colloq-c40`：蒸馏版 `kd-cont`（[评测](reports/zh-kd-eval-20261117/report.md)）再做口语后训练（[计划](training-zh-colloq-plan.md)），2026-11-23 取代 `kd-cont` | **已发布**（2026-11-23，Hugging Face `Voltline/vimeml-zh-v2` 的 `20m/`，revision `21ced6b7`）；test：公开集 51.4%，口语集 42.3%（[报告](reports/zh-colloq-confirmation-20261123/report.md)）；Mac：[交接与结果](../reference/mac-zh-v2-20m-colloq.md) |
 | `vimeml-zh-v2-200m` | 桌面 | 约 200M | 12K | 12K 联合拼音预训练 `zh200m-12k-pinyin-pt`，用自己的分数重打分 | 开发集评测通过（[报告](reports/zh-200m-pinyin-eval-20261116/report.md)），桌面延迟 p50/p95 83/205 ms（CUDA Graph + FP16，[报告](../reports/zh-desktop-latency-20261118/report.md)）；确认运行要和 v2-20m 比较，同一个[确认计划](benchmarks/confirmation-zh-v2-plan.md)，在 v2-20m 之后执行 |
 | `vimeml-zh-v2-800m` | 桌面 | 7.84 亿 | 12K | [zh-800m 训练计划](training-zh-800m-plan.md)，加上拼音能力 | 数据准备中 |
 
