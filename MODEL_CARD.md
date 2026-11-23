@@ -2,7 +2,7 @@
 
 ## Model identity and availability
 
-VimeML is a family of compact Japanese decoder-only language models for input-method candidate reranking. The Chinese model [vimeml-tiny-zh-v1](https://huggingface.co/Voltline/vimeml-tiny-zh-v1) is released separately for iOS deployment. Public Japanese releases are [V1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1), [V2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1) and the research release [V4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2). V2.0, V3 A, V3 B, V4-B, V4.1, V4.3 and V5 are experiment checkpoints. V4.2 is the deployed model; V2.1 is the previous deployment.
+VimeML is a family of compact decoder-only language models for the Vime input method. This card covers the Japanese models in detail; the Chinese models are summarized in [Chinese models](#chinese-models), and each Hugging Face repository has its own full card. Public Japanese releases are [V1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1), [V2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1) and the research release [V4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2). V2.0, V3 A, V3 B, V4-B, V4.1, V4.3 and V5 are experiment checkpoints. V4.2 is the deployed model; V2.1 is the previous deployment.
 
 | Architecture | V1 | V2 / V2.1 / V3 experiments | V4 family (V4-B / V4.1 / V4.2) |
 | --- | --- | --- | --- |
@@ -52,6 +52,23 @@ The V2.1 package uses symmetric INT8 block-32 weight compression with FP32 compu
 Strict logits alignment fails after quantization: maximum absolute error 1.00949144, with mean absolute error 0.108517 at T=128. Uncompressed conversion passes the recorded tolerance. Small-set accuracy is unchanged, but distributions and rankings can still differ. The selected package remains an accepted deployment tradeoff supported by fixed-pool and limited-device measurements. It is unresolved whether the quantization failure is inherent to model size or architecture. [Quantization review](docs/reports/mac-20261008/v21-quantization-review.md) retains the failure evidence.
 
 The deployed V4.2 package uses the same INT8 recipe: 17.16 MB, output `float32[1,T,8192]`. Uncompressed conversion passes (maximum error 5.2e-5); INT8 fails strict alignment with maximum error 0.477 and mean 0.0495 at T=128, while Top-1 changes by at most one case per track. On an iPhone 16 Pro Max XCTest host, V4.2 INT8 runs 0.16–0.35 ms slower per `predict` call, has lower rerank p95 (120.9 vs 136.8 ms) and a 5.6 MB lower footprint peak than V2.1 INT8. Keyboard-extension memory and typing latency were not measured. [V4.2 Core ML report](docs/reports/mac-20261020/v42-coreml.md).
+
+## Chinese models
+
+| Model | Parameters | Role | Release |
+| --- | ---: | --- | --- |
+| vimeml-tiny-zh-v1 | 20,036,736 | Reranks librime (rime-ice) pinyin candidates and predicts; Vime fallback | [Voltline/vimeml-tiny-zh-v1](https://huggingface.co/Voltline/vimeml-tiny-zh-v1) |
+| vimeml-zh-v2-20m | 20,036,736 | Pinyin-to-sentence generation, Rime rerank and prediction in one model; iPhone | [Voltline/vimeml-zh-v2](https://huggingface.co/Voltline/vimeml-zh-v2) `20m/` |
+| vimeml-zh-v2-200m / -800m | ~200M / 784M | The same three tasks on desktop (PyTorch) | Added to the v2 repository after their test confirmations |
+
+Both 20M models share one shape: 12,288-piece SentencePiece Unigram tokenizer, d384, nine layers, six heads, SwiGLU 960, RMSNorm, learned positions, tied head, context 128. v1 was trained from random weights on FineWeb2 `cmn_Hani` and LCCC. v2-20m continues from v1 through pinyin-task training, token-level distillation from the 200M, and colloquial post-training. v2 generation runs a beam search restricted by a reading dictionary (16 hypotheses per key position), then reranks the top 10 with the model's own LM score (`gen + 1.6 × lm`).
+
+Test results under preregistered plans, each split opened once:
+
+- v1, Standard blind full-pinyin rerank: 93.8% against Rime's 72.3%.
+- v2-20m, rescored Top-1: public pinyin test 51.4% (shipped v1 path 31.0%), colloquial pinyin test 42.3% (`kd-cont` 39.0%). Standard blind rerank 94.3% against v1's 93.8% (not significant).
+
+Core ML packages are INT8 block-32, FP32 compute, CPU-only, iOS 18. The v2-20m batched KV package is 23.3 MB. Its INT8 search matched the FP32 fixture on the shown top 1 in 122 of 125 cases, one short of the 123 gate; the release went ahead as a recorded deviation, since generation is behind a development switch and scoring aligns at 1.7e-5. The pinyin benchmarks keep only sentences where three automatic readers agree; their readings were not hand-reviewed. The models have no safety tuning, and the Vime client filters their output with its own keyword blocking. Details: [README](README.md#chinese), [release scope](docs/release-zh-v2-plan.md).
 
 ## Limitations and licensing
 

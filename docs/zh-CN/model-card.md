@@ -1,8 +1,29 @@
 # VimeML模型卡
 
-主要模型卡为[MODEL_CARD.md](../../MODEL_CARD.md)。公开版本为[V1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1)、[V2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1)与研究发布[V4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2)；V2.0、V3 A/B、V4-B、V4.1、V4.3、V5为实验checkpoint。V4.2为部署版本，V2.1为上一部署版本。
+主要模型卡为[MODEL_CARD.md](../../MODEL_CARD.md)。本页先概述中文模型，后面是日文模型。
 
-## 架构与用途
+## 中文模型
+
+| 模型 | 参数量 | 用途 | 发布 |
+| --- | ---: | --- | --- |
+| vimeml-tiny-zh-v1 | 20,036,736 | 重排 librime（雾凇）拼音候选、联想；Vime 回退模型 | [Voltline/vimeml-tiny-zh-v1](https://huggingface.co/Voltline/vimeml-tiny-zh-v1) |
+| vimeml-zh-v2-20m | 20,036,736 | 一个模型完成拼音生成整句、Rime 重排和联想；iPhone | [Voltline/vimeml-zh-v2](https://huggingface.co/Voltline/vimeml-zh-v2) `20m/` |
+| vimeml-zh-v2-200m / -800m | 约 2 亿 / 7.84 亿 | 桌面端（PyTorch）的同样三项任务 | test 确认后加入 v2 仓库 |
+
+两个 20M 模型形状相同：12,288 词 SentencePiece Unigram、d384、9 层、6 头、SwiGLU 960、RMSNorm、可学习位置、共享输出头、上下文 128。v1 在 FineWeb2 `cmn_Hani` 与 LCCC 上从随机初始化训练；v2-20m 从 v1 出发，依次经过拼音任务训练、200M 逐 token 蒸馏和口语后训练。v2 生成用读音词典约束的束搜索（每个键位 16 条），再用模型自身的 LM 分数重排前 10（`gen + 1.6 × lm`）。
+
+按预注册计划、每个 test 只打开一次的结果：
+
+- v1：Standard blind 全拼重排 93.8%，Rime 72.3%。
+- v2-20m 重打分 Top-1：公开拼音 test 51.4%（线上 v1 路径 31.0%），口语拼音 test 42.3%（`kd-cont` 39.0%）；Standard blind 重排 94.3%，v1 93.8%（不显著）。
+
+Core ML 包为 INT8 block32、FP32 计算、CPU_ONLY、iOS 18；v2-20m 批量 KV 包 23.3 MB。INT8 搜索显示的第一候选与 FP32 fixture 一致 122/125，比 123 的门槛少一条；因整句生成在开发开关后面、打分对齐到 1.7e-5，作为记录在案的偏离照常发布。拼音基准只保留三个自动注音器全部一致的句子，读音未经人工审核。模型没有安全微调，Vime 客户端用自己的关键词屏蔽过滤输出。详见 [README.zh-CN.md](../../README.zh-CN.md#中文) 与 [发布范围](release-zh-v2-plan.md)。
+
+## 日文模型
+
+公开版本为[V1](https://huggingface.co/Voltline/vimeml-tiny-ja-v1)、[V2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1)与研究发布[V4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2)；V2.0、V3 A/B、V4-B、V4.1、V4.3、V5为实验checkpoint。V4.2为部署版本，V2.1为上一部署版本。
+
+### 架构与用途
 
 | 属性 | V1 | V2／V2.1／V3 | V4系列 |
 | --- | --- | --- | --- |
@@ -17,7 +38,7 @@
 
 主要用途是对AzooKey真实候选池按左文重排。context与候选联合分词，以共同token前缀后的logP sum评分；该代理不精确等于字符串条件概率。检索、分词、稳定排序、回退与生成搜索在应用侧实现。短文本续写与下一词联想仍属实验能力，重复与语义错误未消除，未验证通用聊天或事实问答能力。
 
-## 数据与训练
+### 数据与训练
 
 V1/V2冻结语料来自9个FineWeb2-Edu日语分片和Tatoeba，共25,713,003唯一句子，按文档与精确重复分组切分。全面语义近重复与基准污染审计未完成。V1从头训练1轮；V2.0从头4轮；V2.1 restart1从V2.0续训2轮并重建AdamW；extend5携带优化器状态追加3.273轮，部署选定step40000。V2训练有30%合格首窗口prefix crop，验证不裁剪。
 
@@ -27,7 +48,7 @@ V4系列使用新的8K词表与固定15.07M架构。V4-B在原V2文本上从头�
 
 V4.3在V4.2方案上增加九个网页分片；V5以V4.3方案训练d512/L8（28,385,792参数，独立的`tiny_gpt_v5`身份）。V5验证BPC降至2.942180，但IME Top-1（Standard 514、Legacy 365、AJIMEE 145、历史dev 124）与V4.2、V4.3无显著差异，二者均不发布、不转换。见[V5训练与结论](training-v5.md)。
 
-## 评测与部署边界
+### 评测与部署边界
 
 V2.1 FP32旧验证BPC为3.0802686，AJIMEE144/200、历史dev122/137、草稿dev1487/2000；INT8对应144、122、1481。Standard development：V2.1／A／B为505／508／507，分母728；已暴露固定reference为535／546／533，分母725；旧500草稿回归为374／368／364。
 
