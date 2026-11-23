@@ -28,6 +28,14 @@ p_chat decile over all paragraphs; thresholds for training data are set later fr
   python scripts/corpus/zh_colloq.py select outputs/zh-corpus/export-r1 outputs/zh-colloq/model-v1.npz outputs/zh-colloq/select-r1 --pools ...
   python scripts/corpus/zh_colloq.py export outputs/zh-colloq/select-r1 outputs/zh-colloq/export-colloq-r1
   python scripts/corpus/zh_colloq.py export-chat outputs/zh-corpus/chat-ext-v2 outputs/zh-colloq/screen outputs/zh-colloq/export-colloq-chat
+
+Second round (export-r2 part, more chat): select on the downloaded r2 files, export without screening, write the
+screen input, screen it, then export again keeping ok paragraphs and dropping eval overlaps:
+  python scripts/corpus/zh_colloq.py export outputs/zh-colloq/select-r2 outputs/zh-colloq/export-colloq-r2-raw --name r2 --spoken-units N
+  python scripts/corpus/zh_colloq.py screen-input outputs/zh-colloq/export-colloq-r2-raw outputs/zh-colloq/screen/r2-in.jsonl
+  python scripts/corpus/zh_colloq.py export outputs/zh-colloq/select-r2 outputs/zh-colloq/export-colloq-r2 --name r2 --spoken-units N \
+      --screen-dir outputs/zh-colloq/screen --guard outputs/benchmarks/ime-pinyin-zh-colloq-v1/frozen-r1
+  python scripts/corpus/zh_colloq.py export-chat ... --quota douban=N --quota mmchat=N --quota tieba=N --guard <frozen>
 """
 import argparse
 import json
@@ -290,11 +298,70 @@ def select(export, model, output, pools_path=None, workers=8, max_groups=0, limi
 SPOKEN_LABEL = "zh-colloq-spoken"
 
 
-def export(select_dir, out, chat_min=0.7, spoken_min=0.8, spoken_units=730000, rows_per_group=20000):
+def screened_ok_glob(screen_dir, pattern):
+    """Ids marked ok in the matching screen files and never marked not ok (a text screened by two models, where
+    their ranges meet, is kept only if both say ok)."""
+    ok, bad = set(), set()
+    for path in sorted(Path(screen_dir).glob(pattern)):
+        for line in open(path, encoding="utf-8"):
+            r = json.loads(line)
+            (ok if r["ok"] else bad).add(r["id"])
+    return ok - bad
+
+
+def screen_note(screen_dir, patterns):
+    """Manifest description of the quality screen: the models that labelled the matching files."""
+    models = sorted({json.loads(line).get("model", "?") for pattern in patterns
+                     for path in Path(screen_dir).glob(pattern) for line in open(path, encoding="utf-8")})
+    return f"LLM quality screen ({', '.join(models)}), ok only; a text any model marked not ok is dropped"
+
+
+def text_id(text):
+    import hashlib
+    return hashlib.sha1(text.encode()).hexdigest()[:16]
+
+
+def eval_guard(frozen):
+    """True for a text that contains any overlap pattern (screen_overlap_zh.py: the Han run around the target and
+    the whole message, each if >= 8 characters) of an ime-pinyin-zh-colloq-v1 item, development and test. New
+    training rows added after the set was frozen are filtered with this instead of dropping items."""
+    import ahocorasick
+    sys.path.insert(0, str(ROOT / "scripts/benchmarks"))
+    from screen_overlap_zh import patterns
+    items = [json.loads(l) for split in ("development", "test")
+             for l in open(Path(frozen) / f"{split}.jsonl", encoding="utf-8")]
+    automaton = ahocorasick.Automaton()
+    for pattern in patterns(items):
+        automaton.add_word(pattern, pattern)
+    automaton.make_automaton()
+    return lambda text: next(automaton.iter(text), None) is not None
+
+
+def screen_input(export_dir, out, seed=20261122):
+    """Distinct texts of an export (train and validation parquet files) as screen input rows {id, text},
+    id = sha1(text)[:16], shuffled so that a partly screened input is a random subset."""
+    import pyarrow.parquet as pq
+    seen = {}
+    for p in sorted(Path(export_dir).glob("*/*.parquet")):
+        for text in pq.read_table(p, columns=["text"])["text"].to_pylist():
+            seen.setdefault(text_id(text), text)
+    rows = sorted(seen.items())
+    random.Random(seed).shuffle(rows)
+    with open(out, "w", encoding="utf-8", newline="\n") as f:
+        for i, t in rows:
+            f.write(json.dumps({"id": i, "text": t}, ensure_ascii=False) + "\n")
+    print(len(rows), "texts")
+
+
+def export(select_dir, out, chat_min=0.7, spoken_min=0.8, spoken_units=730000, rows_per_group=20000,
+           name="r1", screen_dir=None, guard=None):
     """Write select output as a frozen export for build_zh_pinyin.py: train/web-colloq-r1.parquet holds every
     train paragraph with p_chat >= chat_min ("chat") plus a doc_hash sample of about spoken_units paragraphs with
     p_spoken >= spoken_min and p_chat < KEEP_CHAT ("spoken", mostly fiction dialogue); validation/ holds the
-    heldout chat paragraphs. One row per paragraph, id "<doc id>#<paragraph>", script from the document."""
+    heldout chat paragraphs. One row per paragraph, id "<doc id>#<paragraph>", script from the document.
+    name sets the file name (web-colloq-<name>.parquet). With screen_dir, only paragraphs whose text the quality
+    screen marked ok in <screen_dir>/<name>*-screen-*.jsonl are written (export-r2 had no review; r1 had);
+    with guard (a frozen eval directory), paragraphs containing an eval overlap pattern are dropped."""
     import hashlib
     import pyarrow as pa
     import pyarrow.compute as pc
@@ -304,6 +371,9 @@ def export(select_dir, out, chat_min=0.7, spoken_min=0.8, spoken_units=730000, r
         raise SystemExit(f"{out} is complete; use a new directory")
     files = sorted(p for p in select_dir.glob("*.parquet"))
     cols = ["id", "para", "text", "p_chat", "p_spoken", "split", "script"]
+    ok = screened_ok_glob(screen_dir, f"{name}*-screen-*.jsonl") if screen_dir else None
+    blocked = eval_guard(guard) if guard else None
+    fname = f"web-colloq-{name}.parquet"
 
     def spoken_mask(t):
         return pc.and_(pc.and_(pc.equal(t["split"], "train"), pc.greater_equal(t["p_spoken"], spoken_min)),
@@ -316,7 +386,7 @@ def export(select_dir, out, chat_min=0.7, spoken_min=0.8, spoken_units=730000, r
                         ("p_chat", pa.float32()), ("p_spoken", pa.float32())])
     for split in ("train", "validation"):
         (out / split).mkdir(parents=True, exist_ok=True)
-    writers = {s: pq.ParquetWriter(out / s / "web-colloq-r1.parquet", schema, compression="zstd")
+    writers = {s: pq.ParquetWriter(out / s / fname, schema, compression="zstd")
                for s in ("train", "validation")}
     counts = Counter()
     buffers = {s: [] for s in writers}
@@ -340,6 +410,12 @@ def export(select_dir, out, chat_min=0.7, spoken_min=0.8, spoken_units=730000, r
                 split, origin = "validation", "chat"
             else:
                 continue
+            if ok is not None and text_id(r["text"]) not in ok:
+                counts[f"{split}_{origin}_screen_dropped"] += 1
+                continue
+            if blocked and blocked(r["text"]):
+                counts[f"{split}_{origin}_eval_overlap_dropped"] += 1
+                continue
             buffers[split].append(dict(id=key, text=r["text"], script=r["script"], origin=origin,
                                        p_chat=r["p_chat"], p_spoken=r["p_spoken"]))
             counts[f"{split}_{origin}_paragraphs"] += 1
@@ -349,12 +425,19 @@ def export(select_dir, out, chat_min=0.7, spoken_min=0.8, spoken_units=730000, r
     for split, w in writers.items():
         flush(split, force=True)
         w.close()
-    sums = {f"{s}/web-colloq-r1.parquet": hashlib.sha256((out / s / "web-colloq-r1.parquet").read_bytes()).hexdigest()
+    sums = {f"{s}/{fname}": hashlib.sha256((out / s / fname).read_bytes()).hexdigest()
             for s in writers}
     with open(out / "SHA256SUMS", "w", encoding="utf-8", newline="\n") as f:
         f.write("".join(f"{d}  {n}\n" for n, d in sums.items()))
     summary = select_dir / "summary.json"
-    manifest = dict(kind="zh-colloq-r1-export", select_dir=str(select_dir),
+    extra = {}
+    if screen_dir:
+        extra["screen"] = screen_note(screen_dir, [f"{name}*-screen-*.jsonl"])
+        extra["screen_sha256"] = {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+                                  for p in sorted(Path(screen_dir).glob(f"{name}*-screen-*.jsonl"))}
+    if guard:
+        extra["eval_guard_manifest_sha256"] = hashlib.sha256((Path(guard) / "manifest.json").read_bytes()).hexdigest()
+    manifest = dict(kind=f"zh-colloq-{name}-export", select_dir=str(select_dir), **extra,
                     select_summary_sha256=hashlib.sha256(summary.read_bytes()).hexdigest(),
                     script_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                     chat_min=chat_min, spoken_min=spoken_min, spoken_below_p_chat=KEEP_CHAT,
@@ -369,17 +452,11 @@ CHAT_VALIDATION = 6000
 
 
 def screened_ok(screen_dir, source):
-    """Text ids (sha1(text)[:16]) the quality screen (one LLM) marked ok, over every screen file of source."""
-    ok = set()
-    for path in sorted(Path(screen_dir).glob(f"{source}*-screen-*.jsonl")):
-        for line in open(path, encoding="utf-8"):
-            r = json.loads(line)
-            if r["ok"]:
-                ok.add(r["id"])
-    return ok
+    """Text ids (sha1(text)[:16]) the quality screen marked ok (any model marking it not ok drops it), over every screen file of source."""
+    return screened_ok_glob(screen_dir, f"{source}*-screen-*.jsonl")
 
 
-def export_chat(chat_dir, screen_dir, out, quotas=CHAT_QUOTAS, validation_cap=CHAT_VALIDATION):
+def export_chat(chat_dir, screen_dir, out, quotas=CHAT_QUOTAS, validation_cap=CHAT_VALIDATION, guard=None):
     """Write the screened chat-ext turns as a frozen chat export for build_zh_pinyin.py
     (train/chat-lccc-train.parquet, validation/chat-lccc-validation.parquet; text, dialogue, turn, script).
 
@@ -389,7 +466,8 @@ def export_chat(chat_dir, screen_dir, out, quotas=CHAT_QUOTAS, validation_cap=CH
     a source with fewer eligible turns than its quota (tieba) repeats every turn quota / eligible times, the
     fractional part by the same hash of "<key>#<copy>", each copy under its own dialogue "<source>.r<copy>-<d>"
     so the builder draws it with its own seed. Validation: the screened heldout turns, at most validation_cap
-    per source by the same hash. The builder keys a turn "lccc/<dialogue>/<turn>"; dialogue is "<source>-<d>"."""
+    per source by the same hash. The builder keys a turn "lccc/<dialogue>/<turn>"; dialogue is "<source>-<d>".
+    With guard (a frozen eval directory), turns containing an eval overlap pattern are not eligible."""
     import hashlib
     import pyarrow as pa
     import pyarrow.parquet as pq
@@ -399,6 +477,7 @@ def export_chat(chat_dir, screen_dir, out, quotas=CHAT_QUOTAS, validation_cap=CH
     schema = pa.schema([("text", pa.string()), ("dialogue", pa.string()), ("turn", pa.int32()),
                         ("script", pa.string())])
     counts, rows = Counter(), {"train": [], "validation": []}
+    blocked = eval_guard(guard) if guard else None
     for source, quota in quotas.items():
         ok = screened_ok(screen_dir, source)
         for split, name, cap in (("train", "train.jsonl", quota), ("validation", "heldout.jsonl", validation_cap)):
@@ -407,6 +486,9 @@ def export_chat(chat_dir, screen_dir, out, quotas=CHAT_QUOTAS, validation_cap=CH
                 r = json.loads(line)
                 counts[f"{split}_{source}_turns"] += 1
                 if hashlib.sha1(r["text"].encode()).hexdigest()[:16] in ok:
+                    if blocked and blocked(r["text"]):
+                        counts[f"{split}_{source}_eval_overlap_dropped"] += 1
+                        continue
                     eligible.append(r)
             counts[f"{split}_{source}_screened_ok"] += len(eligible)
             ratio = cap / max(1, len(eligible))
@@ -435,10 +517,13 @@ def export_chat(chat_dir, screen_dir, out, quotas=CHAT_QUOTAS, validation_cap=CH
                for source in quotas for p in sorted(Path(screen_dir).glob(f"{source}*-screen-*.jsonl"))}
     manifests = {s: hashlib.sha256((chat_dir / s / "manifest.json").read_bytes()).hexdigest() for s in quotas}
     manifest = dict(kind="zh-colloq-chat-export", label=CHAT_LABEL, quotas=quotas, validation_cap=validation_cap,
-                    screen="LLM quality screen (DeepSeek 4.1 Flash), ok only", screen_sha256=screens,
+                    screen=screen_note(screen_dir, [f"{source}*-screen-*.jsonl" for source in quotas]),
+                    screen_sha256=screens,
                     chat_ext_manifest_sha256=manifests,
                     script_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                     counts=dict(sorted(counts.items())), sha256=sums)
+    if guard:
+        manifest["eval_guard_manifest_sha256"] = hashlib.sha256((Path(guard) / "manifest.json").read_bytes()).hexdigest()
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1), "utf-8")
     print(json.dumps(manifest["counts"]))
 
@@ -477,16 +562,29 @@ def main():
     x.add_argument("out")
     x.add_argument("--chat-min", type=float, default=0.7)
     x.add_argument("--spoken-units", type=int, default=730000)
+    x.add_argument("--name", default="r1", help="file name web-colloq-<name>.parquet and screen file prefix")
+    x.add_argument("--screen-dir", help="keep only paragraphs marked ok in <dir>/<name>*-screen-*.jsonl")
+    x.add_argument("--guard", help="frozen eval directory: drop paragraphs with an eval overlap pattern")
     c = sub.add_parser("export-chat")
     c.add_argument("chat_dir")
     c.add_argument("screen_dir")
     c.add_argument("out")
     c.add_argument("--validation-cap", type=int, default=CHAT_VALIDATION)
+    c.add_argument("--quota", action="append", default=[], metavar="SOURCE=ROWS",
+                   help="train rows per source (repeat; default douban 800000, mmchat 600000, tieba 120000)")
+    c.add_argument("--guard", help="frozen eval directory: turns with an eval overlap pattern are not eligible")
+    i = sub.add_parser("screen-input")
+    i.add_argument("export_dir")
+    i.add_argument("out")
     a = ap.parse_args()
     if a.cmd == "export-chat":
-        export_chat(a.chat_dir, a.screen_dir, a.out, validation_cap=a.validation_cap)
+        quotas = {k: int(v) for k, v in (q.split("=") for q in a.quota)} if a.quota else CHAT_QUOTAS
+        export_chat(a.chat_dir, a.screen_dir, a.out, quotas, a.validation_cap, a.guard)
+    elif a.cmd == "screen-input":
+        screen_input(a.export_dir, a.out)
     elif a.cmd == "export":
-        export(a.select_dir, a.out, a.chat_min, spoken_units=a.spoken_units)
+        export(a.select_dir, a.out, a.chat_min, spoken_units=a.spoken_units, name=a.name, screen_dir=a.screen_dir,
+               guard=a.guard)
     elif a.cmd == "scan":
         scan(a.export, a.output, a.pools, a.workers, a.max_groups, a.limit_files)
     elif a.cmd == "sample":

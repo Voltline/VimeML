@@ -1,0 +1,85 @@
+# zh v2-20m colloquial post-training (training-zh-colloq-plan.md), arm colloq-c40 (round 2): colloquial share 208 of 512 (about 40%): 128 r-type paragraphs (export-r1 81 + export-r2 47,
+# split by store size) + 80 turns from the round-2 chat store per update; per-kind totals unchanged.
+stage = "zh-pinyin-s1"
+architecture = "tiny_gpt_zh13"
+output_dir = "artifacts/models/tiny-zh13-12k-pinyin-colloq-c40"
+log_dir = "runs/training/tiny-zh13-12k-pinyin-colloq-c40"
+arm = "pinyin-colloq-c40"
+
+[initialization]
+mode = "checkpoint"
+checkpoint = "artifacts/models/tiny-zh13-12k-pinyin-kd-cont/final.pt"
+checkpoint_sha256 = "412aee1d1c2d73c9f2ff52533188055e4655575472fe3be136e048fd240268a4"
+
+[distillation]
+teacher = "artifacts/models/tiny-zh200m-12k-pinyin-pt-d1024/final.pt"
+teacher_sha256 = "90e48fe4cbaeacf5c58774ded243e57d94c86923a51d191555fbbfc7954150f8"
+alpha = 0.5
+temperature = 1.0
+
+[data]
+directory = "artifacts/training-data/zh-pinyin-v2-12k"
+manifest_sha256 = "c449439ba6af405fb4a907c8fcb9e753d4c8eb73428cfe839e9eac0f05cea472"
+mix = { plain = 95, full = 57, mixed = 76, initials = 57, error = 19 }
+
+[[data.extra]]
+directory = "artifacts/training-data/zh-colloq-r1-12k"
+manifest_sha256 = "1dea73995a85433afa37f5289b9fc78df49d183ed2fe6e5bfec24ff8170bc67e"
+mix = { plain = 26, full = 15, mixed = 20, initials = 15, error = 5 }
+
+[[data.extra]]
+directory = "artifacts/training-data/zh-colloq-r2-12k"
+manifest_sha256 = "d23dd329ec875ba51039ba1a90fd62b3522907fe758976b7c15099e02766b4b0"
+mix = { plain = 14, full = 9, mixed = 12, initials = 9, error = 3 }
+
+[[data.extra]]
+directory = "artifacts/training-data/zh-colloq-chat2-12k"
+manifest_sha256 = "3cc52ba13a86356141bc5de37ee09410401d9d03a4e139d4c52cc4545cb0fb04"
+mix = { plain = 25, full = 15, mixed = 20, initials = 15, error = 5 }
+
+[model]
+vocab_size = 12288
+context_length = 128
+d_model = 384
+n_heads = 6
+n_layers = 9
+d_ff = 960
+dropout = 0.0
+norm = "rmsnorm"
+norm_eps = 0.00001
+activation = "swiglu"
+bias = false
+tie_embeddings = true
+position_embedding = "learned"
+
+[runtime]
+compile_backbone = true
+
+[training]
+device = "cuda"
+precision = "bf16"
+seed = 20261122
+normalization = "per_kind"
+cpu_threads = 4
+num_workers = 6
+max_steps = 30000
+learning_rate = 0.0001
+min_learning_rate = 0.00001
+warmup_steps = 1000
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+prefix_crop_probability = 0.30
+log_every = 100
+eval_every = 2000
+checkpoint_every = 1000
+keep_every = 6000
+validation_batch = 256
+validation_plain_examples = 8192
+
+[tracking]
+enabled = true
+project = "vimeml"
+group = "zh-colloq"
+mode = "online"

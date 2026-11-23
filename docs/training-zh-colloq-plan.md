@@ -96,6 +96,86 @@ Prediction (tracks A–D) and typo correction are descriptive.
 4. If no arm qualifies, `kd-cont` stays. The colloquial problem then goes back to the client (passing committed text as context, allowing single-character candidates) and to evaluation.
 5. A winning arm has `kd-cont`'s architecture, so export and latency do not change. It still goes through v2-20m's existing test confirmation and Mac alignment.
 
+## Round 1 results (2026-11-22)
+
+Colloquial development, self-rescored Top-1 (770 sentences, 4552 inputs). p is from the sentence-cluster sign-flip test against `colloq-ctrl`.
+
+| Arm | Top-1 | vs ctrl | p |
+| --- | ---: | ---: | ---: |
+| `kd-cont` | 39.6 | −0.2 | 0.54 |
+| `colloq-ctrl` | 39.8 | — | — |
+| `colloq-c10` | 40.9 | +1.2 | 0.0008 |
+| `colloq-c20` | 41.9 | +2.1 | 0.00005 |
+| `colloq-c10-hard` | 41.1 | +1.3 | 0.0009 |
+
+- c20 vs c10: +0.9 (p 0.0044).
+- c10-hard vs c10: +0.2 (p 0.64), so dropping the teacher on colloquial text brings no measurable gain.
+- Gates:
+  - public pinyin self-rescored Top-1: `kd-cont` 54.8, ctrl 54.6, c10 55.7, c20 56.1 (+1.3, p 0.031), c10-hard 55.8;
+  - Standard against v1: passes for all four arms (c20 net +5, p 0.48).
+- Reference metrics:
+  - final-particle prediction Top-1: `kd-cont` 0.190, ctrl 0.194, c10 0.223, c20 0.225, c10-hard 0.229;
+  - prediction track A, CPED stratum Top-3: 16.4 → 17.5 (c20).
+- By decision rule 1, c20 wins and replaces `kd-cont` as the candidate. ctrl is not significantly above `kd-cont`, so the gain comes from the colloquial data.
+- c20 beats c10, so the colloquial share has not saturated. A second round therefore runs before test confirmation.
+
+## Round 2 (amendment, committed before training on 2026-11-23)
+
+At c20 the round 1 colloquial data is already read about once, so a higher share needs more data.
+
+This section amends two statements in Data, "one LLM only" and "export-r2 is not used". The amendment applies only to the new round 2 stores; round 1 stores and results are unchanged.
+
+**Data**
+
+- **export-r2 colloquial paragraphs** ([data-zh-colloq-r2.toml](../configs/data-zh-colloq-r2.toml), store `zh-colloq-r2-12k`, manifest sha256 `d23dd329…`):
+  - selected from part of export-r2: every fourth of the 54 files over 1.4 GB, 14 files in all;
+  - same classifiers and thresholds as r1;
+  - all 2.29M paragraphs with `p_chat ≥ 0.7` are candidates, plus a hash sample of 437k fiction-like dialogue paragraphs.
+- **Round 2 chat** ([data-zh-colloq-chat2.toml](../configs/data-zh-colloq-chat2.toml), store `zh-colloq-chat2-12k`, manifest sha256 `3cc52ba1…`):
+  - douban part00–05 and all of MMChat's train split are screened;
+  - exported by rows: douban 2.4M, MMChat 1.0M and tieba 120k (51k after screening, repeated about 2.35 times), 3.52M in all;
+  - it covers every source of the round 1 chat store and replaces `zh-colloq-chat-12k` in c30 and c40.
+- **Quality screen**: same criteria as round 1.
+  - The r2 paragraphs were split between two LLMs. DeepSeek 4.1 Flash started from one end of the input and DeepSeek chat from the other, and screening stopped where they met.
+  - Where they met, 9,430 texts were screened by both models, which agree on 96%. A text that either model marks not ok is dropped.
+  - The 8,802 texts (0.44%) still unscreened at the stop count as not ok.
+  - Chat uses DeepSeek 4.1 Flash only.
+- After screening: r2 train 2.588M paragraphs (chat 2.188M, fiction-like dialogue 400k), validation 44k.
+- **Eval guard**: a training text added after the colloquial set was frozen is removed if it contains an overlap pattern of any colloquial item (development or test). The training row goes; the item stays.
+  - The patterns are those of the freeze-time overlap scan: the Han run around the target and the whole message, each at least 8 characters.
+  - This removed 6 r2 paragraphs and 2 chat train turns.
+- Train samples:
+
+  | Store | plain | full | mixed | initials | error |
+  | --- | ---: | ---: | ---: | ---: | ---: |
+  | `zh-colloq-r2-12k` | 669,244 | 382,468 | 381,816 | 381,170 | 121,505 |
+  | `zh-colloq-chat2-12k` | 789,883 | 717,466 | 719,141 | 718,950 | 227,424 |
+
+**Arms**
+
+All four arms start from `kd-cont` final with the round 1 recipe, and per-kind totals are unchanged. The r-type share is split between the r1 and r2 stores by size, about 64 : 36.
+
+| Arm | Colloquial samples per update | r1 + r2 + chat | seed | Config |
+| --- | --- | --- | --- | --- |
+| `colloq-c30` | 156, about 30% | 60 + 36 + 60 (chat2) | 20261122 | [train-zh-pinyin-colloq-c30.toml](../configs/train-zh-pinyin-colloq-c30.toml) |
+| `colloq-c40` | 208, about 40% | 81 + 47 + 80 (chat2) | 20261122 | [train-zh-pinyin-colloq-c40.toml](../configs/train-zh-pinyin-colloq-c40.toml) |
+| `colloq-c20-s2` | as c20 | 64 + 0 + 40 (round 1 chat) | 20261123 | [train-zh-pinyin-colloq-c20-s2.toml](../configs/train-zh-pinyin-colloq-c20-s2.toml) |
+| `colloq-c40-s2` | as c40 | as c40 | 20261123 | [train-zh-pinyin-colloq-c40-s2.toml](../configs/train-zh-pinyin-colloq-c40-s2.toml) |
+
+- At c40 the most-read colloquial store and kind is chat2 plain, about 0.95 times.
+- Against c20, c30 and c40 change both the colloquial share and the data (r2 and the round 2 chat are added). The comparison therefore measures more colloquial data and a higher share together.
+- All colloquial text is distilled, since c10-hard brought no gain in round 1.
+
+**Evaluation**: as in round 1 (primary metric, reference metrics and both gates), on development only.
+
+**Decision** (against round 1 `colloq-c20`, seed 20261122):
+
+1. c40 replaces c20 as the candidate if c40 and c40-s2 are both significantly above c20 and both pass both gates.
+2. Otherwise c30 replaces c20 if it is significantly above c20 and passes the gates.
+3. Otherwise c20 stays the candidate.
+4. c20-s2 vs c20 and c40-s2 vs c40 are reported as this round's seed band. They are descriptive only and do not enter the decision.
+5. The final candidate goes through v2-20m's existing test confirmation (colloquial test half, public pinyin) and Mac alignment.
+
 ## Out of scope
 
 - A hand-written colloquial evaluation (deferred).
