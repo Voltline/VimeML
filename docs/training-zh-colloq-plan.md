@@ -205,4 +205,10 @@ The "vs c20" column is the paired per-sentence difference, so it can differ by 0
 
 ## Deviations
 
-(None yet.)
+1. **2026-11-23: the candidate is `colloq-c40`.** By round 2 decision rule 3, c20 should have stayed the candidate. After seeing the round 2 results, `colloq-c40` was chosen instead, for these reasons:
+   - it has the same architecture as `kd-cont` and c20, so export, latency and iOS integration do not change;
+   - it passes both gates;
+   - on the primary metric both seeds, c40 and c40-s2, are slightly above c20 (+0.4 and +0.3, neither significant), and no metric is below c20;
+   - on the reference metric, final-particle prediction Top-1, both seeds are clearly higher (0.271 and 0.260, against 0.225 for c20).
+
+   The choice was made after seeing the results. Whether c40 is better than `kd-cont` is therefore left to the test confirmation ([confirmation plan](benchmarks/confirmation-zh-colloq-plan.md)), not to the development gap.

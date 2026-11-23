@@ -15,6 +15,7 @@ V2系列实验已完成，此前部署版本为V2.1 extend5 step40000 / INT8 blo
 | [vimeml-tiny-zh-v1 八臂 IME 打分与判定](reports/zh-v1-20261110/ime-benchmark.md) | 全拼 development 八臂 93.3%–94.4%，Rime 68.8%；五个对比都不有效，按计划默认新数据和 12K |
 | [vimeml-tiny-zh-v1 blind 确认计划](benchmarks/confirmation-zh-v1-plan.md) | 预注册：选定 `12k-fresh-s1`，在 blind 全拼上对比 Rime，只运行一次；2026-11-11 已执行，通过 |
 | [vimeml-zh-v2 test 确认计划](benchmarks/confirmation-zh-v2-plan.md) | 预注册：v2-20m（`kd-cont`）在公开拼音 test 上对比线上逻辑（Rime 16 句 + v1 重排），带全拼和 Standard 守卫；v2-200m 对比 v2-20m；各运行一次；v2-20m 2026-11-20 通过（[报告](reports/zh-v2-confirmation-20261120/report.md)） |
+| [口语候选 test 确认计划](benchmarks/confirmation-zh-colloq-plan.md) | 预注册：colloq-c40 在口语拼音 test 上对比 v2-20m（`kd-cont`），带公开拼音（第二次使用）、全拼和 Standard 守卫；运行一次 |
 | [vimeml-tiny-zh-v1 对照基线计划](benchmarks/baselines-zh-v1-plan.md) | 预注册：雾凇、雾凇 + 万象语法模型、朙月拼音、Qwen2.5-0.5B、Qwen3-0.6B-Base，development 与 blind（参考测试） |
 | [vimeml-tiny-zh-v1 blind 确认与对照基线](reports/zh-v1-20261111/blind-and-baselines.md) | blind 全拼 Top-1 93.8%（Rime 72.3%），确认通过；胜过 Qwen2.5-0.5B（91.8%）、Qwen3-0.6B（89.2%）、雾凇 + 万象（82.2%）、朙月（68.9%） |
 | [vimeml-tiny-zh-v1 Mac 结果核对与 iOS 发布](reports/zh-v1-20261111/ios-release.md) | 交接包核对通过；INT8 b32 对 FP32 全拼 +2/−1、简拼 +0/−2；Mac 上约为 V4.2 的 1.3 倍；iPhone 未测；发布到 Hugging Face |
