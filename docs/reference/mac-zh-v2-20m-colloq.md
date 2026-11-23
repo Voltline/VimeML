@@ -85,3 +85,40 @@ Those uses were not measured separately for c40:
 - on development, final-particle prediction Top-1 rose from 0.190 (`kd-cont`) to 0.271, which is the 吧/把 case that started the colloquial work.
 
 Once non-blocking generation ships, the generation gain applies directly.
+
+## Mac result and deviation (2026-11-23)
+
+**Integrity and alignment**
+
+- The handoff's `SHA256SUMS` check passes, and the shape matches `kd-cont`.
+- `int8-merged` is 23,271,109 bytes; the compiled `TinyChineseV2KVBatchV4FP32KVINT8.mlmodelc` is 22 MB, as for `kd-cont`.
+- Stateless FP32 against PyTorch passes 5/5, max 3.89e-5 (gate 3e-4).
+- KV v4 check: eager and traced, both 2.17e-5.
+- KV v4 fp32kv alignment (logits, scored, score, prefix): max 2.57e-5, 0 rows outside tolerance.
+- INT8 KV v4 against stateless INT8: step 1.62e-5, score sums 1.69e-5, same order 8/8.
+
+**Search** (`zh-generation-v2-20m-c40-task-r1`, INT8 against the FP32 fixture)
+
+- Generation-order top 1 is equal in 121/125 cases (`kd-cont`: 122/125). The common-score difference is at most 0.21. p50 is 65.9 ms (`kd-cont`: 65.9 ms).
+- Shown order: the INT8 top 10 were rescored with c40's FP32 LM score at λ 1.6. The shown top 1 equals the fixture in **122/125** cases, one short of the 123 gate (`kd-cont`: 125/125). The final-score difference on common texts is at most 0.21.
+- All three differences are long all-initials inputs. In two of them, INT8's beam path reaches a candidate that is not in the FP32 top 10 at all, and it wins after rescoring. In the third, it ranks the FP32 second place first, with an FP32 gap of 1.7.
+- The text set equals the fixture in 89/125 cases. In 14 cases it differs above the tenth place. v1's shipped INT8 package had the same set in 86/125 against its own fixture.
+
+**Latency** (Mac, `kd-cont` against c40, p50)
+
+| prompt | step | `kd-cont` | c40 |
+| --- | --- | ---: | ---: |
+| 48 | `prompt_prefix` | 3.36 ms | 3.52 ms |
+| 48 | `extend_prefix_1` | 1.26 ms | 1.25 ms |
+| 48 | `scored_step_b16` | 3.74 ms | 3.46 ms |
+| 48 | `score_b16` | 17.89 ms | 17.88 ms |
+| 80 | `prompt_prefix` | 5.12 ms | 5.22 ms |
+| 80 | `extend_prefix_1` | 1.43 ms | 1.41 ms |
+| 80 | `scored_step_b16` | 4.08 ms | 3.83 ms |
+| 80 | `score_b16` | 18.21 ms | 18.14 ms |
+
+**Deviation: c40 goes to Vime although the search gate misses by one case.**
+
+The miss comes from INT8 beam-path divergence on long all-initials inputs. It is not an export fault: every alignment passes at about 2e-5, and Rime reranking and prediction, the uses that are on by default, use `score`, which aligns at 1.7e-5. Sentence generation, the only use the search gate guards, stays behind its development switch.
+
+The decision was made after seeing the result. The Vime fixture gate is judged the same way: shown top 1 of at least 122/125, with every differing case listed.
