@@ -5,7 +5,7 @@ Primary documents are English; [Chinese documentation](zh-CN/index.md) mirrors t
 **Current status (2026-11-23).**
 
 - **Chinese.** `vimeml-zh-v2-20m` (`colloq-c40`) is released in [Voltline/vimeml-zh-v2](https://huggingface.co/Voltline/vimeml-zh-v2): test Top-1 51.4% on public pinyin and 42.3% on colloquial pinyin, against 31.0% for the shipped v1 path. In the Vime client it reranks and predicts by default; sentence generation is behind a development switch. vimeml-tiny-zh-v1 stays released as the fallback.
-  - `vimeml-zh-v2-200m` (desktop) passed development evaluation; its test confirmation is running.
+  - `vimeml-zh-v2-200m` (desktop) passed its test confirmation on 2026-11-23: public pinyin 54.7%, Standard rerank 95.2%; it joins the v2 repository next.
   - `vimeml-zh-v2-800m` (desktop): the first architecture is evaluated (65.3% development Top-1); the second architecture is in training.
 - **Japanese.** V4.2 epoch 20 / INT8 block-32 is deployed; it replaced V2.1 `extend5` step 40,000, and V1 is the baseline. V4.4 measured the seed noise band; V4.5 distillation is registered but not run. The Japanese line resumes next.
 
@@ -39,7 +39,7 @@ Primary documents are English; [Chinese documentation](zh-CN/index.md) mirrors t
 | [Public Chinese keyboard-typo set](benchmarks/typo-ime-zh.md) | `ime-typo-zh-v1`: 578 public development sentences in clean, one-typo and two-typo full pinyin; candidate pool frozen from v1; LM vs task-mode display rule, @2 and clean false display, calibrated margin |
 | [Blind confirmation plan](benchmarks/confirmation-zh-v1-plan.md) / [baseline plan](benchmarks/baselines-zh-v1-plan.md) | Preregistrations: `12k-fresh-s1` vs Rime on blind, run once; rime-ice, rime-ice + grammar, Luna Pinyin, Qwen2.5-0.5B, Qwen3-0.6B-Base as references |
 | [Blind confirmation and baselines](reports/zh-v1-20261111/blind-and-baselines.md) | Blind Top-1 93.8% vs Rime 72.3%: confirmed; ahead of Qwen2.5-0.5B (91.8%), Qwen3-0.6B (89.2%), rime-ice + grammar (82.2%), Luna Pinyin (68.9%) |
-| [vimeml-zh-v2 test confirmation plan](benchmarks/confirmation-zh-v2-plan.md) | Preregistration: v2-20m (`kd-cont`) vs the online path (Rime 16 + v1 rerank) on the public pinyin test split, with full-pinyin and Standard guards; v2-200m vs v2-20m; each run once. v2-20m passed on 2026-11-20 ([report](reports/zh-v2-confirmation-20261120/report.md)); `colloq-c40` later replaced `kd-cont` as v2-20m; the v2-200m run started 2026-11-23 |
+| [vimeml-zh-v2 test confirmation plan](benchmarks/confirmation-zh-v2-plan.md) | Preregistration: v2-20m (`kd-cont`) vs the online path (Rime 16 + v1 rerank) on the public pinyin test split, with full-pinyin and Standard guards; v2-200m vs v2-20m; each run once. v2-20m passed on 2026-11-20 ([report](reports/zh-v2-confirmation-20261120/report.md)); `colloq-c40` later replaced `kd-cont` as v2-20m; v2-200m passed on 2026-11-23: 49.1 → 54.7 (+343/−150, p 5e-5), Standard net +21 over v1 (p 0.002) ([report](reports/zh-v2-200m-confirmation-20261123/report.md)) |
 | [Colloquial candidate test confirmation plan](benchmarks/confirmation-zh-colloq-plan.md) / [result](reports/zh-colloq-confirmation-20261123/report.md) | Preregistration: colloq-c40 vs `kd-cont` on the colloquial pinyin test split, with public pinyin (second use), full-pinyin and Standard guards. Passed 2026-11-23: colloquial 39.0 → 42.3 (+217/−69, p 5e-5), public 49.1 → 51.4; c40 becomes v2-20m |
 
 ### 20M line: v1 to v2-20m

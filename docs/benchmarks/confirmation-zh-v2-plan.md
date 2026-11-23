@@ -1,6 +1,6 @@
 # vimeml-zh-v2 test-split confirmation plan (preregistered)
 
-> v2-20m ran on 2026-11-20 (run-02) and passed; results in the [confirmation report](../reports/zh-v2-confirmation-20261120/report.md). v2-200m has not run yet.
+> v2-20m ran on 2026-11-20 (run-02) and passed; results in the [confirmation report](../reports/zh-v2-confirmation-20261120/report.md). v2-200m ran on 2026-11-23 (run-01) and passed: 49.1 → 54.7 against `kd-cont`, p 5e-5; Standard rerank net +21 over v1 ([report](../reports/zh-v2-200m-confirmation-20261123/report.md)).
 
 Drafted 2026-11-20. The plan counts as registered only once it and the run code are committed; the test split of `ime-pinyin-zh-v1-r1` stays closed until then. It covers two models, `vimeml-zh-v2-20m` and `vimeml-zh-v2-200m`, each run once, 20M first. Entry point [confirm_zh_v2.py](../../scripts/benchmarks/confirm_zh_v2.py); every fixed item is in [zh_v2_confirm.py](../../src/vimeml/benchmarks/zh_v2_confirm.py). The principles of the release gates are in the [v2 release scope](../release-zh-v2-plan.md#release-gates); this plan gives the exact numbers and tests. The registered text is the Chinese version, [docs/zh-CN/benchmarks/confirmation-zh-v2-plan.md](../zh-CN/benchmarks/confirmation-zh-v2-plan.md); this page is its translation.
 

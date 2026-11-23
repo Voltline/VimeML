@@ -28,7 +28,7 @@ Each release holds inference weights (no optimizer state), the tokenizer, Core M
 | Model | Target | Status |
 | --- | --- | --- |
 | `vimeml-zh-v2-20m` | iPhone | Released 2026-11-23 (`colloq-c40`) |
-| `vimeml-zh-v2-200m` | Desktop | Development evaluation passed; test confirmation in progress |
+| `vimeml-zh-v2-200m` | Desktop | Test confirmation passed 2026-11-23 (public pinyin 54.7%); release to follow |
 | `vimeml-zh-v2-800m` | Desktop | First architecture evaluated; second architecture in training |
 
 All v2 models share v1's 12,288-piece tokenizer. The prompt is the text before the cursor (up to 64 characters), then the keys: full pinyin, initials, or a mix. Beam search keeps 16 hypotheses per key position, and a character is allowed only if its reading or initial matches the next keys. The top 10 sentences are rescored by the same model in language-model mode.
@@ -45,7 +45,7 @@ On the Standard blind full-pinyin rerank of Rime candidates, v2-20m scores 94.3%
 
 On the phone, v2-20m runs as one batched-KV Core ML INT8 package (23.3 MB). In the Vime client it reranks Rime candidates and predicts by default; sentence generation is behind a development switch until key-by-key generation is fast enough on older phones. Measured with `kd-cont`, which has the same shape and package: Rime rerank p50 4.1 ms on an iPhone 13 Pro and 3.0 ms on an iPhone 16 Pro Max; one-shot generation 91 and 59 ms ([iPhone report](docs/reports/mac-20261121/zh-v2-20m.md), [c40 Mac result](docs/reference/mac-zh-v2-20m-colloq.md)).
 
-The desktop models run in PyTorch. With CUDA graphs in FP16 on a laptop GPU, the 200M takes 83/205 ms p50/p95 per input, including search and rescoring ([desktop latency](docs/reports/zh-desktop-latency-20261118/report.md)). On development, the 800M's first architecture reaches 65.3% rescored Top-1 against the 200M's 57.3% ([800M evaluation](docs/reports/zh-800m-eval-20261120/report.md)).
+The desktop models run in PyTorch. With CUDA graphs in FP16 on a laptop GPU, the 200M takes 83/205 ms p50/p95 per input, including search and rescoring ([desktop latency](docs/reports/zh-desktop-latency-20261118/report.md)). On the public pinyin test it reaches 54.7% (full pinyin 86.5%), and its Standard rerank is 95.2% against v1's 93.8% ([200M confirmation](docs/reports/zh-v2-200m-confirmation-20261123/report.md)). On development, the 800M's first architecture reaches 65.3% rescored Top-1 against the 200M's 57.3% ([800M evaluation](docs/reports/zh-800m-eval-20261120/report.md)).
 
 ### v1: candidate reranking
 
