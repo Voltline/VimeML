@@ -1,5 +1,7 @@
 # 口语后训练候选 colloq-c40 test 确认计划（预注册）
 
+> 已于 2026-11-23 执行（run-02），判定通过，结果见[确认报告](../reports/zh-colloq-confirmation-20261123/report.md)。
+
 2026-11-23 起草。本计划和执行代码提交后才算注册；提交之前，`ime-pinyin-zh-colloq-v1-r1` 的 test 不打开。本文是参考文本，英文版见 [docs/benchmarks/confirmation-zh-colloq-plan.md](../../benchmarks/confirmation-zh-colloq-plan.md)。
 
 执行入口是 [confirm_zh_colloq.py](../../../scripts/benchmarks/confirm_zh_colloq.py)，所有固定项都写在 [zh_colloq_confirm.py](../../../src/vimeml/benchmarks/zh_colloq_confirm.py) 中。搜索、重打分、上下文和 Standard 打分都与 [v2 确认计划](confirmation-zh-v2-plan.md) 相同。

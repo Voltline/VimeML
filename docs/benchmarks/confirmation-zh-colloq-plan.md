@@ -1,5 +1,7 @@
 # Test confirmation of the colloquial post-training candidate colloq-c40 (preregistered)
 
+> Run on 2026-11-23 (run-02): passed; see the [confirmation report](../reports/zh-colloq-confirmation-20261123/report.md).
+
 Drafted 2026-11-23. This plan counts as registered only once it and its code are committed; until then, the test split of `ime-pinyin-zh-colloq-v1-r1` stays closed. The Chinese version, [docs/zh-CN/benchmarks/confirmation-zh-colloq-plan.md](../zh-CN/benchmarks/confirmation-zh-colloq-plan.md), is the reference text.
 
 The entry point is [confirm_zh_colloq.py](../../scripts/benchmarks/confirm_zh_colloq.py), and every fixed setting is in [zh_colloq_confirm.py](../../src/vimeml/benchmarks/zh_colloq_confirm.py). Search, rescoring, context and Standard scoring are those of the [v2 confirmation plan](confirmation-zh-v2-plan.md).
