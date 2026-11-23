@@ -10,7 +10,7 @@ v2 is the Chinese model line after vimeml-tiny-zh-v1. Every v2 model can **gener
 
 | Release name | Platform | Size | Tokenizer | Candidate | Status |
 | --- | --- | ---: | --- | --- | --- |
-| `vimeml-zh-v2-20m` | mobile | ~20M | 12K (same as v1) | distilled `kd-cont` with self rescoring ([evaluation](reports/zh-kd-eval-20261117/report.md), 2026-11-17); neither [round 3](reports/zh-kd-r3-eval-20261117/report.md) nor round 4 (800M teacher, [distillation plan](training-zh-kd-plan.md)) replaced it | passed the test confirmation (2026-11-20, [report](reports/zh-v2-confirmation-20261120/report.md): 49.1% vs the online path's 31.0%); iPhone latency still to come |
+| `vimeml-zh-v2-20m` | mobile | ~20M | 12K (same as v1) | `colloq-c40`: distilled `kd-cont` ([evaluation](reports/zh-kd-eval-20261117/report.md)) plus colloquial post-training ([plan](training-zh-colloq-plan.md)); replaced `kd-cont` on 2026-11-23 | **released** 2026-11-23 on Hugging Face `Voltline/vimeml-zh-v2` (`20m/`, revision `4096d3af`); tests: public 51.4%, colloquial 42.3% ([report](reports/zh-colloq-confirmation-20261123/report.md)); Mac: [brief and result](reference/mac-zh-v2-20m-colloq.md) |
 | `vimeml-zh-v2-200m` | desktop | ~200M | 12K | 12K joint pinyin pretraining `zh200m-12k-pinyin-pt`, rescoring with its own scores | passed development evaluation ([report](reports/zh-200m-pinyin-eval-20261116/report.md)); desktop latency 83/205 ms p50/p95 with CUDA graphs in FP16 ([report](reports/zh-desktop-latency-20261118/report.md)); confirmation run is compared with v2-20m, under the same [confirmation plan](benchmarks/confirmation-zh-v2-plan.md), after v2-20m's run |
 | `vimeml-zh-v2-800m` | desktop | 784M | 12K | [zh-800m training plan](training-zh-800m-plan.md) plus pinyin ability | data in preparation |
 
@@ -85,7 +85,7 @@ The last item, after all three v2 models are final (added 2026-11-19). It is not
 
 ## Open decisions
 
-- Final `vimeml-zh-v2-20m`: the candidate is the distilled `kd-cont` (2026-11-17); rounds 3 and 4 did not replace it (2026-11-20). The test confirmation passed ([report](reports/zh-v2-confirmation-20261120/report.md)); iPhone latency is still to come.
+- ~~Final `vimeml-zh-v2-20m`~~: `colloq-c40`, confirmed on test 2026-11-23 and released the same day in `Voltline/vimeml-zh-v2`. The repository holds every v2 model in its own directory; 200M and 800M are added after their confirmations. The colloquial post-training data includes non-commercial dialogue corpora (MMChat, Tieba) and an unlicensed one (Douban); the release lists them in `NOTICE.md`.
 - ~~Whether 200M uses joint pretraining or post-training~~: decided 2026-11-16, joint pretraining with its own rescoring (see the [evaluation report](reports/zh-200m-pinyin-eval-20261116/report.md)).
 - The source of the 800M's pinyin ability, decided after the 200M evaluation and before 800M training starts.
 - ~~Default beam width~~: decided 2026-11-19, beam 16 (significantly better than 12; the rest of the sweep is not run).
