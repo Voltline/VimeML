@@ -176,6 +176,27 @@ All four arms start from `kd-cont` final with the round 1 recipe, and per-kind t
 4. c20-s2 vs c20 and c40-s2 vs c40 are reported as this round's seed band. They are descriptive only and do not enter the decision.
 5. The final candidate goes through v2-20m's existing test confirmation (colloquial test half, public pinyin) and Mac alignment.
 
+## Round 2 results (2026-11-23)
+
+Colloquial development, self-rescored Top-1. p is from the sentence-cluster sign-flip test against round 1 `colloq-c20`.
+
+| Arm | Top-1 | vs c20 | p |
+| --- | ---: | ---: | ---: |
+| `colloq-c20` (round 1) | 41.9 | — | — |
+| `colloq-c20-s2` | 41.6 | −0.2 | 0.52 |
+| `colloq-c30` | 41.8 | −0.1 | 0.85 |
+| `colloq-c40` | 42.3 | +0.4 | 0.34 |
+| `colloq-c40-s2` | 42.2 | +0.3 | 0.36 |
+
+The "vs c20" column is the paired per-sentence difference, so it can differ by 0.1 from subtracting the two Top-1 values.
+
+- Seed band: c20-s2 vs c20 −0.2 (p 0.52); c40-s2 vs c40 −0.1 (p 0.85).
+- Gates:
+  - public pinyin self-rescored Top-1 against `kd-cont` (54.8): c20-s2 55.7 (+0.9, p 0.11), c30 56.4 (+1.6, p 0.0063), c40 56.3 (+1.5, p 0.011), c40-s2 56.2 (+1.4, p 0.035); none is below `kd-cont`;
+  - Standard against v1: c20-s2 net −1, c30 +3, c40 0, c40-s2 +3, none significant.
+- Reference: final-particle prediction Top-1 is c20 0.225, c20-s2 0.238, c30 0.258, c40 0.271, c40-s2 0.260.
+- Decision: none of c40, c40-s2 and c30 is significantly above c20, so by rule 3 c20 stays the candidate. Raising the colloquial share from 20% to 30–40%, with r2 and the round 2 chat added, brings no measurable gain on the primary metric. Final-particle prediction improves, but it is a reference metric only.
+
 ## Out of scope
 
 - A hand-written colloquial evaluation (deferred).
