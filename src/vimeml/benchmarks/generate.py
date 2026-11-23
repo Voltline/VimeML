@@ -234,7 +234,7 @@ class Requests:
         if cached is not None:
             return cached
         if self.pool is None:
-            raise ValueError("Set SJTU_API_KEY in your local shell; do not paste the key into chat or files.")
+            raise ValueError("Set REVIEW_API_KEY in your local shell; do not paste the key into chat or files.")
         signature = self.signature(payload)
         last = None
         for attempt in range(self.retries + 1):
@@ -375,7 +375,7 @@ def run(output, config, pools, stage="all", api_keys=(), workers_per_key=3, rpm=
     if missing and stage == "verify":
         raise ValueError("Generation incomplete; run --stage generate or --stage all first.")
     if missing and not api_keys:
-        raise ValueError("SJTU_API_KEY unavailable in this process. Set it in your local shell and rerun.")
+        raise ValueError("REVIEW_API_KEY unavailable in this process. Set it in your local shell and rerun.")
     pool = AccountPool(api_keys, workers_per_key=workers_per_key, rpm=rpm, tpm=tpm, window=window) if api_keys else None
     request_runner = Requests(output, config, pool, timeout, retries, transport)
     workers = max(1, len(api_keys)) * workers_per_key
@@ -447,7 +447,7 @@ def main(argv=None):
     parser.add_argument("--verify-batch-size", type=int, default=20)
     parser.add_argument("--model", default=MODEL)
     parser.add_argument("--judge-model", default="qwen", help="Blind verifier; separate model by default.")
-    parser.add_argument("--key-envs", default="SJTU_API_KEY", help="Comma-separated env names for independent accounts.")
+    parser.add_argument("--key-envs", default="REVIEW_API_KEY", help="Comma-separated env names for independent accounts.")
     parser.add_argument("--workers-per-key", type=int, default=3)
     parser.add_argument("--rpm", type=int, default=8)
     parser.add_argument("--tpm", type=int, default=80000)

@@ -441,7 +441,7 @@ def run(output, config, excluded_path, api_keys=(), workers_per_key=4, rpm=10, t
     if missing and stage == "verify":
         raise ValueError("Generation incomplete; run --stage all or generate first.")
     if missing and not api_keys:
-        raise ValueError("Set SJTU_API_KEY in the local terminal before starting (never put the key in source files).")
+        raise ValueError("Set REVIEW_API_KEY in the local terminal before starting (never put the key in source files).")
     pool = AccountPool(api_keys, workers_per_key=workers_per_key, rpm=rpm, tpm=tpm, window=window) if api_keys else None
     requests = DevelopmentRequests(output, config, pool, timeout, retries, transport)
     workers = max(1, len(api_keys))*workers_per_key
@@ -483,7 +483,7 @@ def run(output, config, excluded_path, api_keys=(), workers_per_key=4, rpm=10, t
         else:
             verified[str(index)] = cached
     if work and not api_keys:
-        raise ValueError("Verification is pending; set SJTU_API_KEY in your local terminal and rerun.")
+        raise ValueError("Verification is pending; set REVIEW_API_KEY in your local terminal and rerun.")
     write_json(manifest_path, {**manifest, "status": "verifying", "unique_draft_cases": len(cases)})
     verified.update(execute_stage(requests, work, workers, "verify", len(batches)))
     decisions = [decision for i in range(len(batches)) for decision in verified[str(i)]]
@@ -522,7 +522,7 @@ def main(argv=None):
     parser.add_argument("--verify-batch-size", type=int, default=10)
     parser.add_argument("--model", default="deepseek-chat")
     parser.add_argument("--judge-model", default="deepseek-chat")
-    parser.add_argument("--key-envs", default="SJTU_API_KEY")
+    parser.add_argument("--key-envs", default="REVIEW_API_KEY")
     parser.add_argument("--workers-per-key", type=int, default=4)
     parser.add_argument("--rpm", type=int, default=10)
     parser.add_argument("--tpm", type=int, default=80000)

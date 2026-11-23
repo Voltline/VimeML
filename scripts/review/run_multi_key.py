@@ -1,4 +1,4 @@
-"""Command entry point for reviewing with independently limited SJTU accounts."""
+"""Command entry point for reviewing with independently limited API accounts."""
 
 import sys
 from pathlib import Path

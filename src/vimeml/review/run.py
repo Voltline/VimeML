@@ -22,7 +22,8 @@ sys.path.insert(0, str(ROOT / "src"))
 from vimeml.data.build import file_sha
 from vimeml.review.prepare import write_json
 
-ENDPOINT = "https://models.sjtu.edu.cn/api/v1/chat/completions"
+# OpenAI-compatible chat-completions URL of the review service, set in the local environment.
+ENDPOINT = os.environ.get("VIMEML_REVIEW_ENDPOINT", "").strip()
 MODEL = "deepseek-chat"
 ISSUE_TYPES = {"none", "web_noise", "incomplete_text", "natural_without_terminator",
                "bracket_convention", "wrong_join", "missed_join", "other"}
@@ -221,6 +222,8 @@ def retry_after(headers, default):
 
 
 def send_request(endpoint, payload, api_key, timeout):
+    if not endpoint:
+        raise ValueError("Set VIMEML_REVIEW_ENDPOINT (the chat-completions URL) in the local environment.")
     request = Request(endpoint, data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
                       headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, method="POST")
     try:
@@ -333,7 +336,7 @@ def _run(input_dir, output, api_key="", workers=3, batch_size=10, rpm=8, tpm=800
     if dry_run:
         return preview
     if batches and not api_key and request_pool is None:
-        raise ValueError("Set SJTU_API_KEY before starting review; --dry-run needs no key.")
+        raise ValueError("Set REVIEW_API_KEY before starting review; --dry-run needs no key.")
     for directory in (output, output / "responses", output / "cache", output / "decisions"):
         directory.mkdir(parents=True, exist_ok=True)
     runtime = {"workers": workers, "batch_size": batch_size, "rpm": rpm, "tpm": tpm,
@@ -502,7 +505,7 @@ def main():
         parser.error("workers must be 1..8; rpm 1..10; tpm 1..100000.")
     if min(args.batch_size, args.timeout, args.max_output_tokens) < 1 or not args.max_output_tokens < args.max_batch_tokens <= args.tpm or not 0 <= args.retries <= 5:
         parser.error("Invalid batch, output budget, timeout or retries.")
-    api_key = "" if args.dry_run else os.environ.get("SJTU_API_KEY", "").strip()
+    api_key = "" if args.dry_run else os.environ.get("REVIEW_API_KEY", "").strip()
     result = run(args.input_dir, args.output_dir or args.input_dir / "review", api_key,
                  args.workers, args.batch_size, args.rpm, args.tpm, args.max_batch_tokens, args.max_output_tokens,
                  args.timeout, args.retries, args.dry_run, model=args.model)

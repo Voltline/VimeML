@@ -11,7 +11,7 @@ python scripts/benchmarks/generate_development.py --dry-run
 python scripts/benchmarks/generate_development.py --output artifacts/benchmarks/ime-dev-generation-new
 ```
 
-Credentials are supplied through environment variables such as `SJTU_API_KEY`. Defaults limit each account to four concurrent requests, 10 RPM, and 80K TPM, shared by generation, verification, and retry. Independent account names may be configured; literal keys remain outside commands and artifacts. Success caches retain model, endpoint, payload, and version identity. Failed batches remain pending rather than being reported as complete.
+Credentials are supplied through environment variables such as `REVIEW_API_KEY`, and the service URL through `VIMEML_REVIEW_ENDPOINT`. Defaults limit each account to four concurrent requests, 10 RPM, and 80K TPM, shared by generation, verification, and retry. Independent account names may be configured; literal keys remain outside commands and artifacts. Success caches retain model, endpoint, payload, and version identity. Failed batches remain pending rather than being reported as complete.
 
 Context is committed text; the reading describes only the conversion target. Conversion readings preserve Japanese orthographic particles rather than phonetic substitutions. Accepted outputs share the intended reading and meaning; unrelated homophones are not automatically equivalent. Real candidates are exported by AzooKey, never fabricated from reference answers.
 

@@ -55,7 +55,7 @@ python3 -m venv .venv
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 -u scripts/review/prepare.py --workers 8
 .\.venv\Scripts\python.exe -X utf8 scripts/review/run.py --dry-run
-# 在本地设置 SJTU_API_KEY 后才运行
+# 在本地设置 REVIEW_API_KEY 后才运行
 .\.venv\Scripts\python.exe -X utf8 -u scripts/review/run.py --workers 5 --batch-size 10
 ```
 
@@ -63,7 +63,7 @@ python3 -m venv .venv
 
 API 使用 DeepSeek 提供审查建议，不自动润色、补写或批准语料；默认共享 8 RPM / 80K TPM，重试也计入。dry-run 不读 key、不联网、不写文件。同一命令续跑复用成功缓存，原始回复与失败记录保留。核对 issue/uncertain 并抽查 ok；`approve.py` 仅记录明确选中的边界或片段批准，不批量采用模型 keep。
 
-两个独立账号可以运行 `scripts/review/run_multi_key.py`，默认读取 `SJTU_API_KEY` / `SJTU_API_KEY_2`，每账号 3 并发、8 RPM / 80K TPM。先停止旧进程，避免两个入口同时操作同一输出；更多账号使用 `--key-env ENV_NAME ...`。401/403 禁用相应账号，429 只暂停该账号，全部失效后保存 pending。
+两个独立账号可以运行 `scripts/review/run_multi_key.py`，默认读取 `REVIEW_API_KEY` / `REVIEW_API_KEY_2`，每账号 3 并发、8 RPM / 80K TPM。先停止旧进程，避免两个入口同时操作同一输出；更多账号使用 `--key-env ENV_NAME ...`。401/403 禁用相应账号，429 只暂停该账号，全部失效后保存 pending。
 
 ## 正式产物与检查
 

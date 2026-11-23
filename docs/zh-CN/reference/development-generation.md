@@ -9,7 +9,7 @@ V1开发集采用137条冻结样本，用于组合系数选择。本文记录生
 ```powershell
 # 只检查计划 / 缓存，不读 key、不联网、不创建文件
 .\.venv\Scripts\python.exe -X utf8 scripts/benchmarks/generate_development.py --dry-run
-# 本地设置 SJTU_API_KEY 后，用新输出目录运行新版本
+# 本地设置 REVIEW_API_KEY 后，用新输出目录运行新版本
 .\.venv\Scripts\python.exe -X utf8 -u scripts/benchmarks/generate_development.py --output artifacts/benchmarks/ime-dev-generation-v3
 ```
 
@@ -35,7 +35,7 @@ system prompt / 生成指令为日语，context 与答案须日语，仅 reason_
 
 ## 并发、续跑和输出
 
-默认每账号 4 并发、10 RPM / 80K TPM，生成、核验和重试共享额度。两个独立账号可加 `--key-envs SJTU_API_KEY,SJTU_API_KEY_2`；不得填实际 key，同 key 拒绝启动。同账号其他进程没有共享限流，避免同时占用。
+默认每账号 4 并发、10 RPM / 80K TPM，生成、核验和重试共享额度。两个独立账号可加 `--key-envs REVIEW_API_KEY,REVIEW_API_KEY_2`；不得填实际 key，同 key 拒绝启动。同账号其他进程没有共享限流，避免同时占用。
 
 成功缓存按模型、endpoint、完整 payload 和版本复用；失败重跑相同命令，不改批次编号。更改数量、seed、提示词、模型或排除源后使用新目录。原始回复、错误与请求脱敏；鉴权/限流/截断失败保存 pending，不伪报整套完成。Ctrl+C 后等待在途请求退出，再续跑。
 
@@ -68,7 +68,7 @@ system prompt / 生成指令为日语，context 与答案须日语，仅 reason_
 
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 scripts/benchmarks/generate.py --dry-run
-# 新实验，需 SJTU_API_KEY
+# 新实验，需 REVIEW_API_KEY
 .\.venv\Scripts\python.exe -X utf8 -u scripts/benchmarks/generate.py --output artifacts/benchmarks/ime-synthetic-v2
 .\.venv\Scripts\python.exe -X utf8 -u scripts/benchmarks/evaluate.py --help
 ```

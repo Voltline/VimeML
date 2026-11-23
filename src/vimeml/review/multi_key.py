@@ -1,4 +1,4 @@
-"""Review one shared case queue using independently limited SJTU accounts."""
+"""Review one shared case queue using independently limited API accounts."""
 
 import argparse
 import os
@@ -137,7 +137,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input-dir", type=Path, default=ROOT / "outputs/corpus-review-v1")
     parser.add_argument("--output-dir", type=Path, help="Default: INPUT/review (compatible with single-key caches)")
-    parser.add_argument("--key-env", nargs="+", default=["SJTU_API_KEY", "SJTU_API_KEY_2"],
+    parser.add_argument("--key-env", nargs="+", default=["REVIEW_API_KEY", "REVIEW_API_KEY_2"],
                         metavar="ENV_NAME", help="Names of distinct accounts' environment variables; never pass actual keys")
     parser.add_argument("--workers-per-key", type=int, default=3)
     parser.add_argument("--rpm-per-key", type=int, default=8)

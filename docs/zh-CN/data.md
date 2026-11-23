@@ -62,17 +62,17 @@ v1 的审核已完成：638 个隔离块继续排除，批准记录在 `configs/
 审核流程：
 
 1. `prepare.py`：并行重放规则，抽出 review 目标，以及按保留句、拼接边界、碎片、drop、特殊字符分层的抽检样本（样本取自 train，不是全库均匀抽样）。
-2. `run.py`：调用 DeepSeek（SJTU 接口）给出审查建议。只给建议，不润色、不补写、不自动批准。默认 8 RPM / 80K TPM，重试也计入；同一命令可续跑，原始回复和失败记录都会保留。
+2. `run.py`：调用 DeepSeek（OpenAI 兼容接口，地址由环境变量 `VIMEML_REVIEW_ENDPOINT` 指定）给出审查建议。只给建议，不润色、不补写、不自动批准。默认 8 RPM / 80K TPM，重试也计入；同一命令可续跑，原始回复和失败记录都会保留。
 3. 人工核对 issue / uncertain 并抽查 ok，再用 `approve.py` 只记录明确选中的边界或片段。
 
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 -u scripts/review/prepare.py --workers 8
 .\.venv\Scripts\python.exe -X utf8 scripts/review/run.py --dry-run      # 不读 key、不联网、不写文件
-$env:SJTU_API_KEY = "..."
+$env:REVIEW_API_KEY = "..."
 .\.venv\Scripts\python.exe -X utf8 -u scripts/review/run.py --workers 5 --batch-size 10
 ```
 
-两个账号可以用 `scripts/review/run_multi_key.py`（读取 `SJTU_API_KEY` / `SJTU_API_KEY_2`，每个账号 3 并发、各自独立限额；更多账号用 `--key-env`）。401/403 会停用该账号，429 只暂停该账号。不要和 `run.py` 同时写同一个输出目录。
+两个账号可以用 `scripts/review/run_multi_key.py`（读取 `REVIEW_API_KEY` / `REVIEW_API_KEY_2`，每个账号 3 并发、各自独立限额；更多账号用 `--key-env`）。401/403 会停用该账号，429 只暂停该账号。不要和 `run.py` 同时写同一个输出目录。
 
 默认输入 / 输出目录分别是 `outputs/corpus-fast-v1/` 和 `outputs/corpus-review-v1/`，新版本用 `--help` 查看路径参数。
 

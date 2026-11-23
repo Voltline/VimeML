@@ -177,7 +177,7 @@ class MultiKeyReviewTests(unittest.TestCase):
         environment_get = os.environ.get
 
         def check_environment(name, default=None):
-            if name in {"SJTU_API_KEY", "SJTU_API_KEY_2"}:
+            if name in {"REVIEW_API_KEY", "REVIEW_API_KEY_2"}:
                 raise AssertionError("Read a key")
             return environment_get(name, default)
 
