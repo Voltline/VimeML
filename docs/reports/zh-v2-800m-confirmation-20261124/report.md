@@ -72,4 +72,4 @@ Both are lower on test than on development: the 800M by 2.6 points, the 200M by 
 
 ## Next
 
-- Export the FP32 inference bundle and publish it with the evaluation summary in `800m/` of the Hugging Face repository `Voltline/vimeml-zh-v2`. The desktop models get no Core ML packages.
+- Released 2026-11-24 in `800m/` of the Hugging Face repository `Voltline/vimeml-zh-v2` (revision `e5296ee8`): the FP32 inference bundle (`scripts/deployment/export_zh_desktop_bundle.py`, logits identical to the checkpoint) and the evaluation summary. The desktop models get no Core ML packages.

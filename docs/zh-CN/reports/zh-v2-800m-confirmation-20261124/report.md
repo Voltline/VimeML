@@ -72,4 +72,4 @@ c40 的公开 test 结果来自口语确认的守卫运行（[口语确认报告
 
 ## 接下来
 
-- 导出 FP32 推理包，连同评测汇总发布到 Hugging Face `Voltline/vimeml-zh-v2` 的 `800m/`。桌面端不做 Core ML。
+- 2026-11-24 已发布到 Hugging Face `Voltline/vimeml-zh-v2` 的 `800m/`（revision `e5296ee8`）：FP32 推理包（`scripts/deployment/export_zh_desktop_bundle.py` 导出，logits 与 checkpoint 完全相同）和评测汇总。桌面端不做 Core ML。

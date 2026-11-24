@@ -15,6 +15,7 @@
 | --- | --- | ---: | --- | --- |
 | **vimeml-zh-v2-20m** | 中文 | 20,036,736 | iPhone：拼音生成、Rime 重排、联想（Core ML INT8） | [Voltline/vimeml-zh-v2](https://huggingface.co/Voltline/vimeml-zh-v2) `20m/` |
 | **vimeml-zh-v2-200m** | 中文 | 193,625,088 | 桌面（PyTorch、GPU）：同样三项任务 | [Voltline/vimeml-zh-v2](https://huggingface.co/Voltline/vimeml-zh-v2) `200m/` |
+| **vimeml-zh-v2-800m** | 中文 | 776,524,928 | 桌面（PyTorch、GPU）：同样三项任务，准确率最高 | [Voltline/vimeml-zh-v2](https://huggingface.co/Voltline/vimeml-zh-v2) `800m/` |
 | vimeml-tiny-zh-v1 | 中文 | 20,036,736 | iPhone：Rime 重排与联想；v2 的回退 | [Voltline/vimeml-tiny-zh-v1](https://huggingface.co/Voltline/vimeml-tiny-zh-v1) |
 | **V4.2** | 日文 | 15,070,848 | iPhone：AzooKey 重排（当前部署） | [Voltline/vimeml-tiny-ja-v4.2](https://huggingface.co/Voltline/vimeml-tiny-ja-v4.2) |
 | V2.1 | 日文 | 12,537,920 | 上一部署版本 | [Voltline/vimeml-tiny-ja-v2.1](https://huggingface.co/Voltline/vimeml-tiny-ja-v2.1) |
@@ -30,7 +31,7 @@
 | --- | --- | --- |
 | `vimeml-zh-v2-20m` | iPhone | 2026-11-23 发布（`colloq-c40`） |
 | `vimeml-zh-v2-200m` | 桌面 | 2026-11-23 发布（`200m/`；公开拼音 54.7%） |
-| `vimeml-zh-v2-800m` | 桌面 | 2026-11-24 test 确认通过 |
+| `vimeml-zh-v2-800m` | 桌面 | 2026-11-24 发布（`800m/`；公开拼音 63.3%） |
 
 v2 都沿用 v1 的 12,288 词分词器。提示由光标前的文本（最多 64 字）和按键组成，按键可以是全拼、首字母或混合简拼。束搜索按键位分桶，每个位置保留 16 条，一个字只有在读音或声母与后续按键匹配时才能加入。前 10 句再由同一个模型在语言模型模式下重打分。
 
