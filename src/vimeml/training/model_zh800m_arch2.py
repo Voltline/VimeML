@@ -1,4 +1,4 @@
-"""zh-800m arch2 decoder (docs/training-zh-800m-arch2-plan.md, design 01ab0c8).
+"""zh-800m arch2 decoder (docs/zh/training/training-zh-800m-arch2-plan.md, design 01ab0c8).
 
 d1792, 23 layers, GQA with 28 query heads and 7 KV heads of 64, per-head RMSNorm on Q and K (QK-norm),
 RoPE (theta 10000, all 64 dimensions) instead of learned positions, SwiGLU 4608, RMSNorm pre-norm, no

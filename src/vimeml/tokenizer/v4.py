@@ -336,7 +336,7 @@ def run(config_path, dry_run=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=ROOT / "configs/tokenizer-v4.toml")
+    parser.add_argument("--config", type=Path, default=ROOT / "configs/ja/tokenizer-v4.toml")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     run(args.config, args.dry_run)

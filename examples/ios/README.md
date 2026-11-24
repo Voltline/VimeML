@@ -6,4 +6,4 @@ The historical integration predates later sentence-context, next-word, settings,
 
 The selected INT8 model uses FP32 CPU-only computation. GPU/ALL paths previously triggered quantized-gather assertions. Matching model/tokenizer/manifest assets are required. SentencePiece, joint-string scoring, stable ordering, and bounded search remain application-side; the Core ML model emits raw logits only.
 
-[Core ML documentation](../../docs/coreml.md) records the runtime contract and measurement limitations. [Upstream attribution](VimeSentencePiece/UPSTREAM.md) preserves vendored provenance.
+[Core ML documentation](../../docs/ja/coreml.md) records the runtime contract and measurement limitations. [Upstream attribution](VimeSentencePiece/UPSTREAM.md) preserves vendored provenance.

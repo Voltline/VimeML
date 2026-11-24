@@ -785,7 +785,7 @@ def run(config, resume=False, dry_run=False):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=ROOT / "configs/train-smoke.toml")
+    parser.add_argument("--config", type=Path, default=ROOT / "configs/ja/train-smoke.toml")
     parser.add_argument("--dry-run", action="store_true", help="Print plan only; no training or output files.")
     parser.add_argument("--resume", action="store_true", help="Resume last.pt with identical configuration.")
     args = parser.parse_args(argv)
@@ -793,7 +793,7 @@ def main(argv=None):
     tracking = config.get("tracking", {})
     if tracking.get("enabled", False):
         command = [sys.executable, "-X", "utf8", "-u",
-                   str(ROOT / "scripts/training/train_wandb.py"), "--config", str(args.config.resolve())]
+                   str(ROOT / "scripts/ja/training/train_wandb.py"), "--config", str(args.config.resolve())]
         if args.resume:
             command.append("--resume")
         if args.dry_run:

@@ -13,7 +13,7 @@ IDENTITY = {'arm', 'architecture', 'output_dir', 'log_dir', 'model', 'tracking'}
 
 
 def load(name):
-    return tomllib.loads((ROOT / f'configs/{name}.toml').read_text('utf-8'))
+    return tomllib.loads((ROOT / f'configs/zh/{name}.toml').read_text('utf-8'))
 
 
 class Zh200mPinyinTests(unittest.TestCase):

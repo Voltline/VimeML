@@ -12,7 +12,7 @@ from unittest.mock import Mock, patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from vimeml.training import train as trainer
-spec = importlib.util.spec_from_file_location("train_wandb_entry", ROOT / "scripts/training/train_wandb.py")
+spec = importlib.util.spec_from_file_location("train_wandb_entry", ROOT / "scripts/ja/training/train_wandb.py")
 entry = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(entry)
 
@@ -28,7 +28,7 @@ class WandbEntryTests(unittest.TestCase):
         with patch.dict(ARCHITECTURES, legacy, clear=True), patch.dict(sys.modules, {"wandb": fake}), \
                 patch.object(trainer, "run", side_effect=lambda config, **_: trainer.validate_config(config)) as run:
             with contextlib.redirect_stdout(io.StringIO()):
-                entry.main(["--config", str(ROOT / "configs/train-v4-b.toml"), "--dry-run"])
+                entry.main(["--config", str(ROOT / "configs/ja/train-v4-b.toml"), "--dry-run"])
             self.assertIn("tiny_gpt_v4", ARCHITECTURES)
             self.assertEqual(run.call_args.args[0]["training"]["epochs"], 4)
             fake.init.assert_not_called()

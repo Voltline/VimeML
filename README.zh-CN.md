@@ -43,11 +43,11 @@ v2 都沿用 v1 的 12,288 词分词器。提示由光标前的文本（最多 6
 | ……全拼 / 混合简拼 / 全首字母 | 81.6 / 23.7 / 9.2 | 82.6 / 47.4 / 22.2 | **84.4 / 49.8 / 24.7** |
 | `ime-pinyin-zh-colloq-v1-r1` test，4,560 个口语输入 | — | 39.0% | **42.3%** |
 
-Standard blind 全拼 Rime 候选重排：v2-20m 94.3%，v1 93.8%（净 +7，p 0.31）。报告：[v2-20m 确认](docs/zh-CN/reports/zh-v2-confirmation-20261120/report.md)、[口语确认](docs/zh-CN/reports/zh-colloq-confirmation-20261123/report.md)、[发布范围](docs/zh-CN/release-zh-v2-plan.md)。
+Standard blind 全拼 Rime 候选重排：v2-20m 94.3%，v1 93.8%（净 +7，p 0.31）。报告：[v2-20m 确认](docs/zh-CN/zh/reports/zh-v2-confirmation-20261120/report.md)、[口语确认](docs/zh-CN/zh/reports/zh-colloq-confirmation-20261123/report.md)、[发布范围](docs/zh-CN/zh/release-zh-v2-plan.md)。
 
-手机上 v2-20m 是一个批量 KV 的 Core ML INT8 包（23.3 MB）。Vime 默认用它做 Rime 重排和联想；整句生成放在开发开关后面，等逐键生成在旧机型上够快再打开。用同形状、同格式的 `kd-cont` 实测：Rime 重排 p50 在 iPhone 13 Pro 上 4.1 ms、iPhone 16 Pro Max 上 3.0 ms；一次性整句生成 91 ms 和 59 ms（[iPhone 报告](docs/reports/mac-20261121/zh-v2-20m.md)（英文）、[c40 Mac 结果](docs/reference/mac-zh-v2-20m-colloq.md)（英文））。
+手机上 v2-20m 是一个批量 KV 的 Core ML INT8 包（23.3 MB）。Vime 默认用它做 Rime 重排和联想；整句生成放在开发开关后面，等逐键生成在旧机型上够快再打开。用同形状、同格式的 `kd-cont` 实测：Rime 重排 p50 在 iPhone 13 Pro 上 4.1 ms、iPhone 16 Pro Max 上 3.0 ms；一次性整句生成 91 ms 和 59 ms（[iPhone 报告](docs/zh/reports/mac-20261121/zh-v2-20m.md)（英文）、[c40 Mac 结果](docs/zh/mac/mac-zh-v2-20m-colloq.md)（英文））。
 
-桌面模型用 PyTorch 运行。笔记本 GPU 上用 CUDA graph + FP16，200M 每个输入（含搜索和重打分）p50/p95 为 83/205 ms（[桌面延迟](docs/reports/zh-desktop-latency-20261118/report.md)（英文））。它在公开拼音 test 上为 54.7%（全拼 86.5%），Standard 重排 95.2%，v1 为 93.8%（[200M 确认](docs/zh-CN/reports/zh-v2-200m-confirmation-20261123/report.md)）。800M（第二版架构，开发集上取代第一版：[arch2 评测](docs/zh-CN/reports/zh-800m-arch2-eval-20261123/report.md)）在同一 test 上为 63.3%（全拼 88.7%），比 200M 高 8.6 个点，Standard 重排 95.3%（[800M 确认](docs/zh-CN/reports/zh-v2-800m-confirmation-20261124/report.md)）。
+桌面模型用 PyTorch 运行。笔记本 GPU 上用 CUDA graph + FP16，200M 每个输入（含搜索和重打分）p50/p95 为 83/205 ms（[桌面延迟](docs/zh/reports/zh-desktop-latency-20261118/report.md)（英文））。它在公开拼音 test 上为 54.7%（全拼 86.5%），Standard 重排 95.2%，v1 为 93.8%（[200M 确认](docs/zh-CN/zh/reports/zh-v2-200m-confirmation-20261123/report.md)）。800M（第二版架构，开发集上取代第一版：[arch2 评测](docs/zh-CN/zh/reports/zh-800m-arch2-eval-20261123/report.md)）在同一 test 上为 63.3%（全拼 88.7%），比 200M 高 8.6 个点，Standard 重排 95.3%（[800M 确认](docs/zh-CN/zh/reports/zh-v2-800m-confirmation-20261124/report.md)）。
 
 ### v1：候选重排
 
@@ -63,7 +63,7 @@ Standard blind 全拼 Rime 候选重排：v2-20m 94.3%，v1 93.8%（净 +7，p 0
 | 雾凇 + 万象语法模型 | 82.2% | 15.7% |
 | 雾凇（候选池来源） | 72.2% | 14.6% |
 
-预注册的对 Rime 确认通过（+329/−19，p = 3.6e-74）。报告：[实验计划](docs/zh-CN/training-zh-v1-plan.md)、[训练记录](docs/zh-CN/reports/zh-v1-20261110/training.md)、[blind 与对照基线](docs/zh-CN/reports/zh-v1-20261111/blind-and-baselines.md)、[iOS 发布](docs/zh-CN/reports/zh-v1-20261111/ios-release.md)。
+预注册的对 Rime 确认通过（+329/−19，p = 3.6e-74）。报告：[实验计划](docs/zh-CN/zh/training/training-zh-v1-plan.md)、[训练记录](docs/zh-CN/zh/reports/zh-v1-20261110/training.md)、[blind 与对照基线](docs/zh-CN/zh/reports/zh-v1-20261111/blind-and-baselines.md)、[iOS 发布](docs/zh-CN/zh/reports/zh-v1-20261111/ios-release.md)。
 
 ## 日文
 
@@ -80,7 +80,7 @@ Standard blind 全拼 Rime 候选重排：v2-20m 94.3%，v1 93.8%（净 +7，p 0
 
 V4.2 与 V2.1 差异不显著：预注册的 Standard v2 blind 上 598/729 对 576（作者簇 p = 0.0508，差一点达到阈值）。V3、V4-B、V4.1、V4.3、V5 和 WSD 实验均已完成，没有替换 V4.2；V5 验证 BPC 降 0.10，IME Top-1 不变。V4.4 测出 seed 噪声带（Standard 501–523），四 seed 集成在 blind 上达到 619。
 
-日文线为中文工作暂停，接下来恢复。详见[评测](docs/zh-CN/evaluation.md)、[V4.2 训练](docs/zh-CN/training-v42.md)、[V4.2 Core ML](docs/reports/mac-20261020/v42-coreml.md)（英文）、[V4.4 消融](docs/zh-CN/training-v44.md)、[确认评分结果](docs/zh-CN/benchmarks/confirmation-v2-results-20261021.md)。
+日文线为中文工作暂停，接下来恢复。详见[评测](docs/zh-CN/ja/evaluation.md)、[V4.2 训练](docs/zh-CN/ja/training/training-v42.md)、[V4.2 Core ML](docs/ja/reports/mac-20261020/v42-coreml.md)（英文）、[V4.4 消融](docs/zh-CN/ja/training/training-v44.md)、[确认评分结果](docs/zh-CN/ja/benchmarks/confirmation-v2-results-20261021.md)。
 
 ## 安装
 
@@ -101,10 +101,10 @@ python -m pip install -e .
 | 路径 | 内容 |
 | --- | --- |
 | `src/vimeml/` | 语料处理、分词、训练、评测和部署 |
-| `scripts/` | 按子系统分类的命令入口 |
-| `configs/` | 带版本的实验与数据配置 |
+| `scripts/` | 命令入口：按语言线分 `zh/`、`ja/`，共用的在 `common/`，其下再按子系统分 |
+| `configs/` | 带版本的实验与数据配置，分 `zh/`、`ja/` |
 | `requirements/` | 附加依赖 |
-| `docs/` | 英文文档与按日期的实验记录 |
+| `docs/` | 英文文档与按日期的实验记录，分 `zh/`、`ja/` |
 | `docs/zh-CN/` | 中文文档；以中文注册的计划以中文版为准 |
 | `examples/ios/` | Core ML 探针、SentencePiece 桥接、历史接入代码 |
 | `templates/` | 产物交接模板 |

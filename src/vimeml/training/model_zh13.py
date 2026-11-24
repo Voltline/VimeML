@@ -2,7 +2,7 @@
 
 d384, 6 heads, SwiGLU 960, learned positions 128, tied embeddings; only the
 vocabulary and layer count vary, fixed to the 8K/L10 and 12K/L9 pairs of
-docs/zh-CN/training-zh-v1-plan.md.
+docs/zh-CN/zh/training/training-zh-v1-plan.md.
 """
 import math
 from dataclasses import dataclass

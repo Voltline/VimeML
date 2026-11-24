@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class ManualToolTests(unittest.TestCase):
     def run_script(self, name, *args):
-        return subprocess.run([sys.executable, '-X', 'utf8', str(ROOT / 'scripts/deployment' / name), *map(str, args)],
+        return subprocess.run([sys.executable, '-X', 'utf8', str(ROOT / 'scripts/ja/deployment' / name), *map(str, args)],
                               cwd=ROOT, capture_output=True, text=True, encoding='utf-8', timeout=20)
 
     def test_probe_help_and_import_do_not_load_coreml_or_frozen_weights(self):
@@ -18,7 +18,7 @@ class ManualToolTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('New scratch', result.stdout)
         code = ('import importlib.util,sys; '
-                f's=importlib.util.spec_from_file_location("probe", {str(ROOT / "scripts/deployment/ane_output_probe.py")!r}); '
+                f's=importlib.util.spec_from_file_location("probe", {str(ROOT / "scripts/ja/deployment/ane_output_probe.py")!r}); '
                 'm=importlib.util.module_from_spec(s); s.loader.exec_module(m); '
                 'assert "coremltools" not in sys.modules; assert "torch" not in sys.modules')
         result = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, timeout=20)

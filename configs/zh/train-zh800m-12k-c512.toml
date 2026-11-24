@@ -1,0 +1,64 @@
+# zh-800m (docs/zh-CN/zh/training/training-zh-800m-plan.md): d1536, 24 heads, SwiGLU 4096, L27, the 20M's
+# 12K tokenizer, context 512 (784,157,184 parameters). export-r1 all + export-r2 all, one pass,
+# LCCC at 2% of supervised tokens, seed 1816189249. 2048 windows per update (~80k supervised
+# tokens), cosine 3e-4 -> 3e-5, warmup 2000; the rest is the vimeml-tiny-zh-v1 recipe.
+# dataset_sha256 is pinned after prepare_zh800m.py builds the mixture.
+stage = "zh-800m"
+arm = "12k-c512"
+architecture = "tiny_gpt_zh800m"
+output_dir = "artifacts/models/tiny-zh800m-12k-c512-d1536"
+log_dir = "runs/training/tiny-zh800m-12k-c512-d1536"
+dataset_sha256 = "985aecea96de26a141b11ed7378ee60f04dcf59e307feecb9af8c028ca675d32"
+
+[initialization]
+mode = "random"
+
+[data_mixture]
+directory = "artifacts/training-data/zh800m-12k-c512"
+
+[model]
+vocab_size = 12288
+context_length = 512
+d_model = 1536
+n_heads = 24
+n_layers = 27
+d_ff = 4096
+dropout = 0.0
+norm = "rmsnorm"
+norm_eps = 0.00001
+activation = "swiglu"
+bias = false
+tie_embeddings = true
+position_embedding = "learned"
+
+[runtime]
+compile_backbone = true
+
+[training]
+device = "cuda"
+precision = "bf16"
+seed = 1816189249
+cpu_threads = 4
+num_workers = 4
+bucket_multiplier = 64
+lm_batch = 2048
+lm_microbatch = 64
+smoke_updates = 0
+learning_rate = 0.0003
+min_learning_rate = 0.00003
+warmup_steps = 2000
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+prefix_crop_probability = 0.30
+log_every = 100
+eval_every = 5000
+checkpoint_every = 2000
+validation_batch = 64
+
+[tracking]
+enabled = true
+project = "vimeml"
+group = "zh800m-desktop"
+mode = "online"

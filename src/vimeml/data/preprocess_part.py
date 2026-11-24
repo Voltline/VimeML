@@ -94,7 +94,7 @@ def run(config_path, part, output=None, list_only=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=ROOT / "configs/corpus-sharded.toml")
+    parser.add_argument("--config", type=Path, default=ROOT / "configs/ja/corpus-sharded.toml")
     parser.add_argument("--part", required=True, help="Zero-based INDEX/COUNT; 0/2 and 1/2 for two machines.")
     parser.add_argument("--output")
     parser.add_argument("--list-only", action="store_true", help="Show assigned files; no raw data needed.")

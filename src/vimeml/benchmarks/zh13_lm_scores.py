@@ -20,7 +20,7 @@ from vimeml.training.model_zh13 import GPTZh13Config, TinyGPTZh13
 from vimeml.training.zh_desktop import desktop_family
 
 VERSION = "ime-standard-zh-v1-r1"
-# The zh three-task stage-1 trainer continues the 12K model on this tokenizer (configs/data-zh-pinyin.toml)
+# The zh three-task stage-1 trainer continues the 12K model on this tokenizer (configs/zh/data-zh-pinyin.toml)
 # but its step-*.pt files carry no tokenizer identity and its last/final.pt omit special_ids.
 PINYIN_STAGES = {"zh-pinyin-s1": "68bd37c45bcb018b32b2eef5b241561ab5b6dc1b77c1c3aadcc1b41c4bf47e5a"}
 

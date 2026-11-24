@@ -275,7 +275,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--checkpoint", type=Path, default=ROOT / "artifacts/models/tiny-ja-v1/best.pt")
     parser.add_argument("--tokenizer", type=Path, default=ROOT / "artifacts/tokenizers/ja-unigram-16k-v1")
-    parser.add_argument("--cases", type=Path, default=ROOT / "configs/ime-eval-v1.json")
+    parser.add_argument("--cases", type=Path, default=ROOT / "configs/ja/ime-eval-v1.json")
     parser.add_argument("--output", type=Path, default=ROOT / "outputs/ime-eval/tiny-ja-v1")
     parser.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
     parser.add_argument("--threads", type=int, default=4)

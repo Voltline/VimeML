@@ -9,7 +9,7 @@ import numpy as np
 import torch
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts/deployment"))
+sys.path.insert(0, str(ROOT / "scripts/ja/deployment"))
 
 from coreml_conservative import parameter_compression_config, weight_storage_graph
 from vimeml.deployment.coreml import inspect_spec

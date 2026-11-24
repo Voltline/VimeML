@@ -22,7 +22,7 @@ from vimeml.training import joint_v5
 from vimeml.posttraining.infer import fp32_evaluation
 
 TOKENIZER = ROOT / "artifacts/tokenizers/v4-a/ja-unigram-8192"
-CONFIG = tomllib.loads((ROOT / "configs/train-v5.toml").read_text(encoding="utf-8"))
+CONFIG = tomllib.loads((ROOT / "configs/ja/train-v5.toml").read_text(encoding="utf-8"))
 
 
 class V5ModelTests(unittest.TestCase):

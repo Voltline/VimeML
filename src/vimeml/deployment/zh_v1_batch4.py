@@ -1,6 +1,6 @@
 """vimeml-tiny-zh batched KV step, version 4: v3 plus a `prefix` function and FP16 KV I/O variants.
 
-Brief: docs/reference/mac-zh-kvbatch-v4.md. Changes against `zh_v1_batch3` (v3), after Vime's iPhone memory
+Brief: docs/zh/mac/mac-zh-kvbatch-v4.md. Changes against `zh_v1_batch3` (v3), after Vime's iPhone memory
 profile of v3 (2026-11-20):
 
 1. **`prefix` function.** The client builds the shared prefix KV (and extends it key by key) with `scored`

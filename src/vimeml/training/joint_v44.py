@@ -127,7 +127,7 @@ def build_plan(config,root=ROOT,verify_files=True):
         raise ValueError('Tokenizer changed')
     required[tokenizer]=TOKENIZER_SHA
     code={p.relative_to(root).as_posix():file_sha(p) for p in sorted((root/'src/vimeml').rglob('*.py'))}
-    code['scripts/training/train_v44.py']=file_sha(root/'scripts/training/train_v44.py')
+    code['scripts/ja/training/train_v44.py']=file_sha(root/'scripts/ja/training/train_v44.py')
     signatures['code']=hashlib.sha256(json.dumps(code,sort_keys=True).encode()).hexdigest()
     if verify_files:
         for path,digest in required.items():

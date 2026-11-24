@@ -17,7 +17,7 @@ STORE = ROOT / 'artifacts/training-data/zh-pinyin-pt-12k'
 
 
 def load(name):
-    return tomllib.loads((ROOT / f'configs/{name}.toml').read_text('utf-8'))
+    return tomllib.loads((ROOT / f'configs/zh/{name}.toml').read_text('utf-8'))
 
 
 def batch(rng, rows, length, vocab):

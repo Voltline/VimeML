@@ -447,7 +447,7 @@ def run(config_path, output_override=None, vocab_override=None, dry_run=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=ROOT / "configs/tokenizer.toml")
+    parser.add_argument("--config", type=Path, default=ROOT / "configs/ja/tokenizer.toml")
     parser.add_argument("--output", help="Override output directory; must be absent or empty.")
     parser.add_argument("--vocab-size", type=int, help="Override vocabulary size for an experiment.")
     parser.add_argument("--dry-run",action="store_true",help="Print data and resource plan without training or writing output.")

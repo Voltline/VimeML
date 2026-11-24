@@ -40,7 +40,7 @@ class V4TokenizerTests(unittest.TestCase):
 
     def test_native_unigram_preserves_unseen_kana_and_normalization(self):
         import sentencepiece as spm
-        kana = "".join((ROOT / "configs/kana-v4.txt").read_text(encoding="utf-8").splitlines())
+        kana = "".join((ROOT / "configs/ja/kana-v4.txt").read_text(encoding="utf-8").splitlines())
         with tempfile.TemporaryDirectory(dir=ROOT / "outputs") as temp:
             root = Path(temp)
             path = root / "train.txt"

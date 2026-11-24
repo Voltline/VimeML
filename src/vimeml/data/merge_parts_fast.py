@@ -445,7 +445,7 @@ def run(config_path, parts, output, *, workers=4, buckets=64, cache_mb=128, work
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=ROOT / "configs/corpus-parallel.toml")
+    parser.add_argument("--config", type=Path, default=ROOT / "configs/ja/corpus-parallel.toml")
     parser.add_argument("--parts-dir", type=Path, default=ROOT / "outputs/corpus-parallel-v1-work/parts")
     parser.add_argument("--output", type=Path, default=ROOT / "outputs/corpus-fast-v1")
     parser.add_argument("--work", type=Path)

@@ -1,4 +1,4 @@
-"""zh-200m arm mixtures (docs/zh-CN/training-zh-200m-plan.md, 200M Chinese desktop model).
+"""zh-200m arm mixtures (docs/zh-CN/zh/training/training-zh-200m-plan.md, 200M Chinese desktop model).
 
 Web: every window of the arm's pool (P1, max tier 3) once per epoch,
 prefix-cropped per epoch. Chat: one run-long sequence of passes over LCCC

@@ -2,9 +2,9 @@
 
 d1024, 16 heads, SwiGLU 2560, learned positions, tied embeddings; the
 vocabulary, layer count and context length vary, fixed to the pairs of the
-200M training plan (docs/zh-CN/training-zh-200m-plan.md): 16K/L15/c512,
+200M training plan (docs/zh-CN/zh/training/training-zh-200m-plan.md): 16K/L15/c512,
 24K/L14/c512, 32K/L14/c512 and 24K/L14/c128. 12K/L15/c128 is the three-task
-joint-pinyin 200M (configs/train-zh200m-12k-pinyin-pt.toml): the 20M's tokenizer,
+joint-pinyin 200M (configs/zh/train-zh200m-12k-pinyin-pt.toml): the 20M's tokenizer,
 so token-level distillation into the 20M stays possible.
 """
 import math

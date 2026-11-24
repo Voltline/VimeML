@@ -1,0 +1,11 @@
+"""Prepare downloaded AJIMEE data for the AzooKey CLI (stdlib only)."""
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "src"))
+
+from vimeml.benchmarks.ajimee import main
+
+if __name__ == "__main__":
+    main()

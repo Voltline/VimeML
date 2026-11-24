@@ -6,4 +6,4 @@
 
 当前INT8包使用FP32计算、CPU_ONLY、iOS18。GPU/ALL路径曾触发量化gather断言；重新试验必须使用单独版本并手动验证。SentencePiece、联合分词评分、稳定排序与搜索均在应用侧实现，模型仅输出原始logits。
 
-接入和实测限制见 [Core ML](../../coreml.md)。
+接入和实测限制见 [Core ML](../../ja/coreml.md)。

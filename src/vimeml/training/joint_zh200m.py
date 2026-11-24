@@ -1,4 +1,4 @@
-"""zh-200m pretraining arms (docs/zh-CN/training-zh-200m-plan.md, 200M Chinese desktop model).
+"""zh-200m pretraining arms (docs/zh-CN/zh/training/training-zh-200m-plan.md, 200M Chinese desktop model).
 
 The vimeml-tiny-zh-v1 LM/chat recipe on the zh-200m stores, at ten times the
 parameters and, for the default arms, four times the context. Each arm has its
@@ -10,10 +10,10 @@ max_steps: full FP32 web/chat validation and memorization-probe BPC.
 Checkpoints are kept at milestones 1 and 4 (1/20 and 1/5 of the budget) and at
 the end (final.pt).
 
-The same trainer runs the zh-800m model (stage "zh-800m", docs/zh-CN/training-zh-800m-plan.md):
+The same trainer runs the zh-800m model (stage "zh-800m", docs/zh-CN/zh/training/training-zh-800m-plan.md):
 its own shape, its three-web-store mixture and 2048 windows per update; everything
 else (loop, validation, milestones, checkpoints, data parallelism) is shared. Stage "zh-800m-arch2"
-(docs/training-zh-800m-arch2-plan.md) is the arch2 model on the same data at 8192 or 16384 windows per
+(docs/zh/training/training-zh-800m-arch2-plan.md) is the arch2 model on the same data at 8192 or 16384 windows per
 update; its training rows are packed into 2048-token rows of per-segment causal attention (packed_update).
 
 Joint pinyin pretraining (optional [pinyin] section, the zh-800m deviation of 2026-11-17): the
@@ -104,7 +104,7 @@ FAMILIES = {
     # over ~100B tokens, too small a batch for the model and for data parallelism.
     "zh-800m": Family("zh-800m", "tiny_gpt_zh800m", "vimeml_tiny_gpt_zh800m", model_zh800m.GPTZh800mConfig,
                       model_zh800m.TinyGPTZh800m, model_zh800m.SHAPES, zh800m_data, 2048, ["zh-800m"]),
-    # arch2 (docs/training-zh-800m-arch2-plan.md): the zh-800m data at k = 4 or 8 times arch1's 2048 windows,
+    # arch2 (docs/zh/training/training-zh-800m-arch2-plan.md): the zh-800m data at k = 4 or 8 times arch1's 2048 windows,
     # training rows packed to 2048 tokens with per-segment causal attention (model_zh800m_arch2).
     "zh-800m-arch2": Family("zh-800m-arch2", "tiny_gpt_zh800m_arch2", "vimeml_tiny_gpt_zh800m_arch2",
                             model_zh800m_arch2.GPTZh800mArch2Config, model_zh800m_arch2.TinyGPTZh800mArch2,
@@ -197,7 +197,7 @@ def build_plan(config, root=ROOT, verify_files=True):
         required[folder / "manifest.json"] = store["token_manifest_sha256"]
         required[index / "manifest.json"] = store["window_manifest_sha256"]
     code = {p.relative_to(ROOT).as_posix(): file_sha(p) for p in sorted((ROOT / "src/vimeml").rglob("*.py"))}
-    code["scripts/training/train_zh200m.py"] = file_sha(ROOT / "scripts/training/train_zh200m.py")
+    code["scripts/zh/training/train_zh200m.py"] = file_sha(ROOT / "scripts/zh/training/train_zh200m.py")
     signatures = {"dataset": config["dataset_sha256"], "tokens": request["web"]["token_manifest_sha256"],
                   "windows": request["web"]["window_manifest_sha256"],
                   "code": hashlib.sha256(json.dumps(code, sort_keys=True).encode()).hexdigest()}

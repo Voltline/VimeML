@@ -19,7 +19,7 @@ Stores (one directory each under output_dir)
               kind_weights (a paragraph holding a listed misreading becomes an error
               sample around it with listed_boost_probability)
 
-Typo mode (mode = "typo", configs/data-zh-pinyin-typo.toml)
+Typo mode (mode = "typo", configs/zh/data-zh-pinyin-typo.toml)
     one store, typo: the same documents and paragraphs as the pinyin stores of the same label
     and fractions (plain documents are skipped), each paragraph a full (typo.full_share) or
     mixed sample whose keys carry one or two keyboard typos (zh_typo), the output still the

@@ -1,4 +1,4 @@
-"""zh-800m mixture (docs/zh-CN/training-zh-800m-plan.md, 800M Chinese desktop model).
+"""zh-800m mixture (docs/zh-CN/zh/training/training-zh-800m-plan.md, 800M Chinese desktop model).
 
 Web: every window of three 12K stores, once: the vimeml-tiny-zh-v1 P1 store
 (zh13-web-12k, all tiers), the rest of export-r1 outside P1 (zh800m-web-r1rest-12k)

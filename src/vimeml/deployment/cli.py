@@ -44,7 +44,7 @@ def main(argv=None):
     timing.add_argument("--repeats", type=int, default=5)
     timing.add_argument("--warmup", type=int, default=1)
     for command in (phrases, timing):
-        command.add_argument("--prompts", type=Path, default=ROOT / "configs/phrase-demo-prompts.json")
+        command.add_argument("--prompts", type=Path, default=ROOT / "configs/ja/phrase-demo-prompts.json")
     phrases.add_argument("--mode", choices=("beam", "sample"), default="beam")
     for command in (ref, convert, alignment, evaluate, phrases, timing):
         command.add_argument("--bundle", type=Path, required=True)

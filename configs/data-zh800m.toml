@@ -1,9 +1,0 @@
-# zh-800m token data (docs/zh-CN/training-zh-800m-plan.md, 800M Chinese desktop model), 12K tokenizer.
-# The P1 web store and the chat store are the vimeml-tiny-zh-v1 ones (zh13-web-12k, zh13-chat-12k);
-# encode_zh800m.py adds export-r1 outside P1 (same pools) and all of export-r2, then c512 indexes.
-export_dir = "outputs/zh-corpus/export-r1"
-export_r2_dir = "outputs/zh-corpus/export-r2"
-tokenizer_dir = "artifacts/tokenizers/zh-v13"
-pools_dir = "artifacts/training-data/zh13-pools"
-workers = 16
-context_length = 512

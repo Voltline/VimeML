@@ -1,4 +1,4 @@
-"""800M Chinese desktop-model decoder (docs/zh-CN/training-zh-800m-plan.md).
+"""800M Chinese desktop-model decoder (docs/zh-CN/zh/training/training-zh-800m-plan.md).
 
 The zh-200m block family scaled up: d1536, 24 heads of 64, SwiGLU 4096, RMSNorm,
 no bias, learned positions, tied embeddings; 27 layers, the 20M's 12K tokenizer and

@@ -83,7 +83,7 @@ class C1RuntimeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         torch.set_num_threads(2)
-        cls.config = tomllib.loads((ROOT / "configs/posttrain-v4-c1.toml").read_text(encoding="utf-8"))
+        cls.config = tomllib.loads((ROOT / "configs/ja/posttrain-v4-c1.toml").read_text(encoding="utf-8"))
 
     def test_masked_task_token_means_equal_unsplit_objective(self):
         torch.manual_seed(13)
@@ -246,7 +246,7 @@ class C1RuntimeTests(unittest.TestCase):
         self.assertEqual(plan["parameters"], 15070848)
         from vimeml.training import model_factory_v4
         from vimeml.training.train import validate_config
-        base = tomllib.loads((ROOT / "configs/train-v4-b12cosine.toml").read_text(encoding="utf-8"))
+        base = tomllib.loads((ROOT / "configs/ja/train-v4-b12cosine.toml").read_text(encoding="utf-8"))
         base["initialization"] = {"checkpoint": self.config["initialization"]["checkpoint"]}
         with self.assertRaisesRegex(ValueError, "starts from scratch"):
             validate_config(base)

@@ -13,7 +13,7 @@ from vimeml.training.evaluate_ime import beam_suggestions, generate_samples, uni
 from vimeml.training.infer import JapaneseLM, ROOT
 
 ASSETS = Path(__file__).with_name("phrase_demo.html")
-PROMPTS = ROOT / "configs/phrase-demo-prompts.json"
+PROMPTS = ROOT / "configs/ja/phrase-demo-prompts.json"
 
 
 def validate_request(data):

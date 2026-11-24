@@ -1,4 +1,4 @@
-"""Preregistered blind confirmation of vimeml-tiny-zh-v1 (docs/zh-CN/benchmarks/confirmation-zh-v1-plan.md).
+"""Preregistered blind confirmation of vimeml-tiny-zh-v1 (docs/zh-CN/zh/benchmarks/confirmation-zh-v1-plan.md).
 
 Everything the plan fixes is a constant here. run() checks that the plan and code are committed and
 unmodified and that the checkpoint and frozen files have the registered SHA256, rescores development
@@ -15,14 +15,14 @@ import time
 from vimeml.benchmarks.zh13_lm_scores import VERSION, read_jsonl, run as score_lm
 from vimeml.training.data import file_sha
 
-PLAN = "docs/zh-CN/benchmarks/confirmation-zh-v1-plan.md"
+PLAN = "docs/zh-CN/zh/benchmarks/confirmation-zh-v1-plan.md"
 CHECKPOINT = "artifacts/models/tiny-zh13-12k-fresh-s1-d384-l9/final.pt"
 TOKENIZER = "artifacts/tokenizers/zh-v13/zh-unigram-12288/tokenizer.model"
 FROZEN = "outputs/benchmarks/ime-standard-zh-v1/frozen-r1"
 JUDGED = "outputs/benchmarks/zh13-20m/judgement/scores"
 ARM = "12k-fresh-s1"
 BASE = "outputs/benchmarks/zh-v1-confirmation"
-SCORER = "scripts/benchmarks/score_standard_ime_zh.py"
+SCORER = "scripts/zh/benchmarks/score_standard_ime_zh.py"
 SHA256 = {
     CHECKPOINT: "44c423a1e7cb0e32161afc94d6167cabb439a3d25fd9de6d1fbb150a927542d4",
     TOKENIZER: "68bd37c45bcb018b32b2eef5b241561ab5b6dc1b77c1c3aadcc1b41c4bf47e5a",
@@ -31,10 +31,10 @@ SHA256 = {
     f"{FROZEN}/pool-abbrev.jsonl": "9773050b66851582424e595a14c9ff2041a51d94b9cf0b703e5e7a7f212b0e2e",
     f"{FROZEN}/manifest.json": "6b9d0a66aa46446a330301b00462c8e63b2f4ea63aa6d0a75ede47ef6a7bb701",
 }
-COMMITTED = (PLAN, SCORER, "scripts/benchmarks/confirm_zh_v1.py", "src/vimeml/benchmarks/zh_v1_confirm.py",
+COMMITTED = (PLAN, SCORER, "scripts/zh/benchmarks/confirm_zh_v1.py", "src/vimeml/benchmarks/zh_v1_confirm.py",
              "src/vimeml/benchmarks/zh13_lm_scores.py", "src/vimeml/benchmarks/statistics.py",
              "src/vimeml/training/model_zh13.py", "src/vimeml/training/joint_zh13.py")
-RIME_BLIND_TOP1 = {"full": 1045, "abbrev": 147}  # recorded in docs/zh-CN/benchmarks/standard-ime-zh.md
+RIME_BLIND_TOP1 = {"full": 1045, "abbrev": 147}  # recorded in docs/zh-CN/zh/benchmarks/standard-ime-zh.md
 SOURCES = ("crosswoz", "risawoz", "kdconv")
 TRACKS = ("full", "abbrev")
 ALPHA = 0.05

@@ -1,0 +1,80 @@
+"""zh-200m arm and zh-800m pretraining entry point (the stage in the config picks the model); W&B
+without any machine-wide login.
+
+Credentials come only from the environment (WANDB_API_KEY, optional WANDB_ENTITY),
+as cluster_zh200m.sh sets them from a private file with isolated W&B directories.
+Without a key, or when online initialization fails, the run logs offline under
+artifacts/tracking/<model>/ for a later `wandb sync`; training never waits on W&B.
+
+usage:
+  python -X utf8 scripts/zh/training/train_zh200m.py --config configs/zh/train-zh200m-12k-pinyin-pt.toml
+  python -X utf8 scripts/zh/training/train_zh200m.py --config ... --resume
+  python -X utf8 scripts/zh/training/train_zh200m.py --config ... --dry-run
+  python -X utf8 scripts/zh/training/train_zh200m.py --config configs/zh/train-zh800m-12k-c512.toml
+"""
+import argparse
+import os
+from pathlib import Path
+import sys
+import tomllib
+
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "src"))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--config", type=Path, required=True)
+    parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--dry-run", action="store_true", help="Verify configuration, code and data identities, then exit")
+    args = parser.parse_args()
+    config = tomllib.loads(args.config.read_text("utf-8"))
+    output, logs = ROOT / config["output_dir"], ROOT / config["log_dir"]
+    if args.dry_run:
+        from vimeml.training.joint_zh200m import build_plan
+        plan = build_plan(config, ROOT, verify_files=True)
+        s = plan["settings"]
+        print({"stage": plan["stage"], "arm": plan["arm"], "parameters": plan["parameters"],
+               "context_length": plan["task_contract"]["context_length"],
+               "lm_batch": plan["task_contract"]["lm_batch"],
+               "max_steps": s["max_steps"], "epochs": s["epochs"], "milestone_steps": s["milestone_steps"][:3] + ["..."],
+               "budget": plan["budget"], "required_files": len(plan["required_files"]),
+               **({"pinyin": {k: plan["pinyin"][k] for k in ("mix", "weights", "passes")}} if "pinyin" in plan else {})})
+        return
+    if not args.resume and ((output.exists() and any(output.iterdir())) or (logs.exists() and any(logs.iterdir()))):
+        parser.error("Fresh output/log directories must be empty")
+    if args.resume and not (output / "last.pt").exists():
+        parser.error("No checkpoint to resume")
+    from vimeml.training.joint_zh200m import run
+    tracking = config.get("tracking", {})
+    # Under torchrun only rank 0 reports to W&B; the other ranks just train.
+    if not tracking.get("enabled") or os.environ.get("RANK", "0") != "0":
+        print(run(config, args.resume), flush=True)
+        return
+    import wandb
+    from vimeml.training.data import write_json
+    directory = ROOT / "artifacts/tracking" / output.name
+    directory.mkdir(parents=True, exist_ok=True)
+
+    def start(mode):
+        return wandb.init(project=tracking.get("project", "vimeml"), entity=os.environ.get("WANDB_ENTITY"),
+                          group=tracking["group"], name=config["arm"] + ("-resume" if args.resume else ""),
+                          job_type="pretraining", tags=[config["stage"], config["arm"]], mode=mode, dir=str(directory),
+                          sync_tensorboard=True, save_code=False, config=config,
+                          settings=wandb.Settings(disable_git=True, init_timeout=90))
+    mode = tracking.get("mode", "online") if os.environ.get("WANDB_API_KEY") else "offline"
+    try:
+        cloud = start(mode)
+    except Exception as error:
+        if mode == "offline":
+            raise
+        print(f"W&B online initialization failed ({type(error).__name__}: {error}); logging offline", flush=True)
+        cloud = start("offline")
+    try:
+        print(run(config, args.resume), flush=True)
+    finally:
+        cloud.finish()
+
+
+if __name__ == "__main__":
+    main()

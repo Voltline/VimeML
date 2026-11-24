@@ -113,7 +113,7 @@ def check_gpu():
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=ROOT / "configs/loader.toml")
+    parser.add_argument("--config", type=Path, default=ROOT / "configs/ja/loader.toml")
     parser.add_argument("--prepare-only", action="store_true", help="Index and NumPy checks only; PyTorch not required.")
     parser.add_argument("--workers", type=int, help="Override DataLoader CPU process count.")
     args = parser.parse_args(argv)
@@ -127,7 +127,7 @@ def main(argv=None):
         try:
             import torch
         except ImportError as error:
-            parser.error(f"Install requirements.txt; see docs/training.md for the CUDA 12.8 build: {error}")
+            parser.error(f"Install requirements.txt; see docs/ja/training/training.md for the CUDA 12.8 build: {error}")
     token_dir = ROOT / config["token_dir"]
     index_dir = ROOT / config["index_dir"]
     manifest = prepare_indexes(token_dir, index_dir, config["context_length"])

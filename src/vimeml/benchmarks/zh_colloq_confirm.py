@@ -1,5 +1,5 @@
 """Preregistered test confirmation of the colloquial post-training candidate colloq-c40 against vimeml-zh-v2-20m
-(kd-cont), docs/zh-CN/benchmarks/confirmation-zh-colloq-plan.md. One run; everything the plan fixes is a
+(kd-cont), docs/zh-CN/zh/benchmarks/confirmation-zh-colloq-plan.md. One run; everything the plan fixes is a
 constant here. run():
 
 1. checks that the plan and code are committed and unmodified and that every registered file has its SHA256;
@@ -19,7 +19,7 @@ from vimeml.benchmarks import pinyin_gen_zh as pg
 from vimeml.benchmarks import zh_v2_confirm as v2
 from vimeml.training.data import file_sha
 
-PLAN = "docs/zh-CN/benchmarks/confirmation-zh-colloq-plan.md"
+PLAN = "docs/zh-CN/zh/benchmarks/confirmation-zh-colloq-plan.md"
 COLLOQ = "ime-pinyin-zh-colloq-v1-r1"
 COLLOQ_FROZEN = "outputs/benchmarks/ime-pinyin-zh-colloq-v1/frozen-r1"
 BASE = "outputs/benchmarks/zh-colloq-confirmation"
@@ -42,7 +42,7 @@ SHA256 = {
     f"{V2_RUN}/test-contexts.jsonl": "f45c5d0ab4bc9c79262a9cf26c7c871cd031d038464d1dc5aa86aaed5af35cfc",
     **{m["checkpoint"]: m["sha256"] for m in MODELS.values()},
 }
-COMMITTED = (PLAN, "scripts/benchmarks/confirm_zh_colloq.py", "src/vimeml/benchmarks/zh_colloq_confirm.py",
+COMMITTED = (PLAN, "scripts/zh/benchmarks/confirm_zh_colloq.py", "src/vimeml/benchmarks/zh_colloq_confirm.py",
              *v2.COMMITTED[1:])
 
 

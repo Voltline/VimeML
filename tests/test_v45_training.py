@@ -15,7 +15,7 @@ from vimeml.training.model_v4 import TinyGPTV4, GPTV4Config
 
 
 def load(arm):
-    return tomllib.loads((ROOT / f'configs/train-v45-{arm}.toml').read_text('utf-8'))
+    return tomllib.loads((ROOT / f'configs/ja/train-v45-{arm}.toml').read_text('utf-8'))
 
 
 class V45ConfigTests(unittest.TestCase):

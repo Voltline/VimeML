@@ -1,9 +1,9 @@
-"""Judge the vimeml-tiny-zh-v1 arms by the rules fixed in docs/zh-CN/training-zh-v1-plan.md.
+"""Judge the vimeml-tiny-zh-v1 arms by the rules fixed in docs/zh-CN/zh/training/training-zh-v1-plan.md.
 
 Inputs per arm, under RUNS/<arm>/:
     full.jsonl, full.meta.json        score_zh13_lm.py output on the full-pinyin track (required)
     abbrev.jsonl, abbrev.meta.json    the same on the abbreviated track (optional, descriptive)
-and the arm's training directory (output_dir in configs/train-zh13-<arm>.toml, or MODELS/<arm>)
+and the arm's training directory (output_dir in configs/zh/train-zh13-<arm>.toml, or MODELS/<arm>)
 holding final.pt, summary.json and milestones.json.
 
 Checks before any statistic: every arm is present; each scores file matches the SHA256 in its meta;
@@ -53,7 +53,7 @@ DESCRIPTIVE = (  # dose-response, reported only
     ("12k-fresh-s1", "12k-ep5"), ("12k-ep5", "12k-ep20"), ("8k-fresh", "8k-ep5"), ("8k-ep5", "8k-ep20"),
 )
 VALIDATIONS = ("web", "chat", "probe")
-SCORER = Path(__file__).resolve().parents[3] / "scripts" / "benchmarks" / "score_standard_ime_zh.py"
+SCORER = Path(__file__).resolve().parents[3] / "scripts" / "zh" / "benchmarks" / "score_standard_ime_zh.py"
 
 
 def sha256(path):
@@ -95,9 +95,9 @@ def spread(values):
 def model_dir(root, arm, models):
     if models:
         return Path(models) / arm
-    config = tomllib.loads((root / "configs" / f"train-zh13-{arm}.toml").read_text(encoding="utf-8"))
+    config = tomllib.loads((root / "configs" / "zh" / f"train-zh13-{arm}.toml").read_text(encoding="utf-8"))
     if config["arm"] != arm or config["model"]["vocab_size"] != ARMS[arm][0]:
-        raise ValueError(f"configs/train-zh13-{arm}.toml does not describe {arm}")
+        raise ValueError(f"configs/zh/train-zh13-{arm}.toml does not describe {arm}")
     return root / config["output_dir"]
 
 
@@ -303,7 +303,7 @@ def judge(runs, frozen, out, models=None, smoke=False, root=None):
             {"name": name, "a": a, "b": b,
              **compare(ranked[(a, "abbrev")][1], ranked[(b, "abbrev")][1], sorted(ranked[(a, "abbrev")][1]))["top1"]}
             for name, a, b, _ in CONTRASTS]
-    result = {"format": "vimeml_zh13_judgement_v1", "plan": "docs/zh-CN/training-zh-v1-plan.md",
+    result = {"format": "vimeml_zh13_judgement_v1", "plan": "docs/zh-CN/zh/training/training-zh-v1-plan.md",
               "version": VERSION, "split": "development", "track": "full", "items": ITEMS,
               "smoke": smoke, "rime_baseline_top1": rime_top1, "alpha": ALPHA,
               "rule": "effective = |Top-1 difference| > range of the three 12k-fresh seeds and Holm-adjusted exact McNemar p < 0.05",
@@ -326,7 +326,7 @@ def _f(value, digits=4):
 def report(result):
     noise, arms = result["noise_band"], result["descriptive"]["arms"]
     lines = [f"# vimeml-tiny-zh-v1 判定{'（冒烟，不是正式结果）' if result['smoke'] else ''}", "",
-             f"按 `{result['plan']}` 预注册的规则，由 `scripts/benchmarks/judge_zh13.py` 生成。"
+             f"按 `{result['plan']}` 预注册的规则，由 `scripts/zh/benchmarks/judge_zh13.py` 生成。"
              f"{result['version']} development 全拼轨道 {result['items']} 条，精确 Top-1；Rime 第一候选 {result['rime_baseline_top1']}。", "",
              "## 结论", "",
              f"- 数据：**{result['decision']['data']['choice'] or '未定'}**。{result['decision']['data']['basis']}。",

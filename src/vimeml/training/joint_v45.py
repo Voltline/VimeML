@@ -51,8 +51,8 @@ TEACHERS={
 }
 TEACHER_DIR='artifacts/teachers/v45'
 # Twin configuration of each student seed; the twin is one of the teachers.
-TWINS={'v42':'configs/train-v42.toml','s1':'configs/train-v44-s1.toml',
-       's2':'configs/train-v44-s2.toml','s3':'configs/train-v44-s3.toml'}
+TWINS={'v42':'configs/ja/train-v42.toml','s1':'configs/ja/train-v44-s1.toml',
+       's2':'configs/ja/train-v44-s2.toml','s3':'configs/ja/train-v44-s3.toml'}
 ARMS={f'{pool}-{seed}':(pool,seed) for pool in POOLS for seed in TWINS}
 # Fields a student may differ from its twin in; everything else must be identical.
 STUDENT_KEYS=('stage','arm','output_dir','log_dir','tracking','distillation')
@@ -173,7 +173,7 @@ def build_plan(config,root=ROOT,verify_files=True):
         required[teacher_file(name,root)]=teacher['sha256']
     signatures['teachers']=TASK_CONTRACT['teachers']
     code={p.relative_to(root).as_posix():file_sha(p) for p in sorted((root/'src/vimeml').rglob('*.py'))}
-    code['scripts/training/train_v45.py']=file_sha(root/'scripts/training/train_v45.py')
+    code['scripts/ja/training/train_v45.py']=file_sha(root/'scripts/ja/training/train_v45.py')
     signatures['code']=hashlib.sha256(json.dumps(code,sort_keys=True).encode()).hexdigest()
     if verify_files:
         for path,digest in required.items():

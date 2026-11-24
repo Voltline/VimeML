@@ -34,7 +34,7 @@ def code_signature(root=ROOT):
     paths += [root / f"src/vimeml/training/{name}.py" for name in (
         "train", "data", "data_v2", "model_v2", "model_v4", "runtime_v2", "model_factory", "model_factory_v4")]
     paths += [root / "src/vimeml/tokenizer/store.py"]
-    paths += [root / "scripts/posttraining/train.py"]
+    paths += [root / "scripts/ja/posttraining/train.py"]
     hashes = {p.relative_to(root).as_posix(): file_sha(p) for p in paths}
     return hashlib.sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest(), hashes
 

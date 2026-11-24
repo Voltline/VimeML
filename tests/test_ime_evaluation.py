@@ -123,7 +123,7 @@ class IMEEvaluationTests(unittest.TestCase):
         self.assertFalse(reference_hit([{"comparison_text": "abc", "flags": ["replacement_character"]}], ["ab"]))
 
     def test_frozen_case_schema(self):
-        cases = json.loads((ROOT / "configs/ime-eval-v1.json").read_text(encoding="utf-8"))
+        cases = json.loads((ROOT / "configs/ja/ime-eval-v1.json").read_text(encoding="utf-8"))
         validate_cases(cases)
         self.assertEqual(len(cases["ranking"]), 32)
         self.assertEqual(len(cases["suggestions"]), 14)

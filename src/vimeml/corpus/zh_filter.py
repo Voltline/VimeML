@@ -9,7 +9,7 @@ Each document gets one decision:
 
 Traditional-script pages are converted to Simplified with OpenCC `tw2sp` (characters
 and Taiwan phrasing, e.g. 軟體 -> 软件) and tagged `script='hant'`. Term lists and
-domains come from configs/zh-filter-terms.toml; matching runs on the converted text,
+domains come from configs/zh/zh-filter-terms.toml; matching runs on the converted text,
 lower-cased for Latin letters.
 """
 from dataclasses import dataclass

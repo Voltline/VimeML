@@ -102,7 +102,7 @@ def build_plan(config,root=ROOT,verify_files=True):
     standard=read_snapshot('standard-development',root)
     required[root/'outputs/evaluation-v4-20261015/inputs/standard-development.json']=file_sha(root/'outputs/evaluation-v4-20261015/inputs/standard-development.json')
     code={p.relative_to(root).as_posix():file_sha(p) for p in sorted((root/'src/vimeml').rglob('*.py'))}
-    code['scripts/training/train_v41.py']=file_sha(root/'scripts/training/train_v41.py')
+    code['scripts/ja/training/train_v41.py']=file_sha(root/'scripts/ja/training/train_v41.py')
     signatures['code']=hashlib.sha256(json.dumps(code,sort_keys=True).encode()).hexdigest()
     if verify_files:
         for path,digest in required.items():

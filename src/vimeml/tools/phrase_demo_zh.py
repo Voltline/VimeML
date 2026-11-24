@@ -25,7 +25,7 @@ from vimeml.deployment.zh_v1 import BundleLMZh
 
 ROOT = Path(__file__).resolve().parents[3]
 ASSETS = Path(__file__).with_name("phrase_demo_zh.html")
-PROMPTS = ROOT / "configs/phrase-demo-prompts-zh.json"
+PROMPTS = ROOT / "configs/zh/phrase-demo-prompts-zh.json"
 BUNDLE = ROOT / "artifacts/releases/vimeml-tiny-zh-v1-hf-v1/inference"
 READINGS = ROOT / "datasets/ime-standard-zh-v1/engine/rime-ice/cn_dicts"
 MODES = {"predict", "continue", "score"}

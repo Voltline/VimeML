@@ -201,16 +201,15 @@ class Trainer(unittest.TestCase):
 class Configs(unittest.TestCase):
     def test_k_scaling_against_arch1(self):
         import tomllib
-        base = tomllib.loads((ROOT / "configs/train-zh800m-12k-c512-pinyin.toml").read_text("utf-8"))
-        for k in (4, 8):
-            c = tomllib.loads((ROOT / f"configs/train-zh800m-arch2-k{k}.toml").read_text("utf-8"))
+        base = tomllib.loads((ROOT / "configs/zh/train-zh800m-12k-c512-pinyin.toml").read_text("utf-8"))
+        for k in (4,):  # the k = 8 config was never run and was removed on 2026-11-24
+            c = tomllib.loads((ROOT / f"configs/zh/train-zh800m-arch2-k{k}.toml").read_text("utf-8"))
             A.GPTZh800mArch2Config(**c["model"])
             t, b = c["training"], base["training"]
             self.assertEqual(t["lm_batch"], b["lm_batch"] * k)
             self.assertEqual(c["pinyin"]["mix"], {q: v * k for q, v in base["pinyin"]["mix"].items()})
-            # k = 4 keeps arch1's peak LR (precheck control round, 2026-11-20); k = 8 is not run and keeps sqrt(k).
-            lr = b["learning_rate"] if k == 4 else b["learning_rate"] * k ** 0.5
-            self.assertAlmostEqual(t["learning_rate"], lr, delta=5e-6)
+            # k = 4 keeps arch1's peak LR (precheck control round, 2026-11-20).
+            self.assertAlmostEqual(t["learning_rate"], b["learning_rate"], delta=5e-6)
             self.assertAlmostEqual(t["min_learning_rate"] * 10, t["learning_rate"])
             self.assertEqual((t["warmup_steps"] * k, t["bucket_multiplier"] * k, t["checkpoint_every"] * k),
                              (b["warmup_steps"], b["bucket_multiplier"], b["checkpoint_every"]))

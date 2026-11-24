@@ -42,7 +42,7 @@ class Zh800mModelTest(unittest.TestCase):
         from vimeml.training.model_zh800m import LAYER_PARAMETERS, SHAPES, GPTZh800mConfig
         layers, total = SHAPES[(12288, 512)]
         self.assertEqual(total, 12288 * 1536 + 512 * 1536 + layers * LAYER_PARAMETERS + 1536)
-        config = tomllib.loads((ROOT / "configs/train-zh800m-12k-c512.toml").read_text("utf-8"))
+        config = tomllib.loads((ROOT / "configs/zh/train-zh800m-12k-c512.toml").read_text("utf-8"))
         GPTZh800mConfig(**config["model"])
         with self.assertRaises(ValueError):
             GPTZh800mConfig(**{**config["model"], "n_layers": 26})
@@ -128,7 +128,7 @@ class Zh800mDataTest(unittest.TestCase):
         self.assertEqual(file_sha(target / "manifest.json"), digest)
         # The trainer accepts the mixture and reads windows from every store.
         from vimeml.training.joint_zh200m import build_plan
-        config = tomllib.loads((ROOT / "configs/train-zh800m-12k-c512.toml").read_text("utf-8"))
+        config = tomllib.loads((ROOT / "configs/zh/train-zh800m-12k-c512.toml").read_text("utf-8"))
         config["data_mixture"]["directory"] = target.as_posix()
         config["dataset_sha256"] = digest
         config["runtime"]["compile_backbone"] = False

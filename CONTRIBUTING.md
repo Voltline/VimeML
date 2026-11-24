@@ -2,9 +2,9 @@
 
 ## Scope and source organization
 
-Implementations reside in `src/vimeml/`; thin command wrappers reside in matching `scripts/` subdirectories. Configurations belong in `configs/`. The Vime client is maintained separately. Cross-repository changes use independent branches and pull requests rather than source-directory replacement.
+Implementations reside in `src/vimeml/`; thin command wrappers reside in `scripts/<line>/<subsystem>/`, where `<line>` is `zh`, `ja` or `common`. Configurations belong in `configs/zh/` or `configs/ja/`; documents in `docs/zh/` or `docs/ja/`. The Vime client is maintained separately. Cross-repository changes use independent branches and pull requests rather than source-directory replacement.
 
-Primary documentation is English, with objective technical narration and dated experiment records. Chinese equivalents reside in `docs/zh-CN/`. Reports distinguish measured results, interpretation, limitations, and artifact status. Architecture labels, checkpoint steps, tokenizer versions, and benchmark roles remain explicit.
+Primary documentation is English, with objective technical narration and dated experiment records. Chinese equivalents reside in `docs/zh-CN/` at the same paths. Reports distinguish measured results, interpretation, limitations, and artifact status. Architecture labels, checkpoint steps, tokenizer versions, and benchmark roles remain explicit.
 
 ## Artifact and experiment integrity
 

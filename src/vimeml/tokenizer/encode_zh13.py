@@ -14,7 +14,7 @@ encode (per vocabulary)
     0 probe (in P20), 1 P20, 2 P5 only, 3 P1 only. validation holds every
     validation document. Chat store: each LCCC utterance is one sequence.
 
-    Other selections (zh-800m, docs/zh-CN/training-zh-800m-plan.md) write web-only
+    Other selections (zh-800m, docs/zh-CN/zh/training/training-zh-800m-plan.md) write web-only
     stores without train.tiers.bin: "rest" keeps the train documents outside P1 (the
     complement of the P1 store, same pools), "all" keeps every train document of an
     export that has no pools (a later batch such as export-r2).

@@ -15,7 +15,7 @@ IDENTITY = {'stage', 'arm', 'output_dir', 'log_dir', 'dataset_sha256'}
 
 
 def load(name):
-    return tomllib.loads((ROOT / f'configs/{name}.toml').read_text('utf-8'))
+    return tomllib.loads((ROOT / f'configs/ja/{name}.toml').read_text('utf-8'))
 
 
 def changed(arm):

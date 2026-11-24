@@ -1,5 +1,5 @@
 """Preregistered confirmation runs of vimeml-zh-v2-20m, -200m and -800m
-(docs/zh-CN/benchmarks/confirmation-zh-v2-plan.md; v2-800m added by its 2026-11-23 amendment).
+(docs/zh-CN/zh/benchmarks/confirmation-zh-v2-plan.md; v2-800m added by its 2026-11-23 amendment).
 
 Everything the plan fixes is a constant here; MODELS is filled in when the plan is registered, and run()
 refuses while any entry is missing. run(model):
@@ -27,7 +27,7 @@ import time
 from vimeml.benchmarks import pinyin_gen_zh as pg
 from vimeml.training.data import file_sha
 
-PLAN = "docs/zh-CN/benchmarks/confirmation-zh-v2-plan.md"
+PLAN = "docs/zh-CN/zh/benchmarks/confirmation-zh-v2-plan.md"
 VERSION = "ime-pinyin-zh-v1-r1"
 STANDARD = "ime-standard-zh-v1-r1"
 FROZEN = "outputs/benchmarks/ime-pinyin-zh-v1/frozen-r1"
@@ -35,7 +35,7 @@ READINGS = "outputs/zh-readings/dict/vime_pinyin.dict.yaml"
 TOKENIZER = "artifacts/tokenizers/zh-v13/zh-unigram-12288/tokenizer.model"
 STANDARD_FROZEN = "outputs/benchmarks/ime-standard-zh-v1/frozen-r1"
 V1_STANDARD_BLIND = "outputs/benchmarks/zh-v1-confirmation/run-01/v1-full"
-STANDARD_SCORER = "scripts/benchmarks/score_standard_ime_zh.py"
+STANDARD_SCORER = "scripts/zh/benchmarks/score_standard_ime_zh.py"
 BASE = "outputs/benchmarks/zh-v2-confirmation"
 MODE, BEAM, TOPK, LAMBDA = "task", 16, 10, 1.6
 ALPHA = 0.05
@@ -55,7 +55,7 @@ MODELS = {
                 "judged_sha256": "9e1be73704483e0b298c2b1a18c03de24ea88de1bdb7b32e48b3e0e32b7a397c",
                 "against": "v2-20m"},
     # amendment 2026-11-23: zh-800m arch2 (k = 4), chosen over arch1 on development
-    # (docs/zh-CN/reports/zh-800m-arch2-eval-20261123/report.md)
+    # (docs/zh-CN/zh/reports/zh-800m-arch2-eval-20261123/report.md)
     "v2-800m": {"checkpoint": "artifacts/models/tiny-zh800m-arch2-k4/final.pt",
                 "sha256": "8af7dab5e134964678de99ac44aa671282683aaac82c0f83100dd10b44f2d58b",
                 "judged": "outputs/zh800m-results/tiny-zh800m-arch2-k4/eval-zh800m/pinyin",
@@ -67,8 +67,8 @@ SHA256 = {
     f"{FROZEN}/manifest.json": "19133b0afaed162034277fe3bbe72b195b46a101462c65697a1a1ec64589248f",
     READINGS: "3a1654cd5ce20ecacd88046186c34ad87e748a494f7078f23c1ad15492eb0c8a",
 }
-COMMITTED = (PLAN, "scripts/benchmarks/confirm_zh_v2.py", "src/vimeml/benchmarks/zh_v2_confirm.py",
-             "src/vimeml/benchmarks/pinyin_gen_zh.py", "scripts/benchmarks/contexts_pinyin_ime_zh.py",
+COMMITTED = (PLAN, "scripts/zh/benchmarks/confirm_zh_v2.py", "src/vimeml/benchmarks/zh_v2_confirm.py",
+             "src/vimeml/benchmarks/pinyin_gen_zh.py", "scripts/zh/benchmarks/contexts_pinyin_ime_zh.py",
              "src/vimeml/deployment/zh_search.py", "src/vimeml/deployment/zh_torch_backend.py",
              "src/vimeml/benchmarks/zh13_lm_scores.py", "src/vimeml/training/zh_desktop.py", STANDARD_SCORER)
 
@@ -211,7 +211,7 @@ def open_test(root, model, device="cuda", preflight_only=False):
                "opened_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
     record["attempts"].append(attempt)
     write_ledger(root, record)
-    sys.path.insert(0, str(root / "scripts/benchmarks"))
+    sys.path.insert(0, str(root / "scripts/zh/benchmarks"))
     import contexts_pinyin_ime_zh as C
     (out / "test-contexts.jsonl").write_text(C.build(root / FROZEN, "test"), "utf-8")
     generate(root, model, out / "test", "test", device, plan, out / "test-contexts.jsonl")

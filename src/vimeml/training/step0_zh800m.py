@@ -1,4 +1,4 @@
-"""Step 0 of the zh-800m arch2 plan (docs/training-zh-800m-arch2-plan.md): where an update's time goes.
+"""Step 0 of the zh-800m arch2 plan (docs/zh/training/training-zh-800m-arch2-plan.md): where an update's time goes.
 
 Three measurements, none of which trains a model to keep:
 

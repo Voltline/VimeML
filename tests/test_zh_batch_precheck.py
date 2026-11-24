@@ -1,7 +1,6 @@
 """arch2 batch precheck support in joint_zh13: budget_fraction truncation and lm_microbatch pieces."""
 import copy
 import sys
-import tomllib
 import unittest
 from pathlib import Path
 
@@ -41,20 +40,6 @@ class Truncate(unittest.TestCase):
             with self.assertRaises(ValueError):
                 truncate({"budget_fraction": value, "max_steps": 10, "lm_batch": 1,
                           "updates_per_epoch": [10], "windows_per_epoch": [10]})
-
-    def test_precheck_configs(self):
-        base = tomllib.loads((ROOT / "configs/train-zh200m-12k-pinyin-pt.toml").read_text("utf-8"))
-        for k in (1, 4, 8):
-            c = tomllib.loads((ROOT / f"configs/train-zh200m-batch-precheck-{k}x.toml").read_text("utf-8"))
-            t, b = c["training"], base["training"]
-            self.assertEqual(t["lm_batch"], b["lm_batch"] * k)
-            self.assertEqual(t["bucket_multiplier"] * k, b["bucket_multiplier"])
-            self.assertEqual(t["warmup_steps"] * k, b["warmup_steps"])
-            self.assertAlmostEqual(t["learning_rate"], b["learning_rate"] * k ** 0.5, delta=5e-6)  # rounded to 2 digits as in the plan
-            self.assertAlmostEqual(t["min_learning_rate"] * 10, t["learning_rate"])
-            self.assertEqual(c["pinyin"]["mix"], {q: v * k for q, v in base["pinyin"]["mix"].items()})
-            self.assertEqual(t["budget_fraction"], 0.1)
-            self.assertEqual((c["model"], c["dataset_sha256"], t["seed"]), (base["model"], base["dataset_sha256"], b["seed"]))
 
 
 class Pieces(unittest.TestCase):

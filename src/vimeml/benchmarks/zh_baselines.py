@@ -1,4 +1,4 @@
-"""Baselines for vimeml-tiny-zh-v1 on the Standard zh benchmark (docs/zh-CN/benchmarks/baselines-zh-v1-plan.md).
+"""Baselines for vimeml-tiny-zh-v1 on the Standard zh benchmark (docs/zh-CN/zh/benchmarks/baselines-zh-v1-plan.md).
 
 engine: a Rime configuration ranks on its own; the first `--n` whole-input Han candidates of the
         engine (rime_candidates.py query, the same rule that built the frozen pools) are the ranking.
@@ -19,8 +19,8 @@ from vimeml.benchmarks.zh13_lm_scores import VERSION, common_prefix, read_jsonl
 from vimeml.training.data import file_sha
 
 FROZEN = "outputs/benchmarks/ime-standard-zh-v1/frozen-r1"
-SCORER = "scripts/benchmarks/score_standard_ime_zh.py"
-RIME = "scripts/benchmarks/rime_candidates.py"
+SCORER = "scripts/zh/benchmarks/score_standard_ime_zh.py"
+RIME = "scripts/zh/benchmarks/rime_candidates.py"
 OPTIONAL = "artifacts/external-eval/site-packages"
 ENGINES = ("ice", "ice-gram", "luna")
 EXTERNAL = {

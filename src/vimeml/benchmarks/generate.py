@@ -440,7 +440,7 @@ def load_pools(path):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=ROOT / "artifacts/benchmarks/ime-synthetic-v1")
-    parser.add_argument("--pools", type=Path, default=ROOT / "configs/ime-homophones.json")
+    parser.add_argument("--pools", type=Path, default=ROOT / "configs/ja/ime-homophones.json")
     parser.add_argument("--per-category", type=int, default=50)
     parser.add_argument("--contexts-per-target", type=int, default=5)
     parser.add_argument("--batch-size", type=int, default=10)

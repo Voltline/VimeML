@@ -1,4 +1,4 @@
-"""vimeml-tiny-zh-v1 pretraining arms (docs/zh-CN/training-zh-v1-plan.md).
+"""vimeml-tiny-zh-v1 pretraining arms (docs/zh-CN/zh/training/training-zh-v1-plan.md).
 
 The V4.2 LM/chat recipe on Chinese stores. Each arm has its own frozen mixture
 from prepare_zh13.py; the arm fixes vocabulary, layer count, pool, epochs and
@@ -150,7 +150,7 @@ def build_plan(config, root=ROOT, verify_files=True):
         required[folder / "manifest.json"] = store["token_manifest_sha256"]
         required[index / "manifest.json"] = store["window_manifest_sha256"]
     code = {p.relative_to(ROOT).as_posix(): file_sha(p) for p in sorted((ROOT / "src/vimeml").rglob("*.py"))}
-    code["scripts/training/train_zh13.py"] = file_sha(ROOT / "scripts/training/train_zh13.py")
+    code["scripts/zh/training/train_zh13.py"] = file_sha(ROOT / "scripts/zh/training/train_zh13.py")
     signatures = {"dataset": config["dataset_sha256"], "tokens": request["web"]["token_manifest_sha256"],
                   "windows": request["web"]["window_manifest_sha256"],
                   "code": hashlib.sha256(json.dumps(code, sort_keys=True).encode()).hexdigest()}

@@ -181,7 +181,7 @@ def run(config_path, output=None, workers=None, resume=False, progress_seconds=1
             merge_work = work / "merge"
             if merge_work.exists() and any(merge_work.iterdir()):
                 preserve_interrupted(merge_work, work)
-            merge_process = subprocess.Popen([sys.executable, "-X", "utf8", str(ROOT / "scripts/corpus/merge.py"),
+            merge_process = subprocess.Popen([sys.executable, "-X", "utf8", str(ROOT / "scripts/ja/corpus/merge.py"),
                                               "--config", str(config_path), "--parts", *(str(p) for p in parts),
                                               "--output", str(output), "--work", str(merge_work),
                                               "--workers", str(min(workers, 8))],
@@ -225,7 +225,7 @@ def run(config_path, output=None, workers=None, resume=False, progress_seconds=1
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=ROOT / "configs/corpus-parallel.toml")
+    parser.add_argument("--config", type=Path, default=ROOT / "configs/ja/corpus-parallel.toml")
     parser.add_argument("--output", help="Final corpus directory; intermediate files use OUTPUT-work.")
     parser.add_argument("--workers", type=int, help="Default: up to 10 processes, limited by CPUs and input files.")
     parser.add_argument("--resume", action="store_true", help="Reuse completed workers from this parallel run.")

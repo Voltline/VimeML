@@ -126,7 +126,7 @@ def run(config_path, parts, output):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=ROOT / "configs/corpus-sharded.toml")
+    parser.add_argument("--config", type=Path, default=ROOT / "configs/ja/corpus-sharded.toml")
     parser.add_argument("--parts", nargs="+", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()

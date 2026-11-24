@@ -15,7 +15,7 @@ from vimeml.training.train import learning_rate
 
 class V4ContinuationTests(unittest.TestCase):
     def setUp(self):
-        self.source = tomllib.loads((ROOT / "configs/train-v4-b.toml").read_text(encoding="utf-8"))
+        self.source = tomllib.loads((ROOT / "configs/ja/train-v4-b.toml").read_text(encoding="utf-8"))
         self.source["training"]["epochs"] = 4
         self.source["training"].pop("early_stopping_mode", None)
         settings = {**self.source["training"], "max_steps": 196940}

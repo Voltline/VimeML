@@ -8,7 +8,7 @@ import torch
 from torch import nn
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('external_eval', ROOT / 'scripts/benchmarks/evaluate_external_lm.py')
+spec = importlib.util.spec_from_file_location('external_eval', ROOT / 'scripts/ja/benchmarks/evaluate_external_lm.py')
 external = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(external)
 

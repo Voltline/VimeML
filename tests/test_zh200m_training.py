@@ -15,7 +15,7 @@ IDENTITY = {'stage', 'arm', 'output_dir', 'log_dir', 'dataset_sha256'}
 
 
 def load(name):
-    return tomllib.loads((ROOT / f'configs/{name}.toml').read_text('utf-8'))
+    return tomllib.loads((ROOT / f'configs/zh/{name}.toml').read_text('utf-8'))
 
 
 def plan_error(config):

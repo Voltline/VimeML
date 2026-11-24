@@ -77,7 +77,7 @@ class ZhFilterTest(unittest.TestCase):
         self.assertAlmostEqual(repeated_line_fraction('首页\n首页\n正文内容很长很长'),4/12)
 
     def test_shipped_terms_load(self):
-        r=load_rules(ROOT/'configs/zh-filter-terms.toml')
+        r=load_rules(ROOT/'configs/zh/zh-filter-terms.toml')
         self.assertTrue(r.weak<=set(r.category) and r.tier1 and r.tier2)
 
 

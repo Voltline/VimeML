@@ -1,7 +1,7 @@
 """Decoder, simulation and metrics of the Chinese prediction benchmark ime-predict-zh-v1.
 
-Protocol: docs/zh-CN/benchmarks/predict-zh-plan.md; implementation details fixed before any
-score: docs/zh-CN/benchmarks/predict-ime-zh.md (解码与模拟的实现细节).
+Protocol: docs/zh-CN/zh/benchmarks/predict-zh-plan.md; implementation details fixed before any
+score: docs/zh-CN/zh/benchmarks/predict-ime-zh.md (解码与模拟的实现细节).
 
 Every language model goes through the same decoder; only the adapter differs (how turns are
 joined into token ids, and next-token log-probabilities):

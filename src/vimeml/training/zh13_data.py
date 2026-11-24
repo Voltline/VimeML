@@ -1,4 +1,4 @@
-"""vimeml-tiny-zh-v1 arm mixtures (docs/zh-CN/training-zh-v1-plan.md).
+"""vimeml-tiny-zh-v1 arm mixtures (docs/zh-CN/zh/training/training-zh-v1-plan.md).
 
 Web: every window of the arm's pool (train.tiers.bin <= max tier: P1 3, P5 2,
 P20 1) once per epoch, prefix-cropped per epoch. Chat: one run-long sequence of

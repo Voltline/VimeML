@@ -370,7 +370,7 @@ def run(config_path, resume=False, dry_run=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=ROOT / "configs/data-v4.toml")
+    parser.add_argument("--config", type=Path, default=ROOT / "configs/ja/data-v4.toml")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()

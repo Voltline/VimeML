@@ -37,7 +37,7 @@ V4.4消融（2026-11-05）在`Voltline/vimeml-v44-training-output`（revision `a
 
 已验证可复现的大型传输包于2026-10-20删除，记录见`outputs/maintenance/handoff-cleanup-20261020/`与`handoff/README.md`。
 
-源码通过两个仓库各自的Git分支／PR合并，产物通过ZIP恢复。客户端当前实现位于独立Vime仓库；`examples/ios/`及旧ZIP仅为历史参考。流程见[跨平台管理](reference/artifact-exchange.md)，V2导入记录位于`outputs/maintenance/mac-return-20261008/import-report.json`。
+源码通过两个仓库各自的Git分支／PR合并，产物通过ZIP恢复。客户端当前实现位于独立Vime仓库；`examples/ios/`及旧ZIP仅为历史参考。流程见[跨平台管理](artifact-exchange.md)，V2导入记录位于`outputs/maintenance/mac-return-20261008/import-report.json`。
 
 ## 来源与环境
 

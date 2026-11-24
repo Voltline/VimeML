@@ -43,11 +43,11 @@ All v2 models share v1's 12,288-piece tokenizer. The prompt is the text before t
 | … full pinyin / mixed / all initials | 81.6 / 23.7 / 9.2 | 82.6 / 47.4 / 22.2 | **84.4 / 49.8 / 24.7** |
 | `ime-pinyin-zh-colloq-v1-r1` test, 4,560 colloquial inputs | — | 39.0% | **42.3%** |
 
-On the Standard blind full-pinyin rerank of Rime candidates, v2-20m scores 94.3% against v1's 93.8% (net +7, p 0.31). Reports: [v2-20m confirmation](docs/reports/zh-v2-confirmation-20261120/report.md), [colloquial confirmation](docs/reports/zh-colloq-confirmation-20261123/report.md), [release scope](docs/release-zh-v2-plan.md).
+On the Standard blind full-pinyin rerank of Rime candidates, v2-20m scores 94.3% against v1's 93.8% (net +7, p 0.31). Reports: [v2-20m confirmation](docs/zh/reports/zh-v2-confirmation-20261120/report.md), [colloquial confirmation](docs/zh/reports/zh-colloq-confirmation-20261123/report.md), [release scope](docs/zh/release-zh-v2-plan.md).
 
-On the phone, v2-20m runs as one batched-KV Core ML INT8 package (23.3 MB). In the Vime client it reranks Rime candidates and predicts by default; sentence generation is behind a development switch until key-by-key generation is fast enough on older phones. Measured with `kd-cont`, which has the same shape and package: Rime rerank p50 4.1 ms on an iPhone 13 Pro and 3.0 ms on an iPhone 16 Pro Max; one-shot generation 91 and 59 ms ([iPhone report](docs/reports/mac-20261121/zh-v2-20m.md), [c40 Mac result](docs/reference/mac-zh-v2-20m-colloq.md)).
+On the phone, v2-20m runs as one batched-KV Core ML INT8 package (23.3 MB). In the Vime client it reranks Rime candidates and predicts by default; sentence generation is behind a development switch until key-by-key generation is fast enough on older phones. Measured with `kd-cont`, which has the same shape and package: Rime rerank p50 4.1 ms on an iPhone 13 Pro and 3.0 ms on an iPhone 16 Pro Max; one-shot generation 91 and 59 ms ([iPhone report](docs/zh/reports/mac-20261121/zh-v2-20m.md), [c40 Mac result](docs/zh/mac/mac-zh-v2-20m-colloq.md)).
 
-The desktop models run in PyTorch. With CUDA graphs in FP16 on a laptop GPU, the 200M takes 83/205 ms p50/p95 per input, including search and rescoring ([desktop latency](docs/reports/zh-desktop-latency-20261118/report.md)). On the public pinyin test it reaches 54.7% (full pinyin 86.5%), and its Standard rerank is 95.2% against v1's 93.8% ([200M confirmation](docs/reports/zh-v2-200m-confirmation-20261123/report.md)). The 800M (second architecture, chosen over the first on development: [arch2 evaluation](docs/reports/zh-800m-arch2-eval-20261123/report.md)) reaches 63.3% on the same test (full pinyin 88.7%), 8.6 points above the 200M, with a Standard rerank of 95.3% ([800M confirmation](docs/reports/zh-v2-800m-confirmation-20261124/report.md)).
+The desktop models run in PyTorch. With CUDA graphs in FP16 on a laptop GPU, the 200M takes 83/205 ms p50/p95 per input, including search and rescoring ([desktop latency](docs/zh/reports/zh-desktop-latency-20261118/report.md)). On the public pinyin test it reaches 54.7% (full pinyin 86.5%), and its Standard rerank is 95.2% against v1's 93.8% ([200M confirmation](docs/zh/reports/zh-v2-200m-confirmation-20261123/report.md)). The 800M (second architecture, chosen over the first on development: [arch2 evaluation](docs/zh/reports/zh-800m-arch2-eval-20261123/report.md)) reaches 63.3% on the same test (full pinyin 88.7%), 8.6 points above the 200M, with a Standard rerank of 95.3% ([800M confirmation](docs/zh/reports/zh-v2-800m-confirmation-20261124/report.md)).
 
 ### v1: candidate reranking
 
@@ -63,7 +63,7 @@ Blind exact Top-1 on `ime-standard-zh-v1-r1` (CrossWOZ, RiSAWOZ, KdConv dialogue
 | rime-ice + Wanxiang grammar model | 82.2% | 15.7% |
 | rime-ice (candidate pool source) | 72.2% | 14.6% |
 
-The preregistered confirmation against Rime passed (+329/−19, p = 3.6e-74). Reports (Chinese): [plan](docs/zh-CN/training-zh-v1-plan.md), [training](docs/zh-CN/reports/zh-v1-20261110/training.md), [blind and baselines](docs/zh-CN/reports/zh-v1-20261111/blind-and-baselines.md), [iOS release](docs/zh-CN/reports/zh-v1-20261111/ios-release.md).
+The preregistered confirmation against Rime passed (+329/−19, p = 3.6e-74). Reports (Chinese): [plan](docs/zh-CN/zh/training/training-zh-v1-plan.md), [training](docs/zh-CN/zh/reports/zh-v1-20261110/training.md), [blind and baselines](docs/zh-CN/zh/reports/zh-v1-20261111/blind-and-baselines.md), [iOS release](docs/zh-CN/zh/reports/zh-v1-20261111/ios-release.md).
 
 ## Japanese
 
@@ -80,7 +80,7 @@ Exact Top-1 on fixed AzooKey candidate pools (Standard labels are AI-reviewed):
 
 V4.2 and V2.1 are not significantly different. On the preregistered Standard v2 blind, V4.2 scores 598/729 against 576 (author-cluster p = 0.0508, just short of the threshold). V3, V4-B, V4.1, V4.3, V5 and the WSD runs are completed experiments that did not replace V4.2. V5 lowers validation BPC by 0.10 without moving IME Top-1. V4.4 measured the seed noise band (Standard 501–523), and a four-seed ensemble reached 619 on the blind.
 
-The Japanese line was paused for the Chinese work and resumes next. Details: [evaluation](docs/evaluation.md), [V4.2 training](docs/training-v42.md), [V4.2 Core ML](docs/reports/mac-20261020/v42-coreml.md), [V4.4 ablation](docs/training-v44.md), [confirmation results (Chinese)](docs/zh-CN/benchmarks/confirmation-v2-results-20261021.md).
+The Japanese line was paused for the Chinese work and resumes next. Details: [evaluation](docs/ja/evaluation.md), [V4.2 training](docs/ja/training/training-v42.md), [V4.2 Core ML](docs/ja/reports/mac-20261020/v42-coreml.md), [V4.4 ablation](docs/ja/training/training-v44.md), [confirmation results (Chinese)](docs/zh-CN/ja/benchmarks/confirmation-v2-results-20261021.md).
 
 ## Installation
 
@@ -101,10 +101,10 @@ To run a released model, use the Hugging Face bundle on its own: each one includ
 | Path | Contents |
 | --- | --- |
 | `src/vimeml/` | Corpus processing, tokenization, training, evaluation and deployment |
-| `scripts/` | Command-line entry points by subsystem |
-| `configs/` | Versioned experiment and data configurations |
+| `scripts/` | Command-line entry points: `zh/` and `ja/` per language line, `common/` shared, each split by subsystem |
+| `configs/` | Versioned experiment and data configurations, in `zh/` and `ja/` |
 | `requirements/` | Extra dependency pins |
-| `docs/` | English documentation and dated experiment records |
+| `docs/` | English documentation and dated experiment records, in `zh/` and `ja/` |
 | `docs/zh-CN/` | Chinese documentation; the reference text for plans registered in Chinese |
 | `examples/ios/` | Core ML probe, SentencePiece bridge, historical client integration |
 | `templates/` | Artifact exchange templates |
