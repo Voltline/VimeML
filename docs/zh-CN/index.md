@@ -6,7 +6,7 @@
 
 - **中文**：`vimeml-zh-v2-20m`（`colloq-c40`）已发布在 [Voltline/vimeml-zh-v2](https://huggingface.co/Voltline/vimeml-zh-v2)：test 精确 Top-1 公开拼音 51.4%、口语拼音 42.3%，线上 v1 路径为 31.0%。Vime 默认用它做重排和联想，整句生成放在开发开关后面；vimeml-tiny-zh-v1 继续发布，作为回退。
   - `vimeml-zh-v2-200m`（桌面）2026-11-23 test 确认通过：公开拼音 54.7%，Standard 重排 95.2%；同日发布到 v2 仓库的 `200m/`。
-  - `vimeml-zh-v2-800m`（桌面）：第二版架构（arch2）在开发集上取代第一版（重打分 Top-1 65.9% 对 65.3%，Standard 持平，联想 Top-3 0.360 对 0.339）；test 确认已补登。
+  - `vimeml-zh-v2-800m`（桌面）：第二版架构（arch2）在开发集上取代第一版（重打分 Top-1 65.9% 对 65.3%，Standard 持平，联想 Top-3 0.360 对 0.339）。2026-11-24 test 确认通过：63.3%，200M 为 54.7%（p 5e-5），全拼 88.7%，Standard 重排 95.3%（[报告](reports/zh-v2-800m-confirmation-20261124/report.md)）。
 - **日文**：当前部署 V4.2 第 20 轮 / INT8 block32，替换了 V2.1 extend5 step40000，V1 保留作基线。V4.4 测出 seed 噪声带；V4.5 蒸馏已注册未执行。日文线接下来恢复。总体取舍见[V2系列总结](reports/v2-summary.md)。
 
 ## 中文线
@@ -30,7 +30,7 @@
 | [vimeml-tiny-zh-v1 blind 确认计划](benchmarks/confirmation-zh-v1-plan.md) | 预注册：选定 `12k-fresh-s1`，在 blind 全拼上对比 Rime，只运行一次；2026-11-11 已执行，通过 |
 | [vimeml-tiny-zh-v1 对照基线计划](benchmarks/baselines-zh-v1-plan.md) | 预注册：雾凇、雾凇 + 万象语法模型、朙月拼音、Qwen2.5-0.5B、Qwen3-0.6B-Base，development 与 blind（参考测试） |
 | [vimeml-tiny-zh-v1 blind 确认与对照基线](reports/zh-v1-20261111/blind-and-baselines.md) | blind 全拼 Top-1 93.8%（Rime 72.3%），确认通过；胜过 Qwen2.5-0.5B（91.8%）、Qwen3-0.6B（89.2%）、雾凇 + 万象（82.2%）、朙月（68.9%） |
-| [vimeml-zh-v2 test 确认计划](benchmarks/confirmation-zh-v2-plan.md) | 预注册：v2-20m（`kd-cont`）在公开拼音 test 上对比线上逻辑（Rime 16 句 + v1 重排），带全拼和 Standard 守卫；v2-200m 对比 v2-20m；各运行一次。v2-20m 2026-11-20 通过（[报告](reports/zh-v2-confirmation-20261120/report.md)）；之后 `colloq-c40` 替换 `kd-cont` 成为 v2-20m；v2-200m 2026-11-23 通过：49.1 → 54.7（+343/−150，p 5e-5），Standard 对 v1 净 +21（p 0.002）（[报告](reports/zh-v2-200m-confirmation-20261123/report.md)） |
+| [vimeml-zh-v2 test 确认计划](benchmarks/confirmation-zh-v2-plan.md) | 预注册：v2-20m（`kd-cont`）在公开拼音 test 上对比线上逻辑（Rime 16 句 + v1 重排），带全拼和 Standard 守卫；v2-200m 对比 v2-20m；各运行一次。v2-20m 2026-11-20 通过（[报告](reports/zh-v2-confirmation-20261120/report.md)）；之后 `colloq-c40` 替换 `kd-cont` 成为 v2-20m；v2-200m 2026-11-23 通过：49.1 → 54.7（+343/−150，p 5e-5），Standard 对 v1 净 +21（p 0.002）（[报告](reports/zh-v2-200m-confirmation-20261123/report.md)）；v2-800m（补登）2026-11-24 通过：对 v2-200m 54.7 → 63.3（+429/−134，p 5e-5），Standard 对 v1 净 +22（p 0.002）（[报告](reports/zh-v2-800m-confirmation-20261124/report.md)） |
 | [口语候选 test 确认计划](benchmarks/confirmation-zh-colloq-plan.md) / [结果](reports/zh-colloq-confirmation-20261123/report.md) | 预注册：colloq-c40 在口语拼音 test 上对比 `kd-cont`，带公开拼音（第二次使用）、全拼和 Standard 守卫。2026-11-23 通过：口语 39.0 → 42.3（+217/−69，p 5e-5），公开 49.1 → 51.4；c40 成为 v2-20m |
 
 ### 20M 路线：v1 到 v2-20m
@@ -64,6 +64,7 @@
 | [zh-800m 训练计划](training-zh-800m-plan.md) | 预注册：d1536/L27、7.84 亿参数、12K 分词器、上下文 512；export-r1 全部 + export-r2 一遍，LCCC 2%，每更新 2048 窗口 |
 | [zh-800m arch1 评测](../reports/zh-800m-eval-20261120/report.md)（英文） | 2026-11-20，只用开发集：联想轨道 A Top-3 0.3394（200M 0.3164），拼音重打分 Top-1 65.3%（200M 57.3%，v1 LM 模式 52.6%），Standard 对 v1 净 +26；没有长片段逐字背诵 |
 | [zh-800m arch2 评测与判定](reports/zh-800m-arch2-eval-20261123/report.md) | 2026-11-23，只用开发集：拼音重打分 Top-1 65.9%，arch1 65.3%（p 0.49）；Standard 94.99% 对 95.40%（净 −6，p 0.29）；arch2 取代 arch1；联想轨道 A Top-3 0.3604 对 0.3394（p 5e-5）；20 个测点 BPC 全部更低 |
+| [vimeml-zh-v2-800m test 确认](reports/zh-v2-800m-confirmation-20261124/report.md) | 2026-11-24 通过：自重打分 Top-1 63.3%，v2-200m 为 54.7%（+429/−134，p 5e-5），全拼 88.7%，全首字母 38.0%；Standard 重排 95.3%，对 v1 净 +22 |
 | [zh-800m 第二版架构（arch2）](training-zh-800m-arch2-plan.md) | 正式训练 k = 4，学习率同 arch1（3e-4 → 3e-5，前置检查对照轮定）：d1792/L23、Q 28 × 64 + KV 7 × 64（GQA）、RoPE、QK-norm，7.77 亿参数；多个段落窗口打包进 2048 长的行，段内因果 mask，数据和顺序与 arch1 相同，批量加大到 4 倍（200M 前置检查定，8 倍未试），不用 FP8；先定位瓶颈（通信/主机/计算）再动手；目标一遍 1.5 天以内，质量不低于 arch1 |
 
 ### Core ML 与部署
