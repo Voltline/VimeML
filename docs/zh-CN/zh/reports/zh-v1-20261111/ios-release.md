@@ -1,6 +1,6 @@
 # vimeml-tiny-zh-v1 Mac 交接结果核对与 iOS 发布（2026-11-11）
 
-Mac 端完成了 Core ML 转换、INT8 量化、量化方案调查和 Mac 实测，过程和全部数字见 [Mac 报告](../../../../zh/reports/mac-20261111/zh-v1-coreml.md)（英文）。本文做三件事：在 Windows 上独立核对交接包，分析结果，记录发布到 Hugging Face 的内容。这一版将部署到 iOS。
+Mac 端完成了 Core ML 转换、INT8 量化、量化方案调查和 Mac 实测，过程和全部数字见 [Mac 报告](../mac-20261111/zh-v1-coreml.md)。本文做三件事：在 Windows 上独立核对交接包，分析结果，记录发布到 Hugging Face 的内容。这一版将部署到 iOS。
 
 交接包 `vimeml-zh-v1-mac-results-20261111.zip`，SHA256 `0a97da02650bbbd9a4e32f4ec8f389047c4026b29666470649f9cc7af191b3bf`，171 个文件。只用到 development；blind 没有再读。
 

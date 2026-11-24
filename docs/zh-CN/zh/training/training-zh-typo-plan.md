@@ -142,7 +142,7 @@ taskScore(句子) = log P(输出 + EOS | [2,4] + 上下文 + [5] + 实际按键 
 
 ## 结果（2026-11-19）
 
-**20M 的 typo 臂没有通过**（[报告](../../../zh/reports/zh-typo-eval-20261119/report.md)）。
+**20M 的 typo 臂没有通过**（[报告](../reports/zh-typo-eval-20261119/report.md)）。
 
 - 主指标：typo 臂用 task 规则的 typo @2 是 32.2，对照用 LM 规则（margin 3）是 34.3（−2.2，p = 0.0001）。错字训练把 task 规则从 13.0 提到了 32.2，但没有超过 LM 规则；LM 规则在 v1、r3-ctrl 和 typo 臂上都是 34.0–34.3。
 - 守门指标都通过：自评分 Top-1 54.2 对 54.6，Standard 0.9354 对 v1 的 0.9361，clean 误显示 9.7 对 14.2。

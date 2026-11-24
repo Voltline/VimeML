@@ -61,4 +61,4 @@ test 上 v2-20m 低了 5.7 个点，线上逻辑只低了 1.4 个点，所以差
 ## 接下来
 
 - v2-200m 按同一计划运行，对照是 v2-20m 在 test 上的这次结果。
-- v2-20m 的 Core ML 构建和 Vime 接入见 [mac-zh-v2-20m.md](../../../../zh/mac/mac-zh-v2-20m.md)。
+- v2-20m 的 Core ML 构建和 Vime 接入见 [mac-zh-v2-20m.md](../../mac/mac-zh-v2-20m.md)。

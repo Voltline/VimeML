@@ -4,7 +4,7 @@
 
 V2未压缩对齐通过，INT8严格logits对齐失败；AJIMEE144/200、原dev122/137保持命中数，扩大草稿1487→1481/2000。INT8包14.33MB，真实扩展内核footprint峰值34.72MiB、私有驻留采样峰值73.78MiB；UI发布最大约1.93秒，原因未定位。代码合并和本次候选验证不等于正式发布或长期设备验收。
 
-V4.2第20轮已完成FP32/INT8的stateless、单token KV与分段KV转换，并在Vime中通过模拟器与iPhone 16 Pro Max功能测试，现已替换V2.1成为部署版本。V4.2 INT8包17.16 MB，严格对齐失败（T=128最大0.477、平均0.0495，约为V2.1 INT8的一半），四组Top-1为522/371/139/123（V2.1 INT8同环境506/375/144/122）。iPhone测试宿主中predict每次慢0.16–0.35 ms，重排p95 120.9对136.8 ms，峰值footprint 44.35对49.95 MB；键盘扩展未测。详见[V4.2 Core ML报告（英文）](../../ja/reports/mac-20261020/v42-coreml.md)。
+V4.2第20轮已完成FP32/INT8的stateless、单token KV与分段KV转换，并在Vime中通过模拟器与iPhone 16 Pro Max功能测试，现已替换V2.1成为部署版本。V4.2 INT8包17.16 MB，严格对齐失败（T=128最大0.477、平均0.0495，约为V2.1 INT8的一半），四组Top-1为522/371/139/123（V2.1 INT8同环境506/375/144/122）。iPhone测试宿主中predict每次慢0.16–0.35 ms，重排p95 120.9对136.8 ms，峰值footprint 44.35对49.95 MB；键盘扩展未测。详见[V4.2 Core ML报告](reports/mac-20261020/v42-coreml.md)。
 
 V2系列实验完成，当前INT8质量损失和UI长尾可接受；数值对齐失败仍按原阈值记录。量化机制、同池分差与配对统计见[量化分析](reports/mac-20261008/v21-quantization-review.md)。
 

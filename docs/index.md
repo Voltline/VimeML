@@ -154,6 +154,6 @@ Mac briefs, the task descriptions handed to the macOS session (each report above
 
 [FP32 results](ja/reference/results.md), [Core ML measurements](ja/reference/coreml-v1.md), [simulator memory](ja/reports/mac-20261006/simulator-memory.md), [real keyboard extension](ja/reports/mac-20261006/iphone-keyboard-memory.md), [artifact import](ja/reports/mac-20261006/handoff.md), and [merge verification](ja/reports/mac-20261006/merge-verification.md).
 
-Methods: [corpus pipeline](ja/reference/data-pipeline.md), [AJIMEE export](ja/reference/ajimee-benchmark.md), [development generation](ja/reference/development-generation.md), [hybrid ranking](ja/reference/hybrid-ranking.md), [phrase demo](ja/reference/phrase-demo.md), and [Chinese prediction page](zh-CN/zh/reference/phrase-demo-zh.md) (Chinese).
+Methods: [corpus pipeline](ja/reference/data-pipeline.md), [AJIMEE export](ja/reference/ajimee-benchmark.md), [development generation](ja/reference/development-generation.md), [hybrid ranking](ja/reference/hybrid-ranking.md), [phrase demo](ja/reference/phrase-demo.md), and [Chinese prediction page](zh/reference/phrase-demo-zh.md).
 
 `history/` preserves pre-measurement [deployment design](ja/history/deployment.md), [conversion commands](ja/history/coreml-guide.md), and [workflow status](ja/history/workflow.md). Historical expectations are distinct from subsequent measurements. Original JSON, candidate-level scores, and traces remain in Git-ignored `outputs/`.
