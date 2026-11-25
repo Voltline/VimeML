@@ -16,6 +16,9 @@ class DualReading:
         from sudachipy import Dictionary, SplitMode
 
         self.mecab = fugashi.Tagger()
+        # fugashi prefers the full `unidic` package when it is installed; readings are pinned to unidic-lite.
+        if "unidic_lite" not in self.mecab.dictionary_info[0]["filename"]:
+            raise RuntimeError("fugashi did not load unidic-lite; uninstall the `unidic` package")
         self.sudachi = Dictionary().create()
         self.mode = SplitMode.C
         self.versions = {
