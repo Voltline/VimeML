@@ -1,0 +1,20 @@
+# Stage A of the Japanese web corpus (ja-gen stage 1.1): rule filter, exact dedup, spam hosts.
+[input]
+dir = "datasets/fineweb-2-jpn-jpan"
+manifest = "datasets/fineweb-2-jpn-jpan/manifest.json"
+
+[rules]
+terms = "configs/ja/ja-filter-terms.toml"
+
+[thresholds]
+min_ja = 100              # fewer Japanese characters (kana + kanji) -> drop (short)
+min_ja_share = 0.4        # Japanese characters / non-space characters below this -> drop (low_ja)
+min_kana_share = 0.15     # kana / Japanese characters below this -> drop (low_kana; Chinese or kanji lists)
+max_repeated_lines = 0.3  # share of line characters in repeated lines above this -> drop (repetitive)
+
+[output]
+dir = "outputs/ja-corpus/stage-a-v1"
+
+[run]
+workers = 14
+batch_rows = 20000

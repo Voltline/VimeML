@@ -1,0 +1,63 @@
+# Term and domain lists for the Japanese corpus quality filter (ja-gen stage 1.1, pilot v1, narrowed after the two-shard pilot of 2026-11-26).
+#
+# Same rules as the Chinese list (configs/zh/zh-filter-terms.toml): a document containing a
+# non-weak term, or two different weak terms, is dropped; one weak term alone sends it to the
+# review queue, which the 200M corpus drops at export. The corpus keeps a small share of
+# FineWeb2 anyway, so the lists favour recall. Matching runs on NFKC-normalized, lower-cased
+# text as plain substrings.
+#
+# Review workflow: run `ja_stage_a.py run --shards 2`, then `ja_stage_a.py terms` for per-term
+# hit counts and context samples; narrow or delete entries that hit ordinary pages.
+
+[categories]
+adult = [
+  "アダルト動画", "アダルトビデオ", "エロ動画", "エロ画像", "エロ漫画", "エロ同人", "エロゲー",
+  "無修正", "無料エロ", "av女優", "av動画", "セックス動画", "中出し", "フェラチオ", "フェラ動画", "クンニ",
+  "手コキ", "パイズリ", "潮吹き", "生ハメ", "ハメ撮り", "痴漢動画", "盗撮動画", "盗撮画像",
+  "素人エロ", "熟女エロ", "人妻エロ", "ロリ動画", "jkエロ", "オナニー", "セフレ募集",
+  "セフレ探し", "出会い系サイト", "割り切り", "パパ活募集", "ライブチャット", "アダルトチャット",
+  "風俗求人", "デリヘル", "ソープランド", "ピンサロ", "おっぱい動画", "エッチな動画", "xvideos",
+  "pornhub", "fc2ppv", "fc2-ppv", "javhd", "missav",
+]
+gambling = [
+  "オンラインカジノ", "ネットカジノ", "カジノボーナス", "入金不要ボーナス",
+  "スロット攻略法", "必勝法カジノ", "ベラジョン", "エルドアカジノ", "ステークカジノ", "bet365",
+  "ライブカジノ", "仮想通貨カジノ", "闇スロ",
+]
+hate = [
+  "チョン共", "チョン猿", "在日チョン", "シナ人", "支那人", "在日朝鮮人は", "朝鮮人死ね", "ゴキブリ朝鮮",
+  "チャンコロ", "部落民", "エタ非人", "穢多", "キチガイ", "基地外",
+]
+spam = [
+  "誰でも簡単に稼げる", "スマホで簡単に稼げる", "月収100万", "月収１００万", "不労所得で",
+  "副業で月", "情報商材", "高額報酬", "ワンクリック詐欺", "コピーブランド",
+  "スーパーコピー", "激安ブランド", "偽ブランド", "n級品", "s級品", "代引き激安",
+  "ブランドコピー", "精力剤通販", "バイアグラ", "シアリス", "レビトラ", "媚薬",
+  "ソフト闇金", "個人間融資", "ブラックでも借りれる", "即日融資可能",
+]
+
+[rules]
+# Everyday words that also appear in junk. They count only when the same document hits a
+# second, different term.
+weak = ["中出し", "オナニー", "割り切り", "ライブチャット", "デリヘル", "キチガイ", "基地外",
+        "高額報酬", "媚薬", "ライブカジノ", "副業で月", "不労所得で", "s級品"]
+
+[domains]
+block_tlds = ["xxx", "adult", "porn", "sex", "sexy", "casino", "bet", "poker"]
+# Hosts dropped outright (suffix match).
+block = [
+  "xvideos.com", "pornhub.com", "xhamster.com", "missav.com", "javhd.com", "fc2-ppv.com",
+  "dmm.co.jp", "dlsite.com", "eroterest.net", "erodouga.com", "ero-video.net",
+  "kakaku-av.com", "javlibrary.com",
+]
+block_tier2 = []
+# Substrings of host names.
+host_terms = ["porn", "xvideo", "hentai", "eroge", "erodouga", "eromanga", "casino"]
+# Sites never listed as spam hosts or farms by `ja_stage_a.py report` (checked by hand on the
+# stage-a-v1 report: personal-homepage hosts, forums, blogs and developer or hobby sites that the
+# letter-digit farm rule caught).
+spam_allow = [
+  "fc2web.com", "fc2-rentalserver.com", "ap2hp.com", "open2ch.net", "fc2bbs.net", "fc2blog.us",
+  "live2d.com", "unity3d.jp", "code4japan.org", "4g63evo.net", "mame2plus.net", "game1wiki.com",
+  "go2westernaustralia.com",
+]

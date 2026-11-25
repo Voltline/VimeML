@@ -132,3 +132,20 @@ V4.1 fell from 505 to 461 on Standard ([V4.1 record](training-v41.md)). In stage
 **Stage 0 done (2026-11-25):** [coverage and baseline report](../reports/ja-gen-stage0-20261125/report.md).
 
 **Freeze record:** `ime-kana-ja-v1` release_id `65a164c1505d4913adf864871143627b`, manifest SHA256 `8d51fc00f6def29cce512e99609d35565ec25ee23a67b5c7c31df143516f9a9d`. Development 600 items (63 authors/users), test 600 (59). Reading dictionaries fugashi 1.5.2 / unidic-lite 1.0.8 / sudachipy 0.7.0 / sudachidict-core 20260723.1. Strata were drawn in rotation; "short × no context" ran out of eligible items at 66 (development) and 65 (test), while every other stratum has 85–125.
+
+**1.1 record (2026-11-25): `ja-gen-export-v1`.**
+
+- **Shards**: FineWeb-2 `data/jpn_Jpan/train/` at revision `af9c1333`, every 8th of the 175 files starting at index 4: 22 files, 82.1 GiB, 49,217,965 documents. Script `scripts/ja/corpus/download_ja_fineweb2.py`.
+- **Stage A** (`scripts/ja/corpus/ja_stage_a.py`, rules `src/vimeml/corpus/ja_filter.py` and `configs/ja/ja-filter-terms.toml`): keep 95.66%, drop 3.78%, review 0.57%. Drop reasons, as a share of all documents: adult terms 2.42, short (under 100 Japanese characters) 0.81, spam terms 0.41, gambling terms 0.19, host terms 0.11, low Japanese share 0.06, hate terms 0.03; the rest are under 0.01 each. Exact duplicates: 56. Spam hosts (at least 20 documents and at least 30% term drops): 12,112. Spam farms: 12 domains, after 13 hand-checked sites (personal-homepage hosts, forums, blogs, developer and hobby sites) were added to `spam_allow`. Sixteen shards ran on this machine and six on a second machine with the same code; on the shard run on both, the outputs are identical.
+- **Export** (`scripts/ja/corpus/ja_export.py`): drops review-queue documents (279,081), duplicates (56), spam-host documents (236,402), spam-farm documents (1,289) and benchmark documents (14,686, deviation D2: 3,766 messages of at least 12 normalized characters from the 27 `evaluation_items.json` files of the Japanese benchmarks, candidate imports included). Result: train 46,804,382 documents and 55.72G Japanese characters; validation 23,310 documents and 27.8M characters (0.05% by id hash); 78 files, 60.3 GB. Manifest SHA256 `e5b5b1b8a06f8f00fd585b18595376ae8c826e4d4b5f25e60b0fb6fe1e8b8af1`. The token count is recorded with the tokenizer (1.4).
+
+**1.2 record (2026-11-25): agreement 94.8%, gate passed.** `scripts/ja/corpus/reading_agreement.py`, seed 20261126, 10,000 sentences of 4–64 characters (V4 LM corpus 4,000, V4.1 chat 2,000, `ja-gen-export-v1` 4,000).
+
+| Source | Typeable share | Whole-reading agreement | Typeable sentences with an unknown word |
+| --- | ---: | ---: | ---: |
+| V4 LM corpus | 64.1% | 95.4% | 5.9% |
+| V4.1 chat | 92.7% | 98.3% | 3.3% |
+| FineWeb-2 export | 60.6% | 91.4% | 8.8% |
+| All | 68.4% | 94.8% | 6.2% |
+
+The most frequent disagreements (UniDic / Sudachi) are 日本・日本人 (ニッポン・ニッポンニン / ニホン・ニホンジン), 人 after a noun (一般人 ニン / ジン), 私 (ワタクシ / ワタシ), 身近 (ミヂカ / ミジカ, the same sound in two kana spellings), 世界中 (チュウ / ジュウ), 土曜日 (ヒ / ビ), お母さん・お父さん (ハハ・チチ / カア・トウ) and 家 (イエ / ウチ). In most of these unidic-lite gives the less common reading, so whole-span agreement keeps such sentences out of the reading samples; 日本人 in particular never becomes a reading sample. The rest is partly symbol handling, not reading: Sudachi reads some symbols as キゴウ, and the two analyzers write ～ and … differently. The build compares readings with symbols removed and ヂ/ヅ folded to ジ/ズ.
