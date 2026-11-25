@@ -118,6 +118,7 @@ Mac briefs, the task descriptions handed to the macOS session (each report above
 | [V4.4 ablation plan](ja/training/training-v44-plan.md) / [results](ja/training/training-v44.md) | Six-arm single-factor ablation: no treatment effective; Standard seed band 501–523 (SD 9.5); exploratory 4-seed ensemble 535 |
 | [V4.5 distillation plan](ja/training/training-v45-plan.md) | Withdrawn 2026-11-25, never run; replaced by the 200M teacher in the generation plan |
 | [Generation line plan (ja-gen)](ja/training/training-ja-gen-plan.md) | 2026-11-25, stages 0–1 registered: new public set `ime-kana-ja-v1` (test sealed), pool coverage, Sudachi/UniDic-agreed readings, 12K tokenizer; then 20M post-training, 200M teacher and distillation, colloquial post-training, confirmation, Vime merge |
+| [ja-gen stage 0](ja/reports/ja-gen-stage0-20261125/report.md) | `ime-kana-ja-v1` frozen (600 + 600); of 98 Standard development pool misses, N-best 100 recovers 40, 58 need generation; V4.2 lenient Top-1 85.2 on the new development set |
 | [IME error decomposition](ja/reports/analysis-20261021/ime-errors.md) | Remaining Top-1 errors: candidate-pool misses, notation variants, few semantic errors |
 | [Training-free rescoring](ja/reports/analysis-20261021/rescoring.md) | PMI, length and engine-score fusion; none passes held-out tracks |
 

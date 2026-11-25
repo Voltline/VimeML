@@ -123,4 +123,12 @@ V4.1 fell from 505 to 461 on Standard ([V4.1 record](training-v41.md)). In stage
 
 ## Deviations
 
-(none yet)
+**D1 (2026-11-25, 0.2 sources): document-level instead of author-level exclusion.** All 60 WRIME authors and 64 of the 65 JMultiWOZ users had already entered an earlier benchmark or draft candidate pool, so author-level exclusion is not feasible. Instead, every post and dialogue in any earlier Japanese benchmark, draft, review copy or candidate import under `artifacts/benchmarks` is excluded (19 files, 8,000 documents), as is any (left context, reading) pair equal to an earlier item. Development and test are split by a seeded draw of authors and users (WRIME 30/30, JMultiWOZ 33/32), so the two splits share no author; both share authors with earlier sets. Each split has 600 items (WRIME 400 + JMultiWOZ 200). Build script `scripts/ja/benchmarks/prepare_kana_ime_ja.py`, seed 20261125.
+
+**D2 (2026-11-25, 0.2 overlap check): freeze now, deduplicate on the training side in stage 1.** The freeze scanned the existing Japanese training text: the `corpus-fast-v1` training set (25.18M lines) and `corpus-v41-chat` (482K sentences). 45 items matched and were removed before selection. Text added in stage 1 (FineWeb-2 and others) does not change the frozen set. Instead, training documents that overlap a message of this set are dropped at build time, using the same scan, and the count is recorded under stage 1. Messages shorter than 12 normalized characters are not scanned.
+
+**D3 (2026-11-25, 0.2 metric definition, clarification):** notation-lenient judging calls `notation.relation` between the candidate and each accepted answer; `=` or `A` counts as correct. A notation variant counts even when no answer is in the AzooKey pool, which generated candidates (outside the pool) require. The older `notation.error_class` counted such cases as pool misses, so lenient figures on this page run slightly higher than in earlier reports.
+
+**Stage 0 done (2026-11-25):** [coverage and baseline report](../reports/ja-gen-stage0-20261125/report.md).
+
+**Freeze record:** `ime-kana-ja-v1` release_id `65a164c1505d4913adf864871143627b`, manifest SHA256 `8d51fc00f6def29cce512e99609d35565ec25ee23a67b5c7c31df143516f9a9d`. Development 600 items (63 authors/users), test 600 (59). Reading dictionaries fugashi 1.5.2 / unidic-lite 1.0.8 / sudachipy 0.7.0 / sudachidict-core 20260723.1. Strata were drawn in rotation; "short × no context" ran out of eligible items at 66 (development) and 65 (test), while every other stratum has 85–125.
