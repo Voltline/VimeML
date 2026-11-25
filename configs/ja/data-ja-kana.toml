@@ -1,0 +1,35 @@
+# ja-gen stage 1.3: text-level reading samples (span / sentence) for the ja-kana-v1 stores.
+# Built by scripts/ja/corpus/kana_samples.py; encoding into the 12K token store is stage 1.5.
+label = "ja-kana-v1"
+output_dir = "outputs/ja-corpus/kana-samples-v1"
+table = "configs/ja/ja-reading-table.tsv"
+web_dir = "outputs/ja-corpus/export-v1"
+lm_dir = "outputs/corpus-fast-v1"
+workers = 16
+web_row_groups_per_job = 6
+lm_bytes_per_job = 67108864
+
+# One reading sample per paragraph (web: one line of a document; lm: one line; chat: one
+# utterance), kind drawn 3:2, the per-update mix span 192 / sentence 128.
+kind_weights = { span = 3, sentence = 2 }
+# Paragraphs selected per source. The web export has about 26 paragraphs per document (1.2G in
+# all); half of them give about 330M samples, over one pass of a zh-200M-sized budget (845K
+# updates x 320 reading samples). The V4 LM corpus and the chat bank are read in full.
+fractions = { web = 0.5, lm = 1.0, chat = 1.0 }
+
+[sample]
+# Same limits as Standard / ime-kana-ja-v1: target 4-40 characters, reading 4-64 kana,
+# left context the same paragraph, at most 64 characters (cut on the left).
+target_chars = [4, 40]
+reading_chars = [4, 64]
+context_chars = 64
+# span: a typeable run of 6-100 characters containing kanji (Standard rule); the target starts
+# at a word that is not a particle, auxiliary, suffix or symbol and not inside a prefix or
+# noun-noun compound, ends at the run end with this probability, else before a random later
+# word of that kind (both dictionaries sharing the boundary).
+run_chars = [6, 100]
+end_at_run_end_probability = 0.5
+runs_tried = 3
+# sentence: a whole typeable sentence (split at 。！？ and line ends) starting at such a word,
+# no context.
+sentences_tried = 3

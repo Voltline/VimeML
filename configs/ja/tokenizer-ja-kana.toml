@@ -1,0 +1,24 @@
+# ja-gen stage 1.4: the 12K tokenizer of the ja-kana-v1 models (scripts/ja/tokenizer/train_kana.py).
+# Unigram 12,288 with the zh reserved ids (pad 0, unk 1, bos 2, eos 3, <CTX> 4, <READ> 5, <OUT> 6,
+# newline 7, 256 byte pieces) and the SentencePiece settings of the zh 12K tokenizer.
+export_dir = "outputs/ja-corpus/export-v1"
+lm_dir = "outputs/corpus-fast-v1"
+samples_dir = "outputs/ja-corpus/kana-samples-v1"
+output_dir = "artifacts/tokenizers/ja-kana-v1"
+seed = 20261128
+# Training lines: web paragraphs (equal quota per FineWeb-2 shard, documents drawn uniformly,
+# zh sample_shard), V4 LM lines, V4.1 chat utterances, and hiragana readings of train reading
+# samples (span and sentence, in their store proportion) so that readings, a fifth of the lines,
+# get their own pieces.
+web_lines = 1200000
+lm_lines = 300000
+chat_lines = 80000
+reading_lines = 400000
+max_line_bytes = 16384
+vocab_size = 12288
+character_coverage = 0.9995
+# Every hiragana and katakana is a piece of its own, however rare (ゎ, ゐ, ヮ, ヵ, ヷ).
+required_chars = "ぁあぃいぅうぇえぉおかがきぎくぐけげこごさざしじすずせぜそぞただちぢっつづてでとどなにぬねのはばぱひびぴふぶぷへべぺほぼぽまみむめもゃやゅゆょよらりるれろゎわゐゑをんゔゕゖゝゞァアィイゥウェエォオカガキギクグケゲコゴサザシジスズセゼソゾタダチヂッツヅテデトドナニヌネノハバパヒビピフブプヘベペホボポマミムメモャヤュユョヨラリルレロヮワヰヱヲンヴヵヶヷヸヹヺーヽヾ"
+control_symbols = ["<CTX>", "<READ>", "<OUT>"]
+user_defined_symbols = ["\n"]
+num_threads = 16
