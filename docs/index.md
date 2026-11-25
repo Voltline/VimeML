@@ -9,7 +9,7 @@ Primary documents are English; [Chinese documentation](zh-CN/index.md) mirrors t
 - **Chinese.** `vimeml-zh-v2-20m` (`colloq-c40`) is released in [Voltline/vimeml-zh-v2](https://huggingface.co/Voltline/vimeml-zh-v2): test Top-1 51.4% on public pinyin and 42.3% on colloquial pinyin, against 31.0% for the shipped v1 path. In the Vime client it reranks and predicts by default; sentence generation is behind a development switch. vimeml-tiny-zh-v1 stays released as the fallback.
   - `vimeml-zh-v2-200m` (desktop) passed its test confirmation on 2026-11-23: public pinyin 54.7%, Standard rerank 95.2%; released the same day in `200m/` of the v2 repository.
   - `vimeml-zh-v2-800m` (desktop): the second architecture (arch2) replaced the first on development (rescored Top-1 65.9% vs 65.3%, Standard level, prediction Top-3 0.360 vs 0.339). Confirmed on test 2026-11-24: 63.3% against the 200M's 54.7% (p 5e-5), full pinyin 88.7%, Standard rerank 95.3% ([report](zh/reports/zh-v2-800m-confirmation-20261124/report.md)); released the same day in `800m/` of the v2 repository.
-- **Japanese.** V4.2 epoch 20 / INT8 block-32 is deployed; it replaced V2.1 `extend5` step 40,000, and V1 is the baseline. V4.4 measured the seed noise band; V4.5 distillation is registered but not run. The Japanese line resumes next.
+- **Japanese.** V4.2 epoch 20 / INT8 block-32 is deployed; it replaced V2.1 `extend5` step 40,000, and V1 is the baseline. V4.4 measured the seed noise band; V4.5 distillation was withdrawn. The line resumes with [kana → text generation](ja/training/training-ja-gen-plan.md): one 20M model generates, reranks and predicts, and Vime merges its candidates with AzooKey's.
 
 ## Model, data, and runtime
 
@@ -116,7 +116,8 @@ Mac briefs, the task descriptions handed to the macOS session (each report above
 | [V5 scale-up pretraining](ja/training/training-v5.md) | d512/L8 (28.4M) vs V4.3: LM BPC −0.10, IME Top-1 unchanged; not deployed |
 | [WSD schedule runs](ja/training/training-wsd.md) | V4.2 and V5 for 50 epochs with warmup-stable-decay: best BPC at each size, IME Top-1 unchanged; not deployed |
 | [V4.4 ablation plan](ja/training/training-v44-plan.md) / [results](ja/training/training-v44.md) | Six-arm single-factor ablation: no treatment effective; Standard seed band 501–523 (SD 9.5); exploratory 4-seed ensemble 535 |
-| [V4.5 distillation plan](ja/training/training-v45-plan.md) | Registered, not run; the Japanese line resumes next |
+| [V4.5 distillation plan](ja/training/training-v45-plan.md) | Withdrawn 2026-11-25, never run; replaced by the 200M teacher in the generation plan |
+| [Generation line plan (ja-gen)](ja/training/training-ja-gen-plan.md) | 2026-11-25, stages 0–1 registered: new public set `ime-kana-ja-v1` (test sealed), pool coverage, Sudachi/UniDic-agreed readings, 12K tokenizer; then 20M post-training, 200M teacher and distillation, colloquial post-training, confirmation, Vime merge |
 | [IME error decomposition](ja/reports/analysis-20261021/ime-errors.md) | Remaining Top-1 errors: candidate-pool misses, notation variants, few semantic errors |
 | [Training-free rescoring](ja/reports/analysis-20261021/rescoring.md) | PMI, length and engine-score fusion; none passes held-out tracks |
 

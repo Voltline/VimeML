@@ -1,6 +1,6 @@
 # V4.5 ensemble distillation (preregistered)
 
-> **Status: registered, not run.** No student was trained; the Japanese line paused when work moved to the Chinese model. V4.2 epoch 20 remains the deployed Japanese model. The plan is kept as written in case the line resumes.
+> **Status: withdrawn 2026-11-25, never run.** No student was trained. The Japanese line resumed with the [generation plan](training-ja-gen-plan.md), where a 200M Japanese teacher replaces the seed ensemble: the ensemble's ceiling is about +21 on Standard, while 98 of 728 development items are outside the candidate pool and only generation can recover them. V4.2 epoch 20 remains the deployed Japanese model. The plan is kept as written.
 
 Registered 2026-11-05 and committed before any student started training. V4.5 asks one question: if the ensemble of four V4.2-recipe seeds is distilled into one 15M model with the same deployment cost as V4.2, how much of the ensemble's IME gain survives?
 

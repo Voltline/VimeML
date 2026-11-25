@@ -9,7 +9,7 @@
 - **中文**：`vimeml-zh-v2-20m`（`colloq-c40`）已发布在 [Voltline/vimeml-zh-v2](https://huggingface.co/Voltline/vimeml-zh-v2)：test 精确 Top-1 公开拼音 51.4%、口语拼音 42.3%，线上 v1 路径为 31.0%。Vime 默认用它做重排和联想，整句生成放在开发开关后面；vimeml-tiny-zh-v1 继续发布，作为回退。
   - `vimeml-zh-v2-200m`（桌面）2026-11-23 test 确认通过：公开拼音 54.7%，Standard 重排 95.2%；同日发布到 v2 仓库的 `200m/`。
   - `vimeml-zh-v2-800m`（桌面）：第二版架构（arch2）在开发集上取代第一版（重打分 Top-1 65.9% 对 65.3%，Standard 持平，联想 Top-3 0.360 对 0.339）。2026-11-24 test 确认通过：63.3%，200M 为 54.7%（p 5e-5），全拼 88.7%，Standard 重排 95.3%（[报告](zh/reports/zh-v2-800m-confirmation-20261124/report.md)）；同日发布到 v2 仓库的 `800m/`。
-- **日文**：当前部署 V4.2 第 20 轮 / INT8 block32，替换了 V2.1 extend5 step40000，V1 保留作基线。V4.4 测出 seed 噪声带；V4.5 蒸馏已注册未执行。日文线接下来恢复。总体取舍见[V2系列总结](ja/reports/v2-summary.md)。
+- **日文**：当前部署 V4.2 第 20 轮 / INT8 block32，替换了 V2.1 extend5 step40000，V1 保留作基线。V4.4 测出 seed 噪声带；V4.5 蒸馏已撤下。日文线按[假名 → 文字生成路线](ja/training/training-ja-gen-plan.md)恢复：一个 20M 模型同时生成、重排和预测，Vime 把它的候选与 AzooKey 的合并。总体取舍见[V2系列总结](ja/reports/v2-summary.md)。
 
 ## 中文线
 
@@ -133,7 +133,8 @@ Mac 任务说明（交给 macOS 会话的任务书，上面每份报告对应其
 | WSD 调度实验 | [V4.2-50ep 与 V5-50ep 的设计、曲线与结论](ja/training/training-wsd.md)：BPC 3.0328 / 2.9317（各规模最佳），IME Top-1 无提升，不部署 |
 | V4.4 消融（预注册） | [V4.2 配方上的六臂单因素实验](ja/training/training-v44-plan.md)：三个 seed 重复测 run 间噪声，聊天 0 / 10%，prefix crop 0.60；只评第 20 轮 |
 | V4.4 消融结果 | [seed 噪声带与处理臂判定](ja/training/training-v44.md)：处理臂均无效（去掉聊天变差）；Standard seed 带 501–523，V4.2 在顶端，此前单 seed 差异都在带内；探索性四 seed 集成 535 |
-| V4.5 集成蒸馏（预注册） | [四 seed 集成蒸馏进 15M student](ja/training/training-v45-plan.md)（已注册，未执行；日文线接下来恢复）：几何 / 算术两种合并 × 四个孪生 seed，0.5 CE + 0.5 软目标；按 student 减孪生配对判定 |
+| V4.5 集成蒸馏（预注册） | [四 seed 集成蒸馏进 15M student](ja/training/training-v45-plan.md)（2026-11-25 撤下，从未执行；由生成路线中的 200M 老师取代） |
+| 生成路线（ja-gen） | [计划](ja/training/training-ja-gen-plan.md)：2026-11-25 注册第 0–1 阶段：新公开集 `ime-kana-ja-v1`（test 封存）、候选池覆盖率、Sudachi/UniDic 一致读音、12K 词表；之后 20M 后训练、200M 老师与蒸馏、口语后训练、确认、Vime 合并 |
 | IME 错误分解 | [瓶颈不在 LM 容量](ja/reports/analysis-20261021/ime-errors.md)：池外 48%、书写形式 35–44%、语义 8% |
 | 免训练重打分 | [PMI、长度与引擎分融合](ja/reports/analysis-20261021/rescoring.md)：均未通过独立检验，部署保持纯 LM 打分 |
 | V4.2 Apple 部署 | [Core ML、INT8、分段 KV、Mac 与 iPhone 测量](ja/reports/mac-20261020/v42-coreml.md)；Mac 任务说明：[V4.2](ja/mac/mac-v42-coreml.md)、[V4.3](ja/mac/mac-v43-coreml.md) |
