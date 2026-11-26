@@ -196,28 +196,68 @@ def scan(export, output, workers=8, max_groups=0, limit_files=0, only=None):
 
 
 def sample(scan_dir, out, per_band=1000, seed=20261126, split="train"):
+    """Exact uniform reservoir sampling per band, streaming row groups in O(per_band) memory."""
+    import numpy as np
+    import pyarrow as pa
+    import pyarrow.compute as pc
     import pyarrow.parquet as pq
 
-    pools = {name: [] for name, *_ in BANDS}
+    rng = np.random.default_rng(seed)
+    reservoir = {name: [None] * per_band for name, *_ in BANDS}
+    filled = {name: 0 for name, *_ in BANDS}
+    seen = {name: 0 for name, *_ in BANDS}
+    band_names = [name for name, *_ in BANDS]
+
     for p in sorted(Path(scan_dir).glob("*.parquet")):
-        t = pq.read_table(p, columns=["id", "para", "text", "ja", "score", "band", "split"]).to_pylist()
-        for r in t:
-            if r["split"] == split:
-                pools[r["band"]].append(r)
-    rng = random.Random(seed)
+        pf = pq.ParquetFile(p)
+        for g in range(pf.metadata.num_row_groups):
+            meta = pf.read_row_group(g, columns=["band", "split"])
+            split_mask = pc.equal(meta["split"], split)
+            picks = {}  # (band, slot) -> local_row_idx
+            for name in band_names:
+                mask = pc.and_(split_mask, pc.equal(meta["band"], name))
+                idxs = np.nonzero(mask.to_numpy(zero_copy_only=False))[0]
+                m = len(idxs)
+                if m == 0:
+                    continue
+                cur_seen = seen[name]
+                need = min(m, per_band - filled[name])
+                for k in range(need):
+                    picks[(name, filled[name] + k)] = int(idxs[k])
+                filled[name] += need
+                rem = m - need
+                if rem > 0:
+                    base = cur_seen + need
+                    counts = np.arange(base + 1, base + rem + 1, dtype=np.int64)
+                    draws = rng.integers(0, counts)
+                    for h in np.nonzero(draws < per_band)[0]:
+                        picks[(name, int(draws[h]))] = int(idxs[need + int(h)])
+                seen[name] = cur_seen + m
+            if not picks:
+                continue
+            unique_rows = sorted(set(picks.values()))
+            pos_map = {r: i for i, r in enumerate(unique_rows)}
+            payload = pf.read_row_group(g, columns=["id", "para", "text", "score"]).take(pa.array(unique_rows)).to_pylist()
+            for (name, slot), local_idx in picks.items():
+                r = payload[pos_map[local_idx]]
+                reservoir[name][slot] = {
+                    "id": f"{r['id']}#{r['para']}",
+                    "band": name,
+                    "score": round(float(r["score"]), 3),
+                    "text": r["text"],
+                }
+
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
     n = 0
     with open(out, "w", encoding="utf-8", newline="\n") as f:
-        for name, rows in pools.items():
-            chosen = rng.sample(rows, min(per_band, len(rows)))
-            for r in chosen:
-                f.write(json.dumps({"id": f"{r['id']}#{r['para']}", "band": name,
-                                    "score": round(r["score"], 3), "text": r["text"]},
-                                   ensure_ascii=False) + "\n")
+        for name in band_names:
+            chosen = reservoir[name][:filled[name]]
+            for rec in chosen:
+                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
                 n += 1
-            print(name, len(rows), "->", len(chosen))
-    print("wrote", n, out)
+            print(name, seen[name], "->", len(chosen), flush=True)
+    print("wrote", n, out, flush=True)
 
 
 def matrix(texts):
@@ -260,9 +300,31 @@ def _select_file(job):
 
     path, model_path, out, max_groups = job
     model = np.load(model_path)
+    out = Path(out)
+    part_path = out.with_suffix(".parquet.part")
+    final_path = out.with_suffix(".parquet")
+    if part_path.exists():
+        part_path.unlink()
+    schema = pa.schema([
+        ("id", pa.string()),
+        ("para", pa.int64()),
+        ("text", pa.string()),
+        ("ja", pa.int64()),
+        ("p_chat", pa.float32()),
+        ("p_spoken", pa.float32()),
+        ("split", pa.string()),
+    ])
     cols = ("id", "para", "text", "ja", "p_chat", "p_spoken", "split")
     rows, stats, hist = {k: [] for k in cols}, Counter(), [0] * 10
     pending = []
+    writer = pq.ParquetWriter(part_path, schema, compression="zstd")
+
+    def write_chunk():
+        if not rows["id"]:
+            return
+        writer.write_table(pa.table(rows, schema=schema))
+        for k in cols:
+            rows[k].clear()
 
     def flush():
         if not pending:
@@ -278,29 +340,36 @@ def _select_file(job):
                 stats["kept_paragraphs"] += 1
                 stats["kept_ja"] += ja
         pending.clear()
+        if len(rows["id"]) >= 50000:
+            write_chunk()
 
     handle = pq.ParquetFile(path)
     groups = min(handle.metadata.num_row_groups, max_groups or 1 << 30)
-    for group in range(groups):
-        table = handle.read_row_group(group, columns=["id", "text"]).to_pydict()
-        for doc_id, text in zip(table["id"], table["text"]):
-            stats["documents"] += 1
-            split = "heldout" if doc_hash(HELDOUT_LABEL, doc_id) < HELDOUT_FRACTION * TWO64 else "train"
-            for i, raw in enumerate(text.split("\n")):
-                para = raw.strip()
-                if not para:
-                    continue
-                f = features(para)
-                if f is None:
-                    continue
-                stats["paragraphs"] += 1
-                stats["ja"] += f[0]
-                pending.append((doc_id, i, para, f[0], split))
-                if len(pending) >= 20000:
-                    flush()
-    flush()
-    out = Path(out)
-    pq.write_table(pa.table(rows), out.with_suffix(".parquet"), compression="zstd")
+    try:
+        for group in range(groups):
+            table = handle.read_row_group(group, columns=["id", "text"]).to_pydict()
+            for doc_id, text in zip(table["id"], table["text"]):
+                stats["documents"] += 1
+                split = "heldout" if doc_hash(HELDOUT_LABEL, doc_id) < HELDOUT_FRACTION * TWO64 else "train"
+                for i, raw in enumerate(text.split("\n")):
+                    para = raw.strip()
+                    if not para:
+                        continue
+                    f = features(para)
+                    if f is None:
+                        continue
+                    stats["paragraphs"] += 1
+                    stats["ja"] += f[0]
+                    pending.append((doc_id, i, para, f[0], split))
+                    if len(pending) >= 20000:
+                        flush()
+        flush()
+        write_chunk()
+        if stats["kept_paragraphs"] == 0:
+            writer.write_table(pa.table({k: [] for k in cols}, schema=schema))
+    finally:
+        writer.close()
+    part_path.replace(final_path)
     out.with_suffix(".json").write_text(
         json.dumps({"file": Path(path).name, "row_groups": groups, **stats, "ja_by_p_chat_decile": hist}, indent=1),
         encoding="utf-8",
