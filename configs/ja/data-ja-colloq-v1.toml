@@ -6,6 +6,9 @@
 label = "ja-colloq-v1-12k"
 export_dir = "outputs/ja-colloq/export-colloq-v1"
 output_dir = "artifacts/training-data/ja-colloq-v1-12k"
+subset_label = "ja-colloq-v1-p85-12k"
+subset_output_dir = "artifacts/training-data/ja-colloq-v1-p85-12k"
+subset_p_chat_min = 0.85
 tokenizer_dir = "artifacts/tokenizers/ja-kana-v1"
 table = "configs/ja/ja-reading-table.tsv"
 workers = 16

@@ -45,7 +45,7 @@ from vimeml.training.data import write_json  # noqa: E402
 VERSION = "ime-kana-ja-colloq-v1"
 SEED = 20261201
 ROLES = ("development", "test")
-DEFAULT_P_CHAT = 0.7
+DEFAULT_P_CHAT = 0.5
 DEFAULT_SAMPLE_CFG = {
     "target_chars": [4, 30],
     "reading_chars": [4, 64],
@@ -138,6 +138,17 @@ def extract_colloquial_case(record, rng, sample_cfg=DEFAULT_SAMPLE_CFG, analyser
     query_kata = to_katakana(reading_hira)
     doc_id = record["document_id"]
     group_id = record.get("group_id") or doc_id
+    case_id = record.get("case_id") or f"{doc_id}#{record.get('para', 0)}"
+    rule_band = record.get("rule_band")
+    rule_score = record.get("rule_score")
+    if rule_band is None or rule_score is None:
+        f = jc.features(text)
+        if f is not None:
+            rule_band = jc.band(f[2])
+            rule_score = round(float(f[2]), 3)
+        else:
+            rule_band = rule_band or "unknown"
+            rule_score = 0.0
     return {
         "index": "pending",
         "context_text": ctx,
@@ -147,10 +158,13 @@ def extract_colloquial_case(record, rng, sample_cfg=DEFAULT_SAMPLE_CFG, analyser
         "category": record.get("source", "web_colloq"),
         "provenance": {
             "source": record.get("source", "web_colloq"),
+            "case_id": case_id,
             "document_id": doc_id,
             "group_id": group_id,
             "author_id": group_id,
             "role": assign_role(group_id),
+            "rule_band": rule_band,
+            "rule_score": float(rule_score),
             "p_chat": float(record.get("p_chat", 0.0)),
             "p_spoken": float(record.get("p_spoken", 0.0)),
             "colloquial_marker": marker,
@@ -169,7 +183,9 @@ def extract_colloquial_case(record, rng, sample_cfg=DEFAULT_SAMPLE_CFG, analyser
     }, None
 
 
-def load_heldout_records(select_dir, p_chat_min=DEFAULT_P_CHAT, max_pool=0):
+def load_heldout_records(select_dir, p_chat_min=DEFAULT_P_CHAT, per_band_docs=6000, max_pool=0, seed=SEED):
+    """Stream heldout rows with p_chat >= p_chat_min, 1 paragraph/doc, reservoir-sampled per rule band."""
+    import numpy as np
     import pyarrow.compute as pc
     import pyarrow.parquet as pq
 
@@ -178,43 +194,82 @@ def load_heldout_records(select_dir, p_chat_min=DEFAULT_P_CHAT, max_pool=0):
     if not files:
         raise SystemExit(f"No parquet files in {select_dir}")
 
-    records = []
+    band_names = tuple(b for b, *_ in jc.BANDS)
+    rng = np.random.default_rng(seed)
+    reservoirs = {b: [] for b in band_names}
+    seen_band = {b: 0 for b in band_names}
     seen_docs = set()
+
     for path in files:
-        table = pq.read_table(path, columns=["id", "para", "text", "p_chat", "p_spoken", "split"])
-        mask = pc.and_(
-            pc.equal(table["split"], "heldout"),
-            pc.greater_equal(table["p_chat"], p_chat_min),
-        )
-        filtered = table.filter(mask).to_pylist()
-        for row in filtered:
-            doc_id = str(row["id"])
-            if doc_id in seen_docs:
-                continue
-            seen_docs.add(doc_id)
-            records.append({
-                "source": "web_colloq",
-                "document_id": doc_id,
-                "group_id": f"web_colloq:{doc_id}",
-                "text": row["text"],
-                "p_chat": row["p_chat"],
-                "p_spoken": row["p_spoken"],
-            })
-            if max_pool and len(records) >= max_pool:
-                return records
-    return records
+        pf = pq.ParquetFile(path)
+        for g in range(pf.metadata.num_row_groups):
+            t = pf.read_row_group(g, columns=["id", "para", "text", "p_chat", "p_spoken", "split"])
+            mask = pc.and_(
+                pc.equal(t["split"], "heldout"),
+                pc.greater_equal(t["p_chat"], p_chat_min),
+            )
+            filtered = t.filter(mask).to_pylist()
+            for row in filtered:
+                doc_id = str(row["id"])
+                if doc_id in seen_docs:
+                    continue
+                f = jc.features(row["text"])
+                if f is None:
+                    continue
+                seen_docs.add(doc_id)
+                rule_score = round(float(f[2]), 3)
+                band = jc.band(f[2])
+                rec = {
+                    "source": "web_colloq",
+                    "case_id": f"{doc_id}#{row['para']}",
+                    "document_id": doc_id,
+                    "group_id": f"web_colloq:{doc_id}",
+                    "para": int(row["para"]),
+                    "text": row["text"],
+                    "rule_band": band,
+                    "rule_score": rule_score,
+                    "p_chat": float(row["p_chat"]),
+                    "p_spoken": float(row["p_spoken"]),
+                }
+                if per_band_docs <= 0:
+                    reservoirs[band].append(rec)
+                    if max_pool and sum(len(v) for v in reservoirs.values()) >= max_pool:
+                        return [r for b in band_names for r in reservoirs[b]]
+                else:
+                    seen_band[band] += 1
+                    res = reservoirs[band]
+                    if len(res) < per_band_docs:
+                        res.append(rec)
+                    else:
+                        slot = int(rng.integers(0, seen_band[band]))
+                        if slot < per_band_docs:
+                            res[slot] = rec
+
+    records = [r for b in band_names for r in reservoirs[b]]
+    return records[:max_pool] if max_pool else records
 
 
-def build_pool(records, seed=SEED, pool_cap_per_role=2500, earlier_queries=(), analyser=None):
+def build_pool(records, seed=SEED, pool_cap_per_role=2500, per_band_cap=0, earlier_queries=(), analyser=None):
     rng = random.Random(seed)
     ordered = list(records)
     rng.shuffle(ordered)
     earlier_q = set(earlier_queries)
-    pool, rejects, counts, seen_sigs = [], collections.Counter(), collections.Counter(), set()
+    pool, rejects = [], collections.Counter()
+    counts = collections.Counter()
+    by_band_role = collections.Counter()
+    seen_sigs = set()
+    half_band = per_band_cap // 2 if per_band_cap > 0 else 0
+    band_names = tuple(b for b, *_ in jc.BANDS)
 
     for rec in ordered:
         role = assign_role(rec["group_id"], seed=seed)
-        if counts[role] >= pool_cap_per_role:
+        band = rec.get("rule_band") or "unknown"
+        if half_band > 0:
+            if by_band_role[(band, role)] >= half_band:
+                if all(by_band_role[(b, r)] >= half_band for b in band_names for r in ROLES):
+                    break
+                continue
+        elif counts[role] >= pool_cap_per_role:
             if all(counts[r] >= pool_cap_per_role for r in ROLES):
                 break
             continue
@@ -230,7 +285,12 @@ def build_pool(records, seed=SEED, pool_cap_per_role=2500, earlier_queries=(), a
         seen_sigs.update((sig, qkey))
         pool.append(case)
         counts[role] += 1
-    return pool, {"pool_counts": dict(counts), "rejections": dict(rejects)}
+        by_band_role[(case["provenance"]["rule_band"], role)] += 1
+    return pool, {
+        "pool_counts": dict(counts),
+        "by_band_role": {f"{b}/{r}": n for (b, r), n in sorted(by_band_role.items())},
+        "rejections": dict(rejects),
+    }
 
 
 def iter_corpus_texts(path):
@@ -332,8 +392,23 @@ def screen_overlap(pool, train_files):
     }
 
 
+def load_llm_accepted(labels_path, include_label2_dialogue=False):
+    """Load DeepSeek confirmation labels and return {case_id: record} for accepted items."""
+    accepted = {}
+    with Path(labels_path).open(encoding="utf-8") as stream:
+        for line in stream:
+            if not line.strip():
+                continue
+            r = json.loads(line)
+            lbl = int(r["label"])
+            kind = str(r.get("kind", ""))
+            if lbl == 3 or (include_label2_dialogue and lbl == 2 and kind in ("chat", "fiction")):
+                accepted[str(r["id"])] = r
+    return accepted
+
+
 def select_balanced(pool, excluded, per_split=600, seed=SEED + 1):
-    """Stratified round-robin selection favoring colloquial markers (~50%+) across length x context."""
+    """Stratified round-robin selection across rule_band x context x length."""
     rng = random.Random(seed)
     chosen = {}
     for role in ROLES:
@@ -342,8 +417,9 @@ def select_balanced(pool, excluded, per_split=600, seed=SEED + 1):
         for idx, row in enumerate(pool):
             if idx in excluded or row["provenance"]["role"] != role:
                 continue
-            key = (bool(row["context_text"]), length_band(row["expected_output"][0]))
-            if row["provenance"].get("colloquial_marker"):
+            p = row["provenance"]
+            key = (p.get("rule_band", "unknown"), bool(row["context_text"]), length_band(row["expected_output"][0]))
+            if p.get("colloquial_marker"):
                 marker_buckets[key].append(row)
             else:
                 plain_buckets[key].append(row)
@@ -352,7 +428,6 @@ def select_balanced(pool, excluded, per_split=600, seed=SEED + 1):
                 rng.shuffle(vals)
 
         selected = []
-        # Alternate marker-first preference so colloquial markers take at least half when available
         turn = 0
         while len(selected) < per_split and (any(marker_buckets.values()) or any(plain_buckets.values())):
             primary = marker_buckets if (turn % 2 == 0 or not any(plain_buckets.values())) else plain_buckets
@@ -377,14 +452,39 @@ def select_balanced(pool, excluded, per_split=600, seed=SEED + 1):
     return chosen
 
 
-def freeze_benchmark(pool, excluded, out_dir, per_split=600, seed=SEED + 1):
+def freeze_benchmark(pool, excluded, out_dir, per_split=600, seed=SEED + 1,
+                     llm_labels=None, include_label2_dialogue=False):
     from standard_ime import track_files
 
     out = Path(out_dir)
     if out.exists():
         raise SystemExit(f"Preserve existing output: {out}; choose a fresh path")
 
-    tracks = select_balanced(pool, excluded, per_split=per_split, seed=seed)
+    filtered_pool = pool
+    filtered_excluded = set(excluded)
+    accepted_map = None
+    if llm_labels is not None:
+        accepted_map = (
+            llm_labels if isinstance(llm_labels, dict)
+            else load_llm_accepted(llm_labels, include_label2_dialogue=include_label2_dialogue)
+        )
+        new_pool, new_excluded = [], set()
+        for idx, row in enumerate(pool):
+            p = row["provenance"]
+            cid = p.get("case_id") or f"{p['document_id']}#0"
+            hit = accepted_map.get(cid)
+            if hit is None:
+                continue
+            r_copy = dict(row)
+            p_copy = dict(p, llm_label=int(hit["label"]), llm_kind=str(hit.get("kind", "")))
+            r_copy["provenance"] = p_copy
+            r_copy["review"] = {**row["review"], "status": "llm_confirmed_d4_d5"}
+            if idx in filtered_excluded:
+                new_excluded.add(len(new_pool))
+            new_pool.append(r_copy)
+        filtered_pool, filtered_excluded = new_pool, new_excluded
+
+    tracks = select_balanced(filtered_pool, filtered_excluded, per_split=per_split, seed=seed)
     dev_groups = {r["provenance"]["group_id"] for r in tracks["development"]}
     test_groups = {r["provenance"]["group_id"] for r in tracks["test"]}
     if dev_groups & test_groups:
@@ -394,9 +494,13 @@ def freeze_benchmark(pool, excluded, out_dir, per_split=600, seed=SEED + 1):
     for role, rows in tracks.items():
         track_files(out / role, rows)
 
+    by_rule_band = {
+        role: dict(sorted(collections.Counter(r["provenance"].get("rule_band", "unknown") for r in rows).items()))
+        for role, rows in tracks.items()
+    }
     strata = {
         role: dict(sorted(collections.Counter(
-            f'{"colloq" if r["provenance"].get("colloquial_marker") else "other"}/'
+            f'{r["provenance"].get("rule_band", "unknown")}/'
             f'{"with" if r["context_text"] else "without"}-context/{length_band(r["expected_output"][0])}'
             for r in rows
         ).items()))
@@ -410,10 +514,13 @@ def freeze_benchmark(pool, excluded, out_dir, per_split=600, seed=SEED + 1):
         "seed": seed,
         "splits": {role: len(rows) for role, rows in tracks.items()},
         "groups": {"development": len(dev_groups), "test": len(test_groups)},
+        "by_rule_band": by_rule_band,
         "strata": strata,
+        "llm_confirmed": llm_labels is not None,
+        "include_label2_dialogue": bool(include_label2_dialogue),
         "labels_frozen": True,
         "review_completed": False,
-        "label_quality": "d4_d5_dictionary_reading",
+        "label_quality": "llm_confirmed_d4_d5" if llm_labels is not None else "d4_d5_dictionary_reading",
         "test_policy": "Sealed: read once, in the preregistered Stage 4 confirmation.",
         "metric": "Top-1 of the displayed list, notation-lenient (vimeml.benchmarks.notation); exact Top-1 also reported",
         "models_scored": False,
@@ -435,12 +542,29 @@ def cmd_build(args):
     ks._state["table"] = load_table(args.table)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    records = load_heldout_records(args.select_dir, p_chat_min=args.p_chat_min, max_pool=args.max_records)
-    pool, stats = build_pool(records, seed=args.seed, pool_cap_per_role=args.pool_cap)
+    records = load_heldout_records(
+        args.select_dir, p_chat_min=args.p_chat_min, per_band_docs=args.per_band_docs,
+        max_pool=args.max_records, seed=args.seed,
+    )
+    pool, stats = build_pool(
+        records, seed=args.seed, pool_cap_per_role=args.pool_cap, per_band_cap=args.per_band,
+    )
     write_json(out / "candidate-pool.json", pool)
+    llm_cases_path = out / "llm-cases.jsonl"
+    part = llm_cases_path.with_name(llm_cases_path.name + ".part")
+    with open(part, "w", encoding="utf-8", newline="\n") as f:
+        for row in pool:
+            p = row["provenance"]
+            f.write(json.dumps({
+                "id": p["case_id"],
+                "band": p["rule_band"],
+                "score": p["rule_score"],
+                "text": p["cleaned_message"],
+            }, ensure_ascii=False) + "\n")
+    part.replace(llm_cases_path)
     write_json(out / "build-stats.json", {"records_loaded": len(records), **stats,
                                           "dictionary_versions": ks._state["reader"].versions})
-    print(json.dumps({"records_loaded": len(records), **stats}, ensure_ascii=False))
+    print(json.dumps({"records_loaded": len(records), "pool": len(pool), **stats}, ensure_ascii=False))
 
 
 def cmd_screen(args):
@@ -458,9 +582,13 @@ def cmd_freeze(args):
     if not audit_path.is_file() and not args.allow_unscreened:
         raise SystemExit(f"Missing {audit_path}; run `screen` first (or pass --allow-unscreened)")
     excluded = set(json.loads(audit_path.read_text("utf-8"))["excluded_pool_positions"]) if audit_path.is_file() else set()
-    manifest, m_sha = freeze_benchmark(pool, excluded, args.out, per_split=args.per_split, seed=args.seed + 1)
+    manifest, m_sha = freeze_benchmark(
+        pool, excluded, args.out, per_split=args.per_split, seed=args.seed + 1,
+        llm_labels=args.llm_labels, include_label2_dialogue=args.include_label2_dialogue,
+    )
     print(json.dumps({"release_id": manifest["release_id"], "splits": manifest["splits"],
-                      "strata": manifest["strata"], "manifest_sha256": m_sha}, ensure_ascii=False, indent=1))
+                      "by_rule_band": manifest["by_rule_band"], "strata": manifest["strata"],
+                      "manifest_sha256": m_sha}, ensure_ascii=False, indent=1))
 
 
 def main():
@@ -472,6 +600,8 @@ def main():
     b.add_argument("--table", type=Path, default=ROOT / "configs/ja/ja-reading-table.tsv")
     b.add_argument("--out", type=Path, required=True)
     b.add_argument("--p-chat-min", type=float, default=DEFAULT_P_CHAT)
+    b.add_argument("--per-band", type=int, default=1000)
+    b.add_argument("--per-band-docs", type=int, default=6000)
     b.add_argument("--pool-cap", type=int, default=2500)
     b.add_argument("--max-records", type=int, default=0)
     b.add_argument("--seed", type=int, default=SEED)
@@ -487,6 +617,8 @@ def main():
     f.add_argument("--out", type=Path, required=True)
     f.add_argument("--per-split", type=int, default=600)
     f.add_argument("--seed", type=int, default=SEED)
+    f.add_argument("--llm-labels", type=Path, default=None)
+    f.add_argument("--include-label2-dialogue", action="store_true")
     f.add_argument("--allow-unscreened", action="store_true")
     f.set_defaults(fn=cmd_freeze)
 

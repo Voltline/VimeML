@@ -97,13 +97,23 @@ class TestJaColloqPipeline(unittest.TestCase):
             with mock.patch("kana_samples.analyse", side_effect=fake_analyse):
                 for split in ("train", "validation"):
                     part, stats = Part(ejc.KINDS), Counter()
+                    sub_part, sub_stats = Part(ejc.KINDS), Counter()
                     exclude = {ejc.line_key(texts[0])} if split == "train" else set()
-                    for idx, t in enumerate(texts * (3 if split == "train" else 2)):
-                        ejc.encode_paragraph(self.sp, self.cfg, part, stats, f"d{idx}#0", t, split, exclude)
+                    for idx, t in enumerate(texts * (3 if split == "train" else 5)):
+                        in_sub = (idx % 2 == 0)
+                        ejc.encode_paragraph(
+                            self.sp, self.cfg, part, stats, f"d{idx}#0", t, split, exclude,
+                            sub_part=sub_part if in_sub else None,
+                            sub_stats=sub_stats if in_sub else None,
+                        )
                     part.save(parts / f"{split}-0")
+                    sub_part.save(root / "sub_parts" / f"{split}-0")
                     info = merge(parts, [f"{split}-0"], out, split, ejc.KINDS)
+                    sub_info = merge(root / "sub_parts", [f"{split}-0"], root / "sub_store", split, ejc.KINDS)
                     for k in ejc.KINDS:
                         self.assertGreater(info[k]["examples"], 0, f"{split}/{k} empty")
+                        self.assertGreater(sub_info[k]["examples"], 0, f"{split}/{k} sub empty")
+                        self.assertLessEqual(sub_info[k]["examples"], info[k]["examples"])
                     if split == "train":
                         self.assertEqual(stats["validation_duplicates"], 3)
 
@@ -178,6 +188,60 @@ class TestJaColloqPipeline(unittest.TestCase):
             dev_g = {r["provenance"]["group_id"] for r in dev_items}
             test_g = {r["provenance"]["group_id"] for r in test_items}
             self.assertEqual(dev_g & test_g, set())
+
+            # Test LLM-confirmed freeze filtering and by_rule_band metadata
+            llm_path = tdir / "llm-labels.jsonl"
+            kept_lines = []
+            for row in pool:
+                cid = row["provenance"]["case_id"]
+                idx = int(cid.split("-")[1].split("#")[0])
+                lbl = 3 if idx % 3 == 0 else (2 if idx % 3 == 1 else 1)
+                kind = "chat" if lbl >= 2 else "formal"
+                kept_lines.append(json.dumps({"id": cid, "label": lbl, "kind": kind}))
+            llm_path.write_text("\n".join(kept_lines) + "\n", encoding="utf-8")
+            frozen_llm = tdir / "ime-kana-ja-colloq-llm"
+            m_llm, _ = pkc.freeze_benchmark(
+                pool, excluded, frozen_llm, per_split=4, seed=44,
+                llm_labels=llm_path, include_label2_dialogue=False,
+            )
+            self.assertTrue(m_llm["llm_confirmed"])
+            self.assertEqual(m_llm["label_quality"], "llm_confirmed_d4_d5")
+            self.assertGreater(sum(m_llm["by_rule_band"]["development"].values()), 0)
+            llm_dev = json.loads((frozen_llm / "development/evaluation_items.json").read_text("utf-8"))
+            self.assertTrue(all(r["provenance"]["llm_label"] == 3 for r in llm_dev))
+
+    def test_export_chat_fraction_and_audit_sample(self):
+        try:
+            import pyarrow as pa
+            import pyarrow.parquet as pq
+        except ImportError:
+            self.skipTest("pyarrow not installed in workspace venv")
+        import ja_colloq as jc
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tdir = Path(tmp)
+            sel = tdir / "select"
+            sel.mkdir()
+            rows = [
+                {"id": f"doc-{i:03d}", "para": 0, "text": f"今日は楽しいね！番号{i}",
+                 "p_chat": 0.9 if i % 2 == 0 else 0.75, "p_spoken": 0.85,
+                 "split": "train" if i < 24 else "heldout"}
+                for i in range(30)
+            ]
+            pq.write_table(pa.Table.from_pylist(rows), sel / "shard-0.parquet")
+            exp_full = tdir / "exp-full"
+            exp_half = tdir / "exp-half"
+            jc.export(sel, exp_full, chat_min=0.70, chat_fraction=1.0, spoken_units=0)
+            jc.export(sel, exp_half, chat_min=0.70, chat_fraction=0.5, spoken_units=0)
+            m_full = json.loads((exp_full / "manifest.json").read_text("utf-8"))
+            m_half = json.loads((exp_half / "manifest.json").read_text("utf-8"))
+            self.assertEqual(m_full["chat_fraction"], 1.0)
+            self.assertEqual(m_half["chat_fraction"], 0.5)
+            self.assertLess(m_half["counts"]["train_chat_rows"], m_full["counts"]["train_chat_rows"])
+            audit_out = tdir / "audit.jsonl"
+            jc.audit_sample(exp_full, audit_out, count=10, seed=123)
+            audit_rows = [json.loads(l) for l in audit_out.read_text("utf-8").splitlines() if l.strip()]
+            self.assertEqual(len(audit_rows), 10)
 
 
 if __name__ == "__main__":

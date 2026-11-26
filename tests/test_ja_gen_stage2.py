@@ -223,7 +223,8 @@ class TestJaGenStage2(unittest.TestCase):
         cfg_dir = Path(__file__).resolve().parents[1] / "configs/ja"
         for name in ("train-ja-kana-20m-kd-cont.toml",
                      "train-ja-kana-20m-colloq-ctrl.toml",
-                     "train-ja-kana-20m-colloq-c40.toml"):
+                     "train-ja-kana-20m-colloq-c40.toml",
+                     "train-ja-kana-20m-colloq-c40-p85.toml"):
             cfg = tomllib.loads((cfg_dir / name).read_text("utf-8"))
             self.assertEqual(cfg["stage"], "ja-kana")
             self.assertEqual(cfg["architecture"], "tiny_gpt_zh13")
@@ -234,6 +235,21 @@ class TestJaGenStage2(unittest.TestCase):
                     totals[k] = totals.get(k, 0) + v
             self.assertEqual(totals, {"plain": 175, "chat": 17, "span": 192, "sentence": 128}, name)
             self.assertEqual(sum(totals.values()), 512, name)
+
+    def test_summarize_rows_includes_rule_band_strata(self):
+        from vimeml.benchmarks.kana_gen_ja import summarize_rows
+
+        rows = [
+            {"answers": ["今日は"], "left_context": "", "source": "web_colloq",
+             "provenance": {"rule_band": "zero"}, "shown": ["今日は"]},
+            {"answers": ["そうだね"], "left_context": "あ", "source": "web_colloq",
+             "provenance": {"rule_band": "high"}, "shown": ["違う"]},
+        ]
+        with mock.patch("vimeml.benchmarks.kana_gen_ja.lenient_match", side_effect=lambda c, a: c in a):
+            summary = summarize_rows(rows, lambda r: r["shown"])
+        strata = summary["notation_lenient_top1_by_stratum"]
+        self.assertEqual(strata["band:zero"]["rate"], 100.0)
+        self.assertEqual(strata["band:high"]["rate"], 0.0)
 
 
 if __name__ == "__main__":

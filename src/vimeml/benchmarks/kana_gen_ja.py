@@ -229,6 +229,9 @@ def summarize_rows(rows, shown_fn):
             keys = [length_band(r), "context" if r.get("left_context") else "no-context", r.get("source", "unknown")]
             if r.get("d5_item"):
                 keys.append("d5")
+            rb = (r.get("provenance") or {}).get("rule_band")
+            if rb:
+                keys.append(f"band:{rb}")
             for k in keys:
                 groups.setdefault(k, []).append(ok)
         out[f"{mode}_top1_by_stratum"] = {k: share(v) for k, v in sorted(groups.items())}

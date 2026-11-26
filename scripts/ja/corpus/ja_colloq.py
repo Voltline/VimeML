@@ -61,6 +61,7 @@ TWO64 = 2 ** 64
 HASH_FEATURES = 2 ** 20
 KEEP_CHAT = 0.5
 KEEP_SPOKEN = 0.8
+CHAT_SUB_LABEL = "ja-colloq-chat-sub"
 SPOKEN_LABEL = "ja-colloq-spoken"
 TARGETS = {
     "chat": lambda r: r["label"] == 3,
@@ -451,8 +452,8 @@ def screened_ok_glob(screen_dir, pattern):
     return ok - bad
 
 
-def export(select_dir, out, chat_min=0.7, spoken_min=0.8, spoken_units=500000, rows_per_group=20000,
-           name="v1", screen_dir=None, guard=None):
+def export(select_dir, out, chat_min=0.7, chat_fraction=1.0, spoken_min=0.8, spoken_units=500000,
+           rows_per_group=20000, name="v1", screen_dir=None, guard=None):
     import pyarrow as pa
     import pyarrow.compute as pc
     import pyarrow.parquet as pq
@@ -461,6 +462,8 @@ def export(select_dir, out, chat_min=0.7, spoken_min=0.8, spoken_units=500000, r
     if (out / "manifest.json").exists():
         raise SystemExit(f"{out} is complete; use a new directory")
     files = sorted(select_dir.glob("*.parquet"))
+    if not files:
+        raise SystemExit(f"No parquet files in {select_dir}")
     cols = ["id", "para", "text", "p_chat", "p_spoken", "split"]
     ok = screened_ok_glob(screen_dir, f"{name}*-screen-*.jsonl") if screen_dir else None
     blocked = eval_guard(guard) if guard else None
@@ -470,9 +473,18 @@ def export(select_dir, out, chat_min=0.7, spoken_min=0.8, spoken_units=500000, r
         return pc.and_(pc.and_(pc.equal(t["split"], "train"), pc.greater_equal(t["p_spoken"], spoken_min)),
                        pc.less(t["p_chat"], KEEP_CHAT))
 
-    spoken_total = sum(pc.sum(spoken_mask(pq.read_table(p, columns=["p_chat", "p_spoken", "split"]))).as_py() or 0
-                       for p in files)
-    cut = min(1.0, spoken_units / max(1, spoken_total)) * TWO64
+    if spoken_units > 0:
+        spoken_total = 0
+        for p in files:
+            pf = pq.ParquetFile(p)
+            for g in range(pf.metadata.num_row_groups):
+                t = pf.read_row_group(g, columns=["p_chat", "p_spoken", "split"])
+                spoken_total += pc.sum(spoken_mask(t)).as_py() or 0
+        cut = min(1.0, spoken_units / max(1, spoken_total)) * TWO64
+    else:
+        cut = 0
+
+    chat_cut = TWO64 if chat_fraction >= 1.0 else float(max(0.0, chat_fraction)) * TWO64
     schema = pa.schema([("id", pa.string()), ("text", pa.string()), ("origin", pa.string()),
                         ("p_chat", pa.float32()), ("p_spoken", pa.float32())])
     for split in ("train", "validation"):
@@ -486,41 +498,98 @@ def export(select_dir, out, chat_min=0.7, spoken_min=0.8, spoken_units=500000, r
             chunk, rows[:] = rows[:rows_per_group], rows[rows_per_group:]
             writers[split].write_table(pa.Table.from_pylist(chunk, schema=schema), row_group_size=rows_per_group)
 
-    for p in files:
-        t = pq.read_table(p, columns=cols)
-        spoken = spoken_mask(t).to_pylist()
-        for r, is_spoken in zip(t.to_pylist(), spoken):
-            key = f'{r["id"]}#{r["para"]}'
-            if r["split"] == "train" and r["p_chat"] >= chat_min:
-                split, origin = "train", "chat"
-            elif is_spoken and doc_hash(SPOKEN_LABEL, key) < cut:
-                split, origin = "train", "spoken"
-            elif r["split"] == "heldout" and r["p_chat"] >= chat_min:
-                split, origin = "validation", "chat"
-            else:
-                continue
-            if ok is not None and text_id(r["text"]) not in ok:
-                counts[f"{split}_{origin}_screen_dropped"] += 1
-                continue
-            if blocked and blocked(r["text"]):
-                counts[f"{split}_{origin}_eval_overlap_dropped"] += 1
-                continue
-            buffers[split].append(dict(id=key, text=r["text"], origin=origin,
-                                       p_chat=r["p_chat"], p_spoken=r["p_spoken"]))
-            counts[f"{split}_{origin}_rows"] += 1
-            counts[f"{split}_{origin}_ja"] += len(JA.findall(r["text"]))
-            flush(split)
-    for s in writers:
-        flush(s, force=True)
-        writers[s].close()
+    try:
+        for p in files:
+            pf = pq.ParquetFile(p)
+            for g in range(pf.metadata.num_row_groups):
+                t = pf.read_row_group(g, columns=cols)
+                spoken = spoken_mask(t).to_pylist() if cut > 0 else [False] * t.num_rows
+                for r, is_spoken in zip(t.to_pylist(), spoken):
+                    key = f'{r["id"]}#{r["para"]}'
+                    if r["p_chat"] >= chat_min and r["split"] in ("train", "heldout"):
+                        if chat_fraction < 1.0 and doc_hash(CHAT_SUB_LABEL, str(r["id"])) >= chat_cut:
+                            counts[f"{r['split']}_chat_subsampled_out"] += 1
+                            continue
+                        split = "train" if r["split"] == "train" else "validation"
+                        origin = "chat"
+                    elif is_spoken and doc_hash(SPOKEN_LABEL, key) < cut:
+                        split, origin = "train", "spoken"
+                    else:
+                        continue
+                    if ok is not None and text_id(r["text"]) not in ok:
+                        counts[f"{split}_{origin}_screen_dropped"] += 1
+                        continue
+                    if blocked and blocked(r["text"]):
+                        counts[f"{split}_{origin}_eval_overlap_dropped"] += 1
+                        continue
+                    buffers[split].append(dict(id=key, text=r["text"], origin=origin,
+                                               p_chat=r["p_chat"], p_spoken=r["p_spoken"]))
+                    counts[f"{split}_{origin}_rows"] += 1
+                    counts[f"{split}_{origin}_ja"] += len(JA.findall(r["text"]))
+                    flush(split)
+    finally:
+        for s in writers:
+            flush(s, force=True)
+            writers[s].close()
     (out / "manifest.json").write_text(
         json.dumps({"format": "vimeml_ja_colloq_export_v1", "name": name, "select_dir": str(select_dir),
-                    "chat_min": chat_min, "spoken_min": spoken_min, "spoken_units": spoken_units,
+                    "chat_min": chat_min, "chat_fraction": chat_fraction,
+                    "spoken_min": spoken_min, "spoken_units": spoken_units,
                     "screened": screen_dir is not None, "guarded": guard is not None,
                     "counts": dict(counts)}, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     print(json.dumps(counts, ensure_ascii=False))
+
+
+def audit_sample(export_dir, out, count=2000, seed=20261126):
+    """Uniformly reservoir-sample exported train rows across parquet row groups for LLM quality audit."""
+    import numpy as np
+    import pyarrow.parquet as pq
+
+    files = sorted((Path(export_dir) / "train").glob("*.parquet"))
+    if not files:
+        raise SystemExit(f"No train parquet files under {export_dir}")
+    rng = np.random.default_rng(seed)
+    reservoir = [None] * count
+    filled = seen = 0
+
+    for p in files:
+        pf = pq.ParquetFile(p)
+        cols = [c for c in ("id", "origin", "p_chat", "p_spoken", "text") if c in pf.schema_arrow.names]
+        for g in range(pf.metadata.num_row_groups):
+            rows = pf.read_row_group(g, columns=cols).to_pylist()
+            m = len(rows)
+            if m == 0:
+                continue
+            need = min(m, count - filled)
+            for k in range(need):
+                reservoir[filled + k] = rows[k]
+            filled += need
+            rem = m - need
+            if rem > 0:
+                base = seen + need
+                counts = np.arange(base + 1, base + rem + 1, dtype=np.int64)
+                draws = rng.integers(0, counts)
+                for h in np.nonzero(draws < count)[0]:
+                    reservoir[int(draws[h])] = rows[need + int(h)]
+            seen += m
+
+    out = Path(out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    part = out.with_name(out.name + ".part")
+    chosen = reservoir[:filled]
+    with open(part, "w", encoding="utf-8", newline="\n") as f:
+        for r in chosen:
+            f.write(json.dumps({
+                "id": r["id"],
+                "origin": r.get("origin", "chat"),
+                "p_chat": round(float(r.get("p_chat", 0.0)), 4),
+                "p_spoken": round(float(r.get("p_spoken", 0.0)), 4),
+                "text": r["text"],
+            }, ensure_ascii=False) + "\n")
+    part.replace(out)
+    print(f"audit-sample {seen} -> {len(chosen)} rows wrote {out}", flush=True)
 
 
 def main():
@@ -566,11 +635,18 @@ def main():
     ex.add_argument("select_dir")
     ex.add_argument("out")
     ex.add_argument("--chat-min", type=float, default=0.7)
+    ex.add_argument("--chat-fraction", type=float, default=1.0)
     ex.add_argument("--spoken-min", type=float, default=0.8)
     ex.add_argument("--spoken-units", type=int, default=500000)
     ex.add_argument("--name", default="v1")
     ex.add_argument("--screen-dir", default=None)
     ex.add_argument("--guard", default=None)
+
+    au = sub.add_parser("audit-sample")
+    au.add_argument("export_dir")
+    au.add_argument("out")
+    au.add_argument("--count", type=int, default=2000)
+    au.add_argument("--seed", type=int, default=20261126)
 
     a = p.parse_args()
     if a.cmd == "scan":
@@ -586,8 +662,11 @@ def main():
     elif a.cmd == "screen-input":
         screen_input(a.export_dir, a.out, seed=a.seed)
     elif a.cmd == "export":
-        export(a.select_dir, a.out, chat_min=a.chat_min, spoken_min=a.spoken_min,
-               spoken_units=a.spoken_units, name=a.name, screen_dir=a.screen_dir, guard=a.guard)
+        export(a.select_dir, a.out, chat_min=a.chat_min, chat_fraction=a.chat_fraction,
+               spoken_min=a.spoken_min, spoken_units=a.spoken_units, name=a.name,
+               screen_dir=a.screen_dir, guard=a.guard)
+    elif a.cmd == "audit-sample":
+        audit_sample(a.export_dir, a.out, count=a.count, seed=a.seed)
 
 
 if __name__ == "__main__":

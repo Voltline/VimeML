@@ -53,7 +53,13 @@ def line_key(text):
     return hashlib.sha256(text.encode("utf-8")).digest()[:8]
 
 
-def encode_plain_windows(sp, part, stats, text, min_tokens=4):
+def _add_plain(target_part, target_stats, window):
+    target_part.add("plain", window, 1)
+    target_stats["plain_windows"] += 1
+    target_stats["plain_tokens"] += len(window)
+
+
+def encode_plain_windows(sp, part, stats, text, min_tokens=4, sub_part=None, sub_stats=None):
     if META_SPACE in text:
         stats["plain_meta_space"] += 1
         return
@@ -63,17 +69,35 @@ def encode_plain_windows(sp, part, stats, text, min_tokens=4):
         return
     ids = [2] + pieces + [3]
     stats["plain_lines"] += 1
+    if sub_stats is not None:
+        sub_stats["plain_lines"] += 1
     for start in range(0, len(ids), 128):
         window = ids[start:start + 128]
         if len(window) < min_tokens:
             stats["plain_short_windows"] += 1
+            if sub_stats is not None:
+                sub_stats["plain_short_windows"] += 1
             continue
-        part.add("plain", window, 1)
-        stats["plain_windows"] += 1
-        stats["plain_tokens"] += len(window)
+        _add_plain(part, stats, window)
+        if sub_part is not None:
+            _add_plain(sub_part, sub_stats, window)
 
 
-def encode_paragraph(sp, config, part, stats, key, raw_text, split, exclude_plain):
+def _add_reading(target_part, target_stats, kind, ids, first, reading, output, removed):
+    target_part.add(kind, ids, first)
+    r = ids.index(5)
+    target_stats[f"{kind}_examples"] += 1
+    target_stats[f"{kind}_tokens"] += len(ids)
+    target_stats[f"{kind}_output_tokens"] += len(ids) - first - 1
+    target_stats[f"{kind}_reading_tokens"] += first - r - 2
+    target_stats[f"{kind}_context_tokens"] += r - 2
+    target_stats[f"{kind}_reading_chars"] += len(reading)
+    target_stats[f"{kind}_output_chars"] += len(output)
+    target_stats[f"{kind}_context_trimmed"] += int(removed > 0)
+
+
+def encode_paragraph(sp, config, part, stats, key, raw_text, split, exclude_plain,
+                     sub_part=None, sub_stats=None):
     """Deterministically route one colloquial paragraph to plain or span/sentence and encode."""
     text = ks.clean(raw_text)
     if len(text) < 4:
@@ -85,13 +109,18 @@ def encode_paragraph(sp, config, part, stats, key, raw_text, split, exclude_plai
     label = config["label"]
     plain_cut = int(float(config["plain_fraction"]) * TWO64)
     if doc_hash(label + "/role", key) < plain_cut:
-        encode_plain_windows(sp, part, stats, text, min_tokens=int(config["plain_minimum_tokens"]))
+        encode_plain_windows(
+            sp, part, stats, text, min_tokens=int(config["plain_minimum_tokens"]),
+            sub_part=sub_part, sub_stats=sub_stats,
+        )
         return
 
     rng = random.Random(doc_hash(label + "/sample", key))
     weights = config["kind_weights"]
     kind = rng.choices(list(weights), weights=list(weights.values()))[0]
     stats[f"{kind}_drawn"] += 1
+    if sub_stats is not None:
+        sub_stats[f"{kind}_drawn"] += 1
     result = (ks.span_sample if kind == "span" else ks.sentence_sample)(config["sample"], rng, text, stats)
     if result is None:
         return
@@ -99,18 +128,13 @@ def encode_paragraph(sp, config, part, stats, key, raw_text, split, exclude_plai
     encoded = encode(sp, context, reading, output)
     if encoded is None:
         stats[f"{kind}_skip_encode"] += 1
+        if sub_stats is not None:
+            sub_stats[f"{kind}_skip_encode"] += 1
         return
     ids, first, removed = encoded
-    part.add(kind, ids, first)
-    r = ids.index(5)
-    stats[f"{kind}_examples"] += 1
-    stats[f"{kind}_tokens"] += len(ids)
-    stats[f"{kind}_output_tokens"] += len(ids) - first - 1
-    stats[f"{kind}_reading_tokens"] += first - r - 2
-    stats[f"{kind}_context_tokens"] += r - 2
-    stats[f"{kind}_reading_chars"] += len(reading)
-    stats[f"{kind}_output_chars"] += len(output)
-    stats[f"{kind}_context_trimmed"] += int(removed > 0)
+    _add_reading(part, stats, kind, ids, first, reading, output, removed)
+    if sub_part is not None:
+        _add_reading(sub_part, sub_stats, kind, ids, first, reading, output, removed)
 
 
 def build_jobs(export_dir, row_groups_per_job=2, limit_jobs=0):
@@ -172,14 +196,30 @@ def run_job(job):
 
     config, sp, exclude = _state["config"], _state["sp"], _state["exclude"]
     part, stats = Part(KINDS), Counter()
+    has_sub = bool(config.get("sub_parts_dir"))
+    sub_part = Part(KINDS) if has_sub else None
+    sub_stats = Counter() if has_sub else None
+    sub_min = float(config.get("subset_p_chat_min", 0.85))
+
     pf = pq.ParquetFile(job["path"])
+    avail = set(pf.schema_arrow.names)
+    cols = [c for c in ("id", "text", "p_chat", "origin") if c in avail]
     split = job["split"]
     for g in range(*job["groups"]):
-        table = pf.read_row_group(g, columns=["id", "text"]).to_pydict()
-        for key, text in zip(table["id"], table["text"]):
-            encode_paragraph(sp, config, part, stats, key, text, split, exclude)
+        t = pf.read_row_group(g, columns=cols).to_pydict()
+        p_chats = t.get("p_chat") or [None] * len(t["id"])
+        origins = t.get("origin") or ["chat"] * len(t["id"])
+        for key, text, pc_val, orig in zip(t["id"], t["text"], p_chats, origins):
+            in_sub = has_sub and orig == "chat" and pc_val is not None and float(pc_val) >= sub_min
+            encode_paragraph(
+                sp, config, part, stats, key, text, split, exclude,
+                sub_part=sub_part if in_sub else None,
+                sub_stats=sub_stats if in_sub else None,
+            )
     part.save(Path(config["parts_dir"]) / job["name"])
-    return job["name"], {k: len(part.lengths[k]) for k in KINDS}, dict(stats)
+    if sub_part is not None:
+        sub_part.save(Path(config["sub_parts_dir"]) / job["name"])
+    return job["name"], dict(stats), (dict(sub_stats) if sub_stats is not None else None)
 
 
 def write_preview(output_dir, sp, count=20):
@@ -209,10 +249,51 @@ def write_preview(output_dir, sp, count=20):
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
-def encode_store(config, export_dir, tokenizer_dir, table_path, output_dir, workers=16, limit_jobs=0):
+def _finalize_store(out_dir, tok_dir, tok, table_path, exp_dir, exp_manifest_path,
+                    exclude_count, config, limit_jobs, sp, manifest, seconds):
+    from vimeml.benchmarks.readings import DualReading
+
+    write_preview(out_dir, sp)
+    manifest.update(
+        status="complete",
+        tokenizer_sha256=tok["model"]["tokenizer_model_sha256"],
+        tokenizer_manifest_sha256=sha256(tok_dir / "manifest.json"),
+        table_sha256=sha256(table_path),
+        export_manifest_sha256=sha256(exp_manifest_path),
+        dictionary_versions=DualReading().versions,
+        validation_lines_excluded=exclude_count,
+        config={k: v for k, v in config.items()},
+        limit_jobs=limit_jobs,
+        code_sha256={
+            p: sha256(ROOT / p)
+            for p in (
+                "scripts/ja/tokenizer/encode_ja_colloq.py",
+                "scripts/ja/corpus/kana_samples.py",
+                "src/vimeml/posttraining/zh_pinyin.py",
+                "src/vimeml/posttraining/zh_pinyin_data.py",
+            )
+        },
+        libraries={"sentencepiece": importlib.metadata.version("sentencepiece")},
+        seconds=round(seconds, 1),
+    )
+    write_json(out_dir / "manifest.json", manifest)
+    m_sha = sha256(out_dir / "manifest.json")
+    print(json.dumps({
+        "label": manifest["label"],
+        "out": str(out_dir),
+        "stores": {s: {k: v["examples"] for k, v in st.items()} for s, st in manifest["stores"].items()},
+        "manifest_sha256": m_sha,
+    }, ensure_ascii=False), flush=True)
+
+
+def encode_store(config, export_dir, tokenizer_dir, table_path, output_dir, workers=16, limit_jobs=0,
+                 subset_output_dir=None):
     out = Path(output_dir)
     if out.exists():
         raise SystemExit(f"{out} exists; remove it first")
+    sub_out = Path(subset_output_dir) if subset_output_dir else None
+    if sub_out is not None and sub_out.exists():
+        raise SystemExit(f"{sub_out} exists; remove it first")
     began = time.time()
 
     tok_dir = Path(tokenizer_dir)
@@ -232,58 +313,51 @@ def encode_store(config, export_dir, tokenizer_dir, table_path, output_dir, work
         tokenizer_path=str(tok_model),
         table_path=str(table_path),
         parts_dir=str(out / "parts"),
+        sub_parts_dir=str(sub_out / "parts") if sub_out is not None else "",
     )
     todo = build_jobs(exp_dir, int(config["row_groups_per_job"]), limit_jobs=limit_jobs)
     if not todo:
         raise SystemExit(f"No parquet jobs found under {exp_dir}")
-    print(f"{len(todo)} jobs, {len(exclude)} validation lines excluded from train", flush=True)
+    print(f"{len(todo)} jobs, {len(exclude)} validation lines excluded from train"
+          + (f", dual subset >= {config.get('subset_p_chat_min', 0.85)}" if sub_out else ""), flush=True)
 
     manifest = dict(format=FORMAT, status="partial", label=config["label"], stores={}, stats={})
+    sub_label = config.get("subset_label", f"{config['label']}-p85")
+    sub_manifest = dict(
+        format=FORMAT, status="partial", label=sub_label,
+        subset_p_chat_min=float(config.get("subset_p_chat_min", 0.85)),
+        stores={}, stats={},
+    ) if sub_out is not None else None
+
     with ProcessPoolExecutor(workers, initializer=init_worker, initargs=(run_cfg, exclude)) as pool:
         for split in SPLITS:
             mine = [j for j in todo if j["split"] == split]
-            names, stats = [], Counter()
-            for n, (name, _counts, part_stats) in enumerate(pool.map(run_job, mine), 1):
+            names, stats, sub_stats = [], Counter(), Counter()
+            for n, (name, part_stats, part_sub_stats) in enumerate(pool.map(run_job, mine), 1):
                 names.append(name)
                 stats.update(part_stats)
+                if part_sub_stats is not None:
+                    sub_stats.update(part_sub_stats)
                 if n % 20 == 0 or n == len(mine):
                     print(f"{split} {n}/{len(mine)} jobs {time.time() - began:.0f}s", flush=True)
             manifest["stores"][split] = merge(run_cfg["parts_dir"], names, out, split, KINDS)
             manifest["stats"][split] = dict(sorted(stats.items()))
+            if sub_out is not None:
+                sub_manifest["stores"][split] = merge(run_cfg["sub_parts_dir"], names, sub_out, split, KINDS)
+                sub_manifest["stats"][split] = dict(sorted(sub_stats.items()))
 
     shutil.rmtree(run_cfg["parts_dir"])
-    import sentencepiece as spm
-    from vimeml.benchmarks.readings import DualReading
+    if sub_out is not None:
+        shutil.rmtree(run_cfg["sub_parts_dir"])
 
-    write_preview(out, spm.SentencePieceProcessor(model_file=str(tok_model)))
-    manifest.update(
-        status="complete",
-        tokenizer_sha256=tok["model"]["tokenizer_model_sha256"],
-        tokenizer_manifest_sha256=sha256(tok_dir / "manifest.json"),
-        table_sha256=sha256(table_path),
-        export_manifest_sha256=sha256(exp_manifest_path),
-        dictionary_versions=DualReading().versions,
-        validation_lines_excluded=len(exclude),
-        config={k: v for k, v in config.items()},
-        limit_jobs=limit_jobs,
-        code_sha256={
-            p: sha256(ROOT / p)
-            for p in (
-                "scripts/ja/tokenizer/encode_ja_colloq.py",
-                "scripts/ja/corpus/kana_samples.py",
-                "src/vimeml/posttraining/zh_pinyin.py",
-                "src/vimeml/posttraining/zh_pinyin_data.py",
-            )
-        },
-        libraries={"sentencepiece": importlib.metadata.version("sentencepiece")},
-        seconds=round(time.time() - began, 1),
-    )
-    write_json(out / "manifest.json", manifest)
-    m_sha = sha256(out / "manifest.json")
-    print(json.dumps({
-        "stores": {s: {k: v["examples"] for k, v in st.items()} for s, st in manifest["stores"].items()},
-        "manifest_sha256": m_sha,
-    }, ensure_ascii=False), flush=True)
+    import sentencepiece as spm
+
+    sp = spm.SentencePieceProcessor(model_file=str(tok_model))
+    elapsed = time.time() - began
+    _finalize_store(out, tok_dir, tok, table_path, exp_dir, exp_manifest_path, len(exclude), config, limit_jobs, sp, manifest, elapsed)
+    if sub_out is not None:
+        sub_cfg = dict(config, label=sub_label, output_dir=str(sub_out))
+        _finalize_store(sub_out, tok_dir, tok, table_path, exp_dir, exp_manifest_path, len(exclude), sub_cfg, limit_jobs, sp, sub_manifest, elapsed)
     return manifest
 
 
@@ -294,6 +368,8 @@ def main():
     p.add_argument("--tokenizer-dir", type=Path, default=None)
     p.add_argument("--table", type=Path, default=None)
     p.add_argument("--output", type=Path, default=None)
+    p.add_argument("--subset-output", type=Path, default=None)
+    p.add_argument("--no-subset", action="store_true")
     p.add_argument("--workers", type=int, default=0)
     p.add_argument("--limit-jobs", type=int, default=0)
     args = p.parse_args()
@@ -303,11 +379,26 @@ def main():
     if args.limit_jobs and (args.output is None or args.output.resolve() == formal.resolve()):
         p.error("--limit-jobs requires --output outside output_dir")
     out = args.output or formal
+    if args.no_subset:
+        sub_out = None
+    elif args.subset_output is not None:
+        sub_out = args.subset_output
+    elif not args.limit_jobs and config.get("subset_output_dir"):
+        sub_out = ROOT / config["subset_output_dir"]
+    else:
+        sub_out = None
+    if args.limit_jobs and sub_out is not None and config.get("subset_output_dir"):
+        if sub_out.resolve() == (ROOT / config["subset_output_dir"]).resolve():
+            p.error("--limit-jobs requires --subset-output outside subset_output_dir")
+
     export_dir = args.export_dir or (ROOT / config["export_dir"])
     tokenizer_dir = args.tokenizer_dir or (ROOT / config["tokenizer_dir"])
     table_path = args.table or (ROOT / config["table"])
     workers = args.workers or int(config.get("workers", 16))
-    encode_store(config, export_dir, tokenizer_dir, table_path, out, workers=workers, limit_jobs=args.limit_jobs)
+    encode_store(
+        config, export_dir, tokenizer_dir, table_path, out,
+        workers=workers, limit_jobs=args.limit_jobs, subset_output_dir=sub_out,
+    )
 
 
 if __name__ == "__main__":
