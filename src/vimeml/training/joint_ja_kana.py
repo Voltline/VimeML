@@ -1,10 +1,11 @@
-"""ja-gen stage 2: train the 20M and 200M on the ja-kana-v1-12k store (encode_kana.py).
+"""ja-gen stage 2-3: train the 20M and 200M on the ja-kana-v1-12k store (encode_kana.py).
 
 One trainer for every ja-gen run:
   pretraining from scratch ([initialization] mode = "random"): the 20M plain LM
       (plain + chat), the 200M joint reading pretraining (web + plain + chat + reading kinds);
-  continuation (mode = "checkpoint", weights only, fresh AdamW): the 20M reading arm and its
-      LM control.
+  continuation (mode = "checkpoint", weights only, fresh AdamW): the 20M reading arm, its
+      LM control, distillation from the 200M teacher ([distillation]), and colloquial
+      post-training ([[data.extra]]).
 architecture "tiny_gpt_zh13" (12K/d384/L9, about 20M) or "tiny_gpt_zh200m" (12K/L15/c128,
 193.6M); checkpoints carry the zh13 / zh200m formats, so the zh export, KD-teacher and
 evaluation loaders read them.
@@ -16,6 +17,17 @@ store costs no memory), so the batch of any step is a pure function of (seed, st
 resume needs only the step. With data parallelism (torchrun) rank r reads the positions
 j = r, r + world, ... of every kind; the per-kind supervised-token counts are summed over
 the ranks before the loss is scaled, so the gradient is the one-device gradient.
+
+Optional [[data.extra]] directories (same format and 12K tokenizer, e.g. colloquial stores)
+add their own per-kind counts: each extra source reads its own Feistel stream (seed
+[seed, kind_idx, epoch, source]) and joins the same kind's batch after the primary source,
+so normalization sees one batch per kind. Without extras every batch is byte-identical.
+
+Optional [distillation] section: a frozen teacher with the same 12K tokenizer (200M or 800M)
+runs on the same batch without gradients; supervised positions use
+(1 - alpha) * CE + alpha * T^2 * KL(teacher_T || student_T). `distillation.ce_only_kinds` and
+extra directories with `ce_only = true` train those rows on cross-entropy alone. Teacher
+validation losses are written once at start to teacher_validation.json.
 
 Plain kinds (first = 1: plain, chat, web) supervise every target with the 0.30 prefix crop
 of first windows; reading kinds supervise output + EOS only. normalization "tokens": loss =
@@ -58,7 +70,7 @@ SOURCE_FILES = ("src/vimeml/training/joint_ja_kana.py", "src/vimeml/training/mod
                 "src/vimeml/training/model_zh200m.py", "src/vimeml/training/model_v2.py",
                 "src/vimeml/training/train.py", "src/vimeml/training/runtime_v2.py",
                 "src/vimeml/training/distributed.py", "src/vimeml/posttraining/streams.py",
-                "scripts/ja/training/train_ja_kana.py")
+                "src/vimeml/training/zh_desktop.py", "scripts/ja/training/train_ja_kana.py")
 
 
 def read(path):
@@ -124,40 +136,69 @@ def shifted(ids, first, crop=0):
 
 
 class Schedule:
-    """dataset[step] -> {kind: collated batch of this rank's rows}; picklable for spawn workers."""
+    """dataset[step] -> {kind: collated batch of this rank's rows}; picklable for spawn workers.
 
-    def __init__(self, directory, mix, seed, crop_probability, rank=0, world=1):
+    extra: [(directory, mix), ...], read after the primary directory as sources 1, 2, ...
+    ce_only_sources: source indices whose rows train on cross-entropy alone; when non-empty every
+    collated batch gets a bool `hard` tensor (one per row), otherwise batches are unchanged."""
+
+    def __init__(self, directory, mix, seed, crop_probability, rank=0, world=1, extra=(), ce_only_sources=()):
         self.directory, self.mix, self.seed = Path(directory), dict(mix), seed
         self.crop_probability, self.rank, self.world = crop_probability, rank, world
+        self.extra = [(Path(d), dict(m)) for d, m in extra]
+        self.ce_only_sources = sorted(set(ce_only_sources))
         self._open()
 
     def _open(self):
-        self.stores = {k: Store(self.directory / k, "train") for k in KINDS if self.mix.get(k, 0)}
+        all_sources = [(self.directory, self.mix)] + self.extra
+        self.sources = []
+        offsets = {}
+        for kind in KINDS:
+            offset = 0
+            for src_idx, (d, m) in enumerate(all_sources):
+                count = int(m.get(kind, 0))
+                if count:
+                    store = Store(d / kind, "train")
+                    self.sources.append((src_idx, kind, store, count, offset))
+                    offset += count
+            if offset:
+                offsets[kind] = offset
+        self.stores = {(s, k): store for s, k, store, _, _ in self.sources}
         self.permutations = {}
         self.collate = TaskCollator(128)
 
     def __getstate__(self):
-        return {k: getattr(self, k) for k in ("directory", "mix", "seed", "crop_probability", "rank", "world")}
+        return {k: getattr(self, k) for k in (
+            "directory", "mix", "seed", "crop_probability", "rank", "world", "extra", "ce_only_sources")}
 
     def __setstate__(self, state):
         self.__dict__.update(state)
+        self.extra = state.get("extra", [])
+        self.ce_only_sources = state.get("ce_only_sources", [])
         self._open()
 
-    def permutation(self, kind, epoch):
-        key = (kind, epoch)
+    def permutation(self, kind, epoch, source=0):
+        key = (source, kind, epoch)
         if key not in self.permutations:
-            self.permutations = {k: v for k, v in self.permutations.items() if k[0] != kind}
-            self.permutations[key] = Permutation(len(self.stores[kind]), [self.seed, KINDS.index(kind), epoch])
+            self.permutations = {k: v for k, v in self.permutations.items() if k[:2] != (source, kind)}
+            seed = [self.seed, KINDS.index(kind), epoch] + ([source] if source else [])
+            self.permutations[key] = Permutation(len(self.stores[source, kind]), seed)
         return self.permutations[key]
 
-    def indices(self, kind, step):
-        n, count = len(self.stores[kind]), self.mix[kind]
-        positions = np.arange(step * count + self.rank, (step + 1) * count, self.world, dtype=np.int64)
+    def indices(self, kind, step, source=0, count=None, offset=0):
+        n = len(self.stores[source, kind])
+        if count is None:
+            count = self.mix[kind] if source == 0 else self.extra[source - 1][1][kind]
+        first_j = (self.rank - offset) % self.world
+        js = np.arange(first_j, count, self.world, dtype=np.int64)
+        if len(js) == 0:
+            return []
+        positions = step * count + js
         out = np.empty(len(positions), dtype=np.int64)
         epochs = positions // n
         for epoch in np.unique(epochs):
             chosen = epochs == epoch
-            out[chosen] = self.permutation(kind, int(epoch))(positions[chosen] % n)
+            out[chosen] = self.permutation(kind, int(epoch), source)(positions[chosen] % n)
         return out.tolist()
 
     def __len__(self):
@@ -165,21 +206,25 @@ class Schedule:
 
     def __getitem__(self, step):
         rng = np.random.default_rng([self.seed, 1 << 20, step, self.rank])
-        out = {}
-        for kind, store in self.stores.items():
-            group = []
-            for index in self.indices(kind, step):
+        samples, hard = {}, {}
+        for source, kind, store, count, offset in self.sources:
+            for index in self.indices(kind, step, source, count, offset):
                 ids, first = store.get(index)
                 crop = 0
                 if (first == 1 and ids[0] == 2 and len(ids) - 1 - CROP_MINIMUM >= 1
                         and rng.random() < self.crop_probability):
                     crop = 1 + int(rng.integers(len(ids) - 1 - CROP_MINIMUM))
-                group.append(shifted(ids, first, crop))
-            out[kind] = self.collate(group)
+                samples.setdefault(kind, []).append(shifted(ids, first, crop))
+                hard.setdefault(kind, []).append(source in self.ce_only_sources)
+        out = {kind: self.collate(group) for kind, group in samples.items()}
+        if self.ce_only_sources:
+            for kind, batch in out.items():
+                batch["hard"] = torch.tensor(hard[kind], dtype=torch.bool)
         return out
 
     def passes(self, step):
-        return {kind: step * self.mix[kind] / len(store) for kind, store in self.stores.items()}
+        return {(kind if source == 0 else f"{kind}@{source}"): step * count / len(store)
+                for source, kind, store, count, _ in self.sources}
 
 
 def build_plan(config, root=ROOT, verify_files=True, world=1):
@@ -203,9 +248,9 @@ def build_plan(config, root=ROOT, verify_files=True, world=1):
         raise ValueError("Formal training is CUDA/BF16/compiled; only smoke runs are CPU/FP32")
     if not 0 < s["min_learning_rate"] <= s["learning_rate"]:
         raise ValueError("Invalid learning rates")
-    mix = {k: int(v) for k, v in config["data"]["mix"].items() if int(v)}
-    if set(mix) - set(KINDS) or any(v < world for v in mix.values()):
-        raise ValueError(f"data.mix names unknown kinds or a count below the {world} ranks")
+    primary_mix = {k: int(v) for k, v in config["data"]["mix"].items() if int(v)}
+    if set(config["data"]["mix"]) - set(KINDS) or any(int(v) < 0 for v in config["data"]["mix"].values()):
+        raise ValueError("data.mix names unknown kinds or negative counts")
     init = config["initialization"]
     if init.get("mode") not in ("random", "checkpoint"):
         raise ValueError("initialization.mode is random or checkpoint")
@@ -220,57 +265,169 @@ def build_plan(config, root=ROOT, verify_files=True, world=1):
         required[root / init["checkpoint"]] = init["checkpoint_sha256"]
     for split, stores in manifest["stores"].items():
         for kind, record in stores.items():
-            if split == "validation" or kind in mix:
+            if split == "validation" or kind in primary_mix:
                 for name, digest in record["files"].items():
                     required[data_dir / kind / name] = digest
+
+    extras = config["data"].get("extra", [])
+    extra_mixes, extra_train = [], []
+    for e in extras:
+        folder = root / e["directory"]
+        emix = {k: int(v) for k, v in e["mix"].items() if int(v)}
+        if set(e["mix"]) - set(KINDS) or any(int(v) < 0 for v in e["mix"].values()):
+            raise ValueError("Invalid extra mix: " + e["directory"])
+        if folder.resolve() == data_dir.resolve() or file_sha(folder / "manifest.json") != e["manifest_sha256"]:
+            raise ValueError("Extra ja-kana data is the primary directory or its manifest changed: " + e["directory"])
+        extra_manifest = read(folder / "manifest.json")
+        if (extra_manifest.get("format") != DATA_FORMAT or extra_manifest.get("status") != "complete"
+                or extra_manifest.get("limit_jobs")
+                or extra_manifest["tokenizer_sha256"] != manifest["tokenizer_sha256"]):
+            raise ValueError("Incomplete, unsupported or other-tokenizer extra data: " + e["directory"])
+        for kind in emix:
+            if not extra_manifest["stores"]["train"].get(kind, {}).get("examples"):
+                raise ValueError("Extra mix names a kind the directory lacks: " + e["directory"])
+        required[folder / "manifest.json"] = e["manifest_sha256"]
+        for split, stores in extra_manifest["stores"].items():
+            for kind, record in stores.items():
+                if split == "train" and kind not in emix:
+                    continue
+                for name, digest in record["files"].items():
+                    required[folder / kind / name] = digest
+        extra_mixes.append(emix)
+        extra_train.append({k: r["examples"] for k, r in extra_manifest["stores"]["train"].items() if k in KINDS})
+
+    combined_mix = {}
+    for k in KINDS:
+        total_k = primary_mix.get(k, 0) + sum(em.get(k, 0) for em in extra_mixes)
+        if total_k:
+            combined_mix[k] = total_k
+    if not combined_mix or any(v < world for v in combined_mix.values()):
+        raise ValueError(f"Combined mix is empty or has a kind count below the {world} ranks")
+
+    distillation = config.get("distillation")
+    if distillation is not None:
+        if not 0 < distillation["alpha"] <= 1 or distillation["temperature"] <= 0:
+            raise ValueError("distillation needs 0 < alpha <= 1 and temperature > 0")
+        if set(distillation.get("ce_only_kinds", ())) - set(KINDS):
+            raise ValueError("Unknown kind in distillation.ce_only_kinds")
+        required[root / distillation["teacher"]] = distillation["teacher_sha256"]
+
+    flags = [e.get("ce_only", False) for e in extras]
+    if any(type(f) is not bool for f in flags):
+        raise ValueError("data.extra ce_only is true or false")
+    if any(flags) and distillation is None:
+        raise ValueError("data.extra ce_only needs a [distillation] section")
+
     if verify_files:
         for path, digest in required.items():
             if file_sha(path) != digest:
                 raise ValueError("Changed training dependency: " + str(path))
-    train = {k: manifest["stores"]["train"][k]["examples"] for k in mix}
-    if not all(train.values()):
+
+    train = {k: manifest["stores"]["train"][k]["examples"] for k in primary_mix}
+    if any(not v for v in train.values()):
         raise ValueError("A mixed kind has no training samples")
+    passes = {k: s["max_steps"] * v / train[k] for k, v in primary_mix.items()}
+
     code = {name: file_sha(ROOT / name) for name in SOURCE_FILES}
     signatures = {"data": config["data"]["manifest_sha256"], "source": init.get("checkpoint_sha256"),
                   "code": hashlib.sha256(json.dumps(code, sort_keys=True).encode()).hexdigest()}
+    if distillation is not None:
+        signatures["teacher"] = distillation["teacher_sha256"]
+
+    extra_fields = {}
+    if any(flags):
+        extra_fields["ce_only_sources"] = [i for i, f in enumerate(flags, 1) if f]
+    if extras:
+        signatures["extra_data"] = [e["manifest_sha256"] for e in extras]
+        for i, (em, examples) in enumerate(zip(extra_mixes, extra_train), 1):
+            passes.update({f"{k}@{i}": s["max_steps"] * v / examples[k] for k, v in em.items() if v})
+        extra_fields["sources"] = [{"directory": config["data"]["directory"], "mix": primary_mix}] + [
+            {"directory": e["directory"], "mix": em} for e, em in zip(extras, extra_mixes)]
+        extra_fields["extra_train_examples"] = extra_train
+
     validation = [k for k in KINDS if manifest["stores"]["validation"].get(k, {}).get("examples")]
     model = FAMILIES[config["architecture"]][1](configuration)
-    return {"stage": STAGE, "architecture": config["architecture"], "parameters": model.parameter_count(),
-            "settings": s, "mix": mix, "batch": sum(mix.values()), "train_examples": train,
-            "passes": {k: s["max_steps"] * v / train[k] for k, v in mix.items()},
-            "validation_kinds": validation, "signatures": signatures, "code_sha256": code,
-            "tokenizer_sha256": manifest["tokenizer_sha256"],
+    plan = {"stage": STAGE, "architecture": config["architecture"], "parameters": model.parameter_count(),
+            "settings": s, "mix": combined_mix, "batch": sum(combined_mix.values()), "train_examples": train,
+            "passes": passes, "validation_kinds": validation, "signatures": signatures, "code_sha256": code,
+            "tokenizer_sha256": manifest["tokenizer_sha256"], **extra_fields,
             "required_files": {Path(p).resolve().as_posix(): h for p, h in required.items()}}
+    if distillation is not None:
+        plan["distillation"] = distillation
+    return plan
 
 
-def update(model, net, optimizer, batches, plan, device, precision, ctx):
+def distilled_loss(logits, teacher_logits, labels, alpha, temperature):
+    """Sums over supervised positions: (mixed loss, cross-entropy, KL at temperature T scaled by T^2)."""
+    valid = labels != -100
+    student, teacher = logits[valid].float(), teacher_logits[valid].float()
+    ce = torch.nn.functional.cross_entropy(student, labels[valid], reduction="sum")
+    target = torch.log_softmax(teacher / temperature, -1)
+    kl = (target.exp() * (target - torch.log_softmax(student / temperature, -1))).sum() * temperature ** 2
+    return (1 - alpha) * ce + alpha * kl, ce, kl
+
+
+def update(model, net, optimizer, batches, plan, device, precision, ctx, teacher=None):
     s = plan["settings"]
+    d = plan.get("distillation")
     local = {k: int((b["labels"] != -100).sum()) for k, b in batches.items()}
     tokens = dict(zip(local, (int(v) for v in ctx.sum([float(v) for v in local.values()], device))))
     total = sum(tokens.values())
     if total <= 0 or not all(tokens.values()):
         raise ValueError("A kind has no supervised targets")
     optimizer.zero_grad(set_to_none=True)
-    sums = {}
+    sums, kl_sums, kl_tokens = {}, {}, {}
     work = [k for k in batches if local[k]]
     for i, kind in enumerate(work):
         batch = batches[kind]
         ids = batch["input_ids"].to(device, non_blocking=True)
         labels = batch["labels"].to(device, non_blocking=True)
+        hard = batch.get("hard")
         with ctx.no_sync(net, i == len(work) - 1):
             with amp_context(device, precision):
-                loss_sum = net(ids, labels)["loss_sum"]
+                if teacher is None or kind in d.get("ce_only_kinds", ()) or (hard is not None and bool(hard.all())):
+                    loss_sum = ce_sum = net(ids, labels)["loss_sum"]
+                elif hard is None or not bool(hard.any()):
+                    with torch.no_grad():
+                        teacher_logits = teacher(ids)
+                    loss_sum, ce_sum, kl_sum = distilled_loss(
+                        net(ids), teacher_logits, labels, d["alpha"], d["temperature"])
+                    kl_sums[kind] = float(kl_sum.detach())
+                    kl_tokens[kind] = local[kind]
+                else:
+                    hard_dev = hard.to(device)
+                    with torch.no_grad():
+                        teacher_logits = teacher(ids)
+                    logits = net(ids)
+                    loss_sum, ce_soft, kl_sum = distilled_loss(
+                        logits[~hard_dev], teacher_logits[~hard_dev], labels[~hard_dev], d["alpha"], d["temperature"])
+                    hard_labels = labels[hard_dev]
+                    valid = hard_labels != -100
+                    ce_hard = torch.nn.functional.cross_entropy(
+                        logits[hard_dev][valid].float(), hard_labels[valid], reduction="sum")
+                    loss_sum = loss_sum + ce_hard
+                    ce_sum = ce_soft + ce_hard
+                    kl_sums[kind] = float(kl_sum.detach())
+                    kl_tokens[kind] = int((labels[~hard_dev] != -100).sum())
                 weight = 1 / total if s["normalization"] == "tokens" else plan["mix"][kind] / plan["batch"] / tokens[kind]
                 loss = loss_sum * (weight * ctx.world)
             loss.backward()
-        sums[kind] = float(loss_sum.detach())
-    sums = dict(zip(sums, ctx.sum([sums.get(k, 0.0) for k in sums], device)))
-    if not all(math.isfinite(v) for v in sums.values()):
+        sums[kind] = float(ce_sum.detach())
+    all_kinds = list(batches)
+    global_sums = dict(zip(all_kinds, ctx.sum([sums.get(k, 0.0) for k in all_kinds], device)))
+    if not all(math.isfinite(v) for v in global_sums.values()):
         raise FloatingPointError("Non-finite training loss")
+    if teacher is not None:
+        g_kl_sums = dict(zip(all_kinds, ctx.sum([kl_sums.get(k, 0.0) for k in all_kinds], device)))
+        g_kl_toks = dict(zip(all_kinds, (int(v) for v in ctx.sum([float(kl_tokens.get(k, 0)) for k in all_kinds], device))))
+    else:
+        g_kl_sums, g_kl_toks = {}, {}
     grad_norm = float(torch.nn.utils.clip_grad_norm_(model.parameters(), s["grad_clip"], error_if_nonfinite=True))
     optimizer.step()
-    return {"loss": sum(sums.values()) / total, "grad_norm": grad_norm, "supervised_tokens": total,
-            "kinds": {k: {"loss": sums[k] / tokens[k], "supervised_tokens": tokens[k]} for k in sums}}
+    return {"loss": sum(global_sums.values()) / total, "grad_norm": grad_norm, "supervised_tokens": total,
+            "kinds": {k: {"loss": global_sums[k] / tokens[k], "supervised_tokens": tokens[k],
+                          **({"kl": g_kl_sums[k] / g_kl_toks[k]} if g_kl_toks.get(k, 0) > 0 else {})}
+                      for k in all_kinds}}
 
 
 def validation_sets(directory, plan, seed):
@@ -314,6 +471,21 @@ def load_source(model, path, architecture):
             "arm": (saved.get("config") or {}).get("arm")}
 
 
+def load_teacher(path, plan, device):
+    """Load frozen distillation teacher (12K tiny_gpt_zh200m or tiny_gpt_zh800m with matching tokenizer)."""
+    from vimeml.training.zh_desktop import desktop_family
+    saved = torch.load(path, map_location="cpu", weights_only=True)
+    family = desktop_family(saved)
+    if family is None:
+        raise ValueError("The teacher is not a tiny_gpt_zh200m or tiny_gpt_zh800m checkpoint")
+    if (saved.get("tokenizer_identity") or {}).get("tokenizer_model_sha256") != plan["tokenizer_sha256"]:
+        raise ValueError("The teacher's tokenizer differs from the data's")
+    teacher = family[1](family[0](**saved["model_config"]))
+    teacher.load_state_dict(saved["model"], strict=True)
+    teacher.to(device).eval().requires_grad_(False)
+    return teacher, {"step": saved.get("step"), "parameters": sum(p.numel() for p in teacher.parameters())}
+
+
 def run(config, resume=False, root=ROOT, log=print):
     from torch.utils.data import DataLoader
     from torch.utils.tensorboard import SummaryWriter
@@ -348,6 +520,9 @@ def run(config, resume=False, root=ROOT, log=print):
         source = {"mode": "checkpoint", **load_source(model, root / init["checkpoint"], config["architecture"])}
     model.to(device)
     optimizer = optimizer_for(model, s, device)
+    teacher = teacher_info = None
+    if plan.get("distillation"):
+        teacher, teacher_info = load_teacher(root / plan["distillation"]["teacher"], plan, device)
     state = {"step": 0, "training_seconds": 0.0, "evaluations": [],
              "totals": {k: {"supervised_tokens": 0, "loss_sum": 0.0} for k in plan["mix"]}}
     if resume:
@@ -374,11 +549,16 @@ def run(config, resume=False, root=ROOT, log=print):
     environment = {"data_parallel_ranks": ctx.world, "torch": str(torch.__version__), "cuda": torch.version.cuda,
                    "device": str(device), "precision": precision, "parameters": model.parameter_count(),
                    "source": source, "compilation": compilation, "smoke_updates": smoke}
+    if teacher_info is not None:
+        environment["teacher"] = teacher_info
     if device.type == "cuda":
         environment["gpu"] = torch.cuda.get_device_name(device)
     put(output / "environment.json", environment)
     data_dir = root / config["data"]["directory"]
-    schedule = Schedule(data_dir, plan["mix"], s["seed"], s["prefix_crop_probability"], ctx.rank, ctx.world)
+    sources = plan.get("sources") or [{"directory": config["data"]["directory"], "mix": plan["mix"]}]
+    schedule = Schedule(data_dir, sources[0]["mix"], s["seed"], s["prefix_crop_probability"], ctx.rank, ctx.world,
+                        extra=[(root / x["directory"], x["mix"]) for x in sources[1:]],
+                        ce_only_sources=plan.get("ce_only_sources", ()))
     sets = validation_sets(data_dir, plan, s["seed"]) if ctx.main else {}
     limit = s.get("smoke_validation_examples", 0)
     writer = SummaryWriter(str(log_dir), purge_step=state["step"] + 1 if resume else None,
@@ -402,7 +582,8 @@ def run(config, resume=False, root=ROOT, log=print):
         return {"format": checkpoint_format, "architecture": config["architecture"], "stage": STAGE,
                 "model": model.state_dict(), "model_config": model.configuration(), "step": state["step"],
                 "config": config, "signatures": plan["signatures"], "tokenizer_identity": identity,
-                "training": {"stage": STAGE, "arm": config.get("arm"), "mix": plan["mix"], "source": source}}
+                "training": {"stage": STAGE, "arm": config.get("arm"), "mix": plan["mix"], "source": source,
+                             **({"distillation": plan["distillation"]} if plan.get("distillation") else {})}}
 
     def save(name="last"):
         if ctx.main:
@@ -440,6 +621,10 @@ def run(config, resume=False, root=ROOT, log=print):
     if s["num_workers"]:
         options.update(multiprocessing_context="spawn", prefetch_factor=4, persistent_workers=True)
     try:
+        if teacher is not None and ctx.main and not (output / "teacher_validation.json").exists():
+            put(output / "teacher_validation.json", evaluate(teacher, sets, s["validation_batch"], device, limit))
+            log("Teacher validation written")
+        ctx.barrier()
         evaluation()
         if not resume:
             save()
@@ -450,7 +635,7 @@ def run(config, resume=False, root=ROOT, log=print):
             rate = learning_rate(state["step"] + 1, s)
             for group in optimizer.param_groups:
                 group["lr"] = rate
-            result = update(model, net, optimizer, batches, plan, device, precision, ctx)
+            result = update(model, net, optimizer, batches, plan, device, precision, ctx, teacher)
             if device.type == "cuda":
                 torch.cuda.synchronize(device)
             state["step"] += 1
@@ -465,6 +650,8 @@ def run(config, resume=False, root=ROOT, log=print):
                 writer.add_scalar("train/loss", result["loss"], state["step"])
                 for kind, r in result["kinds"].items():
                     writer.add_scalar(f"{kind}/train_loss", r["loss"], state["step"])
+                    if "kl" in r:
+                        writer.add_scalar(f"{kind}/train_kl", r["kl"], state["step"])
                 writer.add_scalar("optimizer/learning_rate", rate, state["step"])
                 writer.add_scalar("optimizer/grad_norm", result["grad_norm"], state["step"])
                 speed = state["step"] / state["training_seconds"]
