@@ -101,34 +101,61 @@ def _scan_file(job):
 
     path, out, max_groups = job
     handle = pq.ParquetFile(path)
-    rows = {k: [] for k in ("id", "para", "text", "ja", "markers", "score", "band", "split")}
+    out = Path(out)
+    part_path = out.with_suffix(".parquet.part")
+    final_path = out.with_suffix(".parquet")
+    schema = pa.schema([
+        ("id", pa.string()),
+        ("para", pa.int32()),
+        ("text", pa.string()),
+        ("ja", pa.int32()),
+        ("markers", pa.int32()),
+        ("score", pa.float64()),
+        ("band", pa.string()),
+        ("split", pa.string()),
+    ])
     stats = Counter()
     groups = min(handle.metadata.num_row_groups, max_groups or 1 << 30)
-    for group in range(groups):
-        table = handle.read_row_group(group, columns=["id", "text"]).to_pydict()
-        for doc_id, text in zip(table["id"], table["text"]):
-            stats["documents"] += 1
-            split = "heldout" if doc_hash(HELDOUT_LABEL, doc_id) < HELDOUT_FRACTION * TWO64 else "train"
-            for i, raw in enumerate(text.split("\n")):
-                para = raw.strip()
-                if not para:
-                    continue
-                f = features(para)
-                if f is None:
-                    stats["short_or_low_kana"] += 1
-                    continue
-                ja, markers, score = f
-                b = band(score)
-                stats[f"{b}_paragraphs"] += 1
-                stats[f"{b}_ja"] += ja
-                stats[f"{split}_{b}_ja"] += ja
-                if b == "zero" and doc_hash(ZERO_LABEL, f"{doc_id}#{i}") >= ZERO_SAMPLE * TWO64:
-                    continue
-                for k, v in (("id", doc_id), ("para", i), ("text", para), ("ja", ja),
-                             ("markers", markers), ("score", score), ("band", b), ("split", split)):
-                    rows[k].append(v)
-    out = Path(out)
-    pq.write_table(pa.table(rows), out.with_suffix(".parquet"), compression="zstd")
+    writer = pq.ParquetWriter(part_path, schema, compression="zstd")
+    try:
+        for group in range(groups):
+            rows = {k: [] for k in ("id", "para", "text", "ja", "markers", "score", "band", "split")}
+            table = handle.read_row_group(group, columns=["id", "text"]).to_pydict()
+            for doc_id, text in zip(table["id"], table["text"]):
+                stats["documents"] += 1
+                split = "heldout" if doc_hash(HELDOUT_LABEL, doc_id) < HELDOUT_FRACTION * TWO64 else "train"
+                for i, raw in enumerate(text.split("\n")):
+                    para = raw.strip()
+                    if not para:
+                        continue
+                    f = features(para)
+                    if f is None:
+                        stats["short_or_low_kana"] += 1
+                        continue
+                    ja, markers, score = f
+                    b = band(score)
+                    stats[f"{b}_paragraphs"] += 1
+                    stats[f"{b}_ja"] += ja
+                    stats[f"{split}_{b}_ja"] += ja
+                    if b == "zero" and doc_hash(ZERO_LABEL, f"{doc_id}#{i}") >= ZERO_SAMPLE * TWO64:
+                        continue
+                    rows["id"].append(doc_id)
+                    rows["para"].append(i)
+                    rows["text"].append(para)
+                    rows["ja"].append(ja)
+                    rows["markers"].append(markers)
+                    rows["score"].append(score)
+                    rows["band"].append(b)
+                    rows["split"].append(split)
+            if rows["id"]:
+                writer.write_table(pa.table(rows, schema=schema))
+        writer.close()
+        part_path.replace(final_path)
+    except BaseException:
+        writer.close()
+        if part_path.exists():
+            part_path.unlink()
+        raise
     out.with_suffix(".json").write_text(
         json.dumps({"file": Path(path).name, "row_groups": groups, **stats}, ensure_ascii=False, indent=1),
         encoding="utf-8",
