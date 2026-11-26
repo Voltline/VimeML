@@ -1,0 +1,65 @@
+# ja-gen stage 2.2, 200M joint reading pretraining from scratch (zh 200M shape 12K/L15/c128,
+# 193.6M) with the zh 200M budget: 845,000 updates, cosine 6e-4 -> 6e-5, warmup 1,000, per-kind
+# loss. Per update 832 samples: plain 512 (web 464, V4 LM 24, chat 24) + reading 320 (web_span
+# 176 + span 16, web_sentence 112 + sentence 16; the 3:2 span:sentence of plan 1.3).
+# Purpose: a generation-capable desktop 200M and the distillation teacher of the 20M.
+stage = "ja-kana"
+arm = "200m-joint"
+architecture = "tiny_gpt_zh200m"
+output_dir = "artifacts/models/ja-kana-200m-joint"
+log_dir = "runs/training/ja-kana-200m-joint"
+
+[initialization]
+mode = "random"
+
+[data]
+directory = "artifacts/training-data/ja-kana-v1-12k"
+manifest_sha256 = "PIN_AFTER_ENCODE"
+mix = { web = 464, plain = 24, chat = 24, web_span = 176, span = 16, web_sentence = 112, sentence = 16 }
+
+[model]
+vocab_size = 12288
+context_length = 128
+d_model = 1024
+n_heads = 16
+n_layers = 15
+d_ff = 2560
+dropout = 0.0
+norm = "rmsnorm"
+norm_eps = 0.00001
+activation = "swiglu"
+bias = false
+tie_embeddings = true
+position_embedding = "learned"
+
+[runtime]
+compile_backbone = true
+
+[training]
+device = "cuda"
+precision = "bf16"
+seed = 20261126
+normalization = "per_kind"
+cpu_threads = 4
+num_workers = 4
+max_steps = 845000
+learning_rate = 0.0006
+min_learning_rate = 6e-05
+warmup_steps = 1000
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+prefix_crop_probability = 0.30
+log_every = 100
+eval_every = 10000
+checkpoint_every = 2000
+keep_every = 84500
+validation_batch = 256
+validation_examples = 8192
+
+[tracking]
+enabled = true
+project = "vimeml"
+group = "ja-kana-200m"
+mode = "offline"

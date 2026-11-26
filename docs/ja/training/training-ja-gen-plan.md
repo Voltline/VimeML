@@ -159,3 +159,55 @@ V4.1 fell from 505 to 461 on Standard ([V4.1 record](training-v41.md)). In stage
 | All | 68.4% | 94.8% | 6.2% |
 
 The most frequent disagreements (UniDic / Sudachi) are 日本・日本人 (ニッポン・ニッポンニン / ニホン・ニホンジン), 人 after a noun (一般人 ニン / ジン), 私 (ワタクシ / ワタシ), 身近 (ミヂカ / ミジカ, the same sound in two kana spellings), 世界中 (チュウ / ジュウ), 土曜日 (ヒ / ビ), お母さん・お父さん (ハハ・チチ / カア・トウ) and 家 (イエ / ウチ). In most of these unidic-lite gives the less common reading, so whole-span agreement keeps such sentences out of the reading samples; 日本人 in particular never becomes a reading sample. The rest is partly symbol handling, not reading: Sudachi reads some symbols as キゴウ, and the two analyzers write ～ and … differently. The build compares readings with symbols removed and ヂ/ヅ folded to ジ/ズ.
+
+**1.3 record (2026-11-26): `kana-samples-v1`.** `scripts/ja/corpus/kana_samples.py` (992cfad), 851 jobs split by input file over several CPU jobs, no code changes. Manifest SHA256 `81442c6ed509febaf9d2acf8c6d2f5b2aed9a977e9c6b329a5427ffa44abf939`, 91 GB.
+
+| Source | train | validation | span : sentence (train) |
+| --- | ---: | ---: | --- |
+| `ja-gen-export-v1` (half of the paragraphs) | 484,505,322 | 240,109 | 74 : 26 |
+| V4 LM corpus | 17,942,934 | 184,870 | 82 : 18 |
+| V4.1 chat | 393,929 | 4,288 | 62 : 38 |
+
+Web train covered 759M paragraphs; spans average 13.1 characters and 16.4 kana of reading, and 81.9% have left context. Kinds are drawn 3:2, but fewer paragraphs hold a usable whole sentence, so the store has fewer sentence samples. Training draws each kind by its own count, so the per-update mix is unaffected.
+
+**D6 (2026-11-26, 1.5 token store): one store with seven kinds; the 20M uses only the LM and chat reading samples.** `ja-kana-v1-12k` (`scripts/ja/tokenizer/encode_kana.py`, `configs/ja/data-ja-kana-store.toml`) holds:
+
+- `plain` (V4 LM lines), `chat` (V4.1 chat) and `web` (the half of the `ja-gen-export-v1` paragraphs not selected for reading samples, so no paragraph is in both), each as BOS + line + EOS cut into windows of at most 128 tokens;
+- `span` and `sentence` (LM and chat reading samples);
+- `web_span` and `web_sentence` (web reading samples).
+
+Following 1.1, the 20M builds on the V4 LM and chat corpora, so it uses the first four kinds only; the three web kinds are for the 200M. The 20M's `plain` 192 in the 1.3 table is split into LM 175 + chat 17 (V4.2 had about 9% chat windows). LM and chat train lines identical to any validation line are dropped. Validation reading samples are thinned by `doc_hash` (LM and web 5%, chat all).
+
+## Stage 2 registration (2026-11-26)
+
+Trainer `src/vimeml/training/joint_ja_kana.py` (entry `scripts/ja/training/train_ja_kana.py`):
+
+- Each update takes each kind's count of samples. Within a kind the order is a bijection seeded by (seed, kind, pass), so any step's batch depends only on (seed, step).
+- Under data parallelism every process takes its rows of the same global batch and normalizes by global supervised-token counts, so the gradient equals the single-device one.
+- Checkpoints use the zh13 / zh200m formats.
+- `tokens` normalization weighs every token equally; `per_kind` is Σ (kind count / batch) × mean loss of the kind.
+- Every run uses final.pt only; no checkpoint is chosen on development.
+
+**2.1 20M** (12K / d384 / L9, 20.0M parameters).
+
+- **Pretraining**: random initialization, V4.2's budget of 1,081,942 updates, each `plain` 466 + `chat` 46, token-normalized, cosine 6e-4 → 6e-5, warmup 1,000, prefix crop 0.30. Four seeds: 1219827974 (V4.2's), 20261126, 20261127, 20261128 (`configs/ja/train-ja-kana-20m-pt-s{1..4}.toml`).
+- **Reading arm** (`train-ja-kana-20m-read-s{n}.toml`): continues each seed's pretraining final.pt (weights only, fresh AdamW) with the zh r2-cont recipe: 60,000 updates, cosine 1.5e-4 → 1.5e-5, warmup 1,000, seed 20261130. Each update: `plain` 175 / `chat` 17 / `span` 192 / `sentence` 128, `per_kind`.
+- **LM control** (`train-ja-kana-20m-lm-s{n}.toml`): same start and schedule, each update `plain` 466 / `chat` 46, token-normalized.
+- **Evaluation** (after training, development only):
+  - `ime-kana-ja-v1` development. The final list is AzooKey N-best 20 ∪ beam-16 generation bucketed by key position (top 10), ordered by generation score + λ × LM score; λ starts at 1.6 and is tuned on development only. Primary metric: notation-lenient Top-1. Also reported: exact Top-1, Top-3, results by length and by left context, and the D5 items separately, with author/dialogue-clustered statistics. The LM control cannot generate, so it reranks the AzooKey pool with its LM score.
+  - Standard development (728 items): both arms rerank with the LM score only.
+  - Each seed is reported, plus the four-seed mean.
+- **Decision**: the reading recipe is kept if both hold:
+  - (a) the reading arm's four-seed mean lenient Top-1 on kana development is above V4.2 reranking (85.2) and above the LM control (paired by seed);
+  - (b) its four-seed mean Standard reranking is at least 501.
+
+  Otherwise the result is recorded and a fix is registered before the 20M distillation. The 200M is unaffected.
+
+**2.2 200M joint reading pretraining** (`configs/ja/train-ja-kana-200m-joint.toml`, the zh 200M shape 12K / L15 / c128, 193.6M parameters).
+
+- Random initialization, the zh 200M budget of 845,000 updates, cosine 6e-4 → 6e-5, warmup 1,000, seed 20261126, `per_kind`.
+- 832 samples per update:
+  - plain text 512: `web` 464, `plain` 24, `chat` 24;
+  - reading 320: `web_span` 176 + `span` 16, `web_sentence` 112 + `sentence` 16 (the 3:2 span:sentence of 1.3).
+- From the 1.3 counts, about 0.41 passes over `web_span` and 0.76 over `web_sentence`. `web` passes are recorded with the 1.5 window count.
+- Evaluated as in 2.1 (with its own generation and LM scores), plus Standard reranking. It is the teacher of the 20M distillation (2.3, registered later).

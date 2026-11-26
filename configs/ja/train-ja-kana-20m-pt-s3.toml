@@ -1,0 +1,63 @@
+# ja-gen stage 2.1, 20M plain LM pretraining from scratch, seed 3 of 4 (seed 1 is V4.2's).
+# V4.2's data and budget on the 12K tokenizer: 1,081,942 updates of 512 windows, V4 LM lines 466 +
+# chat 46 per update (V4.2's 9% chat windows), token-normalized LM loss, cosine 6e-4 -> 6e-5.
+stage = "ja-kana"
+arm = "20m-pt-s3"
+architecture = "tiny_gpt_zh13"
+output_dir = "artifacts/models/ja-kana-20m-pt-s3"
+log_dir = "runs/training/ja-kana-20m-pt-s3"
+
+[initialization]
+mode = "random"
+
+[data]
+directory = "artifacts/training-data/ja-kana-v1-12k"
+manifest_sha256 = "PIN_AFTER_ENCODE"
+mix = { plain = 466, chat = 46 }
+
+[model]
+vocab_size = 12288
+context_length = 128
+d_model = 384
+n_heads = 6
+n_layers = 9
+d_ff = 960
+dropout = 0.0
+norm = "rmsnorm"
+norm_eps = 0.00001
+activation = "swiglu"
+bias = false
+tie_embeddings = true
+position_embedding = "learned"
+
+[runtime]
+compile_backbone = true
+
+[training]
+device = "cuda"
+precision = "bf16"
+seed = 20261127
+normalization = "tokens"
+cpu_threads = 4
+num_workers = 4
+max_steps = 1081942
+learning_rate = 0.0006
+min_learning_rate = 6e-05
+warmup_steps = 1000
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+prefix_crop_probability = 0.30
+log_every = 100
+eval_every = 10000
+checkpoint_every = 5000
+keep_every = 108200
+validation_batch = 256
+validation_examples = 8192
+
+[tracking]
+enabled = true
+project = "vimeml"
+group = "ja-kana-20m"
+mode = "offline"

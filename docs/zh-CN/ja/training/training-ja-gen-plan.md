@@ -157,3 +157,36 @@ V4.1 在 Standard 上从 505 掉到 461（[V4.1 记录](training-v41.md)）。�
 | 合计 | 68.4% | 94.8% | 6.2% |
 
 最常见的分歧（UniDic / Sudachi）：日本・日本人（ニッポン・ニッポンニン / ニホン・ニホンジン）、名词后的人（一般人 ニン / ジン）、私（ワタクシ / ワタシ）、身近（ミヂカ / ミジカ，同音的两种假名写法）、世界中（チュウ / ジュウ）、土曜日（ヒ / ビ）、お母さん・お父さん（ハハ・チチ / カア・トウ）、家（イエ / ウチ）。这些分歧里多数是 unidic-lite 给出了较少见的读法，按整段一致的规则，这类句子进不了读音样本，"日本人"尤其永远不会成为读音样本。其余有一部分是符号处理而非读音：Sudachi 把部分符号读作 キゴウ，两个分析器对 ～ 和 … 的写法也不同。构建时比较读音前先去掉符号，并把 ヂ/ヅ 归并为 ジ/ズ。
+
+**1.3 记录（2026-11-26）：`kana-samples-v1`。** `scripts/ja/corpus/kana_samples.py`（992cfad），851 个作业，按输入文件分到多个 CPU 作业并行构建，无代码改动。manifest SHA256 `81442c6ed509febaf9d2acf8c6d2f5b2aed9a977e9c6b329a5427ffa44abf939`，91 GB。
+
+| 来源 | train | validation | span : sentence（train） |
+| --- | ---: | ---: | --- |
+| `ja-gen-export-v1`（一半段落） | 484,505,322 | 240,109 | 74 : 26 |
+| V4 LM 语料 | 17,942,934 | 184,870 | 82 : 18 |
+| V4.1 聊天 | 393,929 | 4,288 | 62 : 38 |
+
+web train 处理 7.59 亿段落；span 平均 13.1 字、读音 16.4 假名，81.9% 带左文。种类按 3:2 抽取，但可作整句样本的段落更少，所以存量里 sentence 偏少；训练按种类各自计数取样，每次更新的配比不受影响。
+
+**D6（2026-11-26，1.5 token 库）：一个库七个种类；20M 只用 LM 与聊天的读音样本。** `ja-kana-v1-12k`（`scripts/ja/tokenizer/encode_kana.py`，`configs/ja/data-ja-kana-store.toml`）含：`plain`（V4 LM 语料行）、`chat`（V4.1 聊天）、`web`（`ja-gen-export-v1` 中没被选作读音样本的那一半段落，与读音样本不重叠），三者都是 BOS + 行 + EOS 切成不超过 128 token 的窗口；`span`、`sentence`（LM 与聊天的读音样本）；`web_span`、`web_sentence`（web 的读音样本）。按 1.1，20M 的基础是 V4 的 LM 和聊天语料，因此 20M 只用前四种；web 的三种只给 200M。1.3 表中 20M 的 `plain` 192 拆成 LM 175 + 聊天 17（V4.2 的聊天窗口占比约 9%）。另外：与验证集任一行完全相同的 LM / 聊天训练行去掉；验证集读音样本按 `doc_hash` 抽稀（LM、web 5%，聊天全留）。
+
+## 第 2 阶段登记（2026-11-26）
+
+训练器 `src/vimeml/training/joint_ja_kana.py`（入口 `scripts/ja/training/train_ja_kana.py`）：每次更新按配比从各种类取样，种类内的顺序是按 (seed, 种类, 轮次) 生成的双射，任一步的批次只由 (seed, step) 决定；数据并行时各进程取同一全局批次中各自的行，按全局监督 token 数归一化，梯度与单卡相同。检查点沿用 zh13 / zh200m 格式。`tokens` 归一化 = 全部 token 等权；`per_kind` = Σ (该种类条数 / 批大小) × 该种类平均损失。所有运行只用 final.pt，不按开发集挑检查点。
+
+**2.1 20M**（12K / d384 / L9，20.0M 参数）。
+
+- **预训练**：随机初始化，V4.2 的预算 1,081,942 次更新，每次 `plain` 466 + `chat` 46，token 归一化，余弦 6e-4 → 6e-5，warmup 1,000，前缀裁剪 0.30。4 个 seed：1219827974（V4.2 的 seed）、20261126、20261127、20261128（`configs/ja/train-ja-kana-20m-pt-s{1..4}.toml`）。
+- **读音组**（`train-ja-kana-20m-read-s{n}.toml`）：从各 seed 的预训练 final.pt 继续（只取权重，AdamW 重新开始），中文 r2-cont 配方：60,000 次更新，余弦 1.5e-4 → 1.5e-5，warmup 1,000，seed 20261130；每次 `plain` 175 / `chat` 17 / `span` 192 / `sentence` 128，`per_kind`。
+- **LM 对照组**（`train-ja-kana-20m-lm-s{n}.toml`）：同一起点、同一调度，每次 `plain` 466 / `chat` 46，token 归一化。
+- **评测**（训练结束后，只用开发集）：
+  - `ime-kana-ja-v1` development：最终列表 = AzooKey N-best 20 ∪ 按键位分桶的 beam 16 生成（前 10），按 生成分 + λ × LM 分 排序，λ 从 1.6 起只在开发集上调。主指标为书写形式宽松 Top-1；另报严格 Top-1、Top-3、按长度和左文分组、D5 条目单独列出，按作者 / 对话聚类统计。LM 对照组不会生成，只用 LM 分重排 AzooKey 池。
+  - Standard development（728 条）：读音组和对照组都只用 LM 分重排。
+  - 每个 seed 单独报告，并报 4 个 seed 的均值。
+- **判定**：读音配方保留的条件是 (a) 读音组在 kana development 上宽松 Top-1 的 4-seed 均值高于 V4.2 重排（85.2），也高于 LM 对照组（按 seed 配对）；(b) 读音组 Standard 重排的 4-seed 均值不低于 501。不满足时记录结果，在 20M 蒸馏之前另行登记修正；200M 不受影响。
+
+**2.2 200M 联合读音预训练**（`configs/ja/train-ja-kana-200m-joint.toml`，中文 200M 形状 12K / L15 / c128，193.6M 参数）。
+
+- 随机初始化，中文 200M 的预算 845,000 次更新，余弦 6e-4 → 6e-5，warmup 1,000，seed 20261126，`per_kind`。
+- 每次 832 条：纯文本 512（`web` 464、`plain` 24、`chat` 24）+ 读音 320（`web_span` 176 + `span` 16，`web_sentence` 112 + `sentence` 16，即 1.3 的 span:sentence 3:2）。按 1.3 的存量，`web_span` 约过 0.41 遍、`web_sentence` 约 0.76 遍；`web` 的遍数随 1.5 的窗口数登记。
+- 评测与 2.1 相同（用自己的生成分和 LM 分），另报 Standard 重排。它是 20M 蒸馏（2.3，另行登记）的教师。

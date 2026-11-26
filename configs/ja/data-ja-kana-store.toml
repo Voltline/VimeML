@@ -1,0 +1,21 @@
+# ja-gen stage 1.5: token store ja-kana-v1-12k (scripts/ja/tokenizer/encode_kana.py).
+# Kinds: plain (V4 LM lines), chat (V4.1 chat), web (export-v1 paragraphs not used for reading
+# samples), span / sentence (lm + chat reading samples, the 20M), web_span / web_sentence (web
+# reading samples, the 200M). Deviation D6.
+label = "ja-kana-v1-12k"
+output_dir = "artifacts/training-data/ja-kana-v1-12k"
+tokenizer_dir = "artifacts/tokenizers/ja-kana-v1"
+samples_dir = "outputs/ja-corpus/kana-samples-v1"
+web_dir = "outputs/ja-corpus/export-v1"
+lm_dir = "outputs/corpus-fast-v1"
+# Must equal kana-samples-v1's label and fractions: web plain text is the complement of the
+# paragraphs kana_samples.py selected (doc_hash(label/select, web/<id>#<n>) < fractions.web).
+samples_label = "ja-kana-v1"
+reading_fractions = { web = 0.5, lm = 1.0, chat = 1.0 }
+workers = 32
+lm_bytes_per_job = 67108864
+web_row_groups_per_job = 6
+# Windows shorter than this (BOS and EOS included) are dropped; 4 keeps two-token chat replies.
+plain_minimum_tokens = 4
+# Validation reading samples kept per source (the trainer validates on at most 8,192 per kind).
+validation_fractions = { lm = 0.05, chat = 1.0, web = 0.05 }

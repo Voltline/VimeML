@@ -1,0 +1,65 @@
+# ja-gen stage 2.1, 20M reading arm: plain 192 (LM 175 + chat 17) / span 192 / sentence 128 per update, per-kind loss.
+# Continues 20m-pt-s4 final.pt (weights only, fresh AdamW) with the zh r2-cont recipe: 60,000
+# updates, cosine 1.5e-4 -> 1.5e-5, warmup 1,000. Reading samples come from lm + chat only (D6).
+stage = "ja-kana"
+arm = "20m-read-s4"
+architecture = "tiny_gpt_zh13"
+output_dir = "artifacts/models/ja-kana-20m-read-s4"
+log_dir = "runs/training/ja-kana-20m-read-s4"
+
+[initialization]
+mode = "checkpoint"
+checkpoint = "artifacts/models/ja-kana-20m-pt-s4/final.pt"
+checkpoint_sha256 = "PIN_AFTER_PRETRAINING"
+
+[data]
+directory = "artifacts/training-data/ja-kana-v1-12k"
+manifest_sha256 = "PIN_AFTER_ENCODE"
+mix = { plain = 175, chat = 17, span = 192, sentence = 128 }
+
+[model]
+vocab_size = 12288
+context_length = 128
+d_model = 384
+n_heads = 6
+n_layers = 9
+d_ff = 960
+dropout = 0.0
+norm = "rmsnorm"
+norm_eps = 0.00001
+activation = "swiglu"
+bias = false
+tie_embeddings = true
+position_embedding = "learned"
+
+[runtime]
+compile_backbone = true
+
+[training]
+device = "cuda"
+precision = "bf16"
+seed = 20261130
+normalization = "per_kind"
+cpu_threads = 4
+num_workers = 4
+max_steps = 60000
+learning_rate = 0.00015
+min_learning_rate = 1.5e-05
+warmup_steps = 1000
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+prefix_crop_probability = 0.30
+log_every = 100
+eval_every = 2000
+checkpoint_every = 1000
+keep_every = 6000
+validation_batch = 256
+validation_examples = 8192
+
+[tracking]
+enabled = true
+project = "vimeml"
+group = "ja-kana-20m"
+mode = "offline"
