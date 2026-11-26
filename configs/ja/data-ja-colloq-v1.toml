@@ -1,0 +1,25 @@
+# ja-gen stage 3: colloquial token store ja-colloq-v1-12k (scripts/ja/tokenizer/encode_ja_colloq.py).
+# Encodes outputs/ja-colloq/export-colloq-v1 (ja_colloq.py export) into a vimeml_ja_kana_v1 store
+# with kinds plain / span / sentence for mounting via [[data.extra]] in colloquial post-training.
+# Every paragraph goes either to plain (30%) or to reading samples (70%, 3:2 span:sentence),
+# using the D4 reading table and D5 user-typed reading rules of kana_samples.py.
+label = "ja-colloq-v1-12k"
+export_dir = "outputs/ja-colloq/export-colloq-v1"
+output_dir = "artifacts/training-data/ja-colloq-v1-12k"
+tokenizer_dir = "artifacts/tokenizers/ja-kana-v1"
+table = "configs/ja/ja-reading-table.tsv"
+workers = 16
+row_groups_per_job = 2
+
+plain_fraction = 0.30
+kind_weights = { span = 3, sentence = 2 }
+plain_minimum_tokens = 4
+
+[sample]
+target_chars = [4, 40]
+reading_chars = [4, 64]
+context_chars = 64
+run_chars = [6, 100]
+end_at_run_end_probability = 0.5
+runs_tried = 3
+sentences_tried = 3
