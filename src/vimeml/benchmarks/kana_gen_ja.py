@@ -22,7 +22,7 @@ import torch
 from vimeml.benchmarks import statistics
 from vimeml.benchmarks.standard_ime import load_standard_export
 from vimeml.benchmarks.zh13_lm_scores import load as load_zh_model, score_item
-from vimeml.deployment.ja_search import EOS, LIMIT, prompt_ids, search as kana_search
+from vimeml.deployment.ja_search import EOS, LIMIT, prompt_ids, search as kana_search, to_hiragana
 from vimeml.deployment.zh_torch_backend import ModelBatchBackend
 from vimeml.training.data import file_sha, write_json
 
@@ -57,9 +57,15 @@ def load_dev_pool(path):
     return manifest, rows
 
 
+def row_reading(row):
+    """Extract normalized hiragana reading from an exported candidate row."""
+    raw = row.get("query") or row.get("input_hiragana") or row.get("reading") or ""
+    return to_hiragana(raw)
+
+
 def is_d5_item(row):
     """True if any accepted answer and the input reading match a deviation D5 dictionary reading."""
-    reading = row.get("input_hiragana") or row.get("reading") or ""
+    reading = row_reading(row)
     answers = row.get("answers") or []
     for surface, dict_read in D5_PAIRS:
         if dict_read in reading and any(surface in ans for ans in answers):
@@ -267,7 +273,7 @@ def evaluate_arm(checkpoint, tokenizer, kana_pool_dir, standard_pool_dir, out_di
     for idx, row in enumerate(kana_rows, 1):
         az_texts = [c["text"] for c in row["candidates"]]
         context = row.get("left_context") or ""
-        reading = row.get("input_hiragana") or row.get("reading") or ""
+        reading = row_reading(row)
         if mode == "read":
             ranked, stats = kana_search(backend, sp, index, reading, context, beam=beam, topk=topk,
                                         search_mode=search_mode, fallback_free=fallback_free)
@@ -279,7 +285,7 @@ def evaluate_arm(checkpoint, tokenizer, kana_pool_dir, standard_pool_dir, out_di
             union_lm_scores = lm_scores_safe(model, sp, context, union, device=device)
             shown_default = merge_and_rank(az_texts, gen_texts, union_gen_scores, union_lm_scores, lam=lam)
             kana_out.append({
-                "id": row["id"], "source": row.get("source"), "author": row.get("author"),
+                "id": row["id"], "source": row.get("source"), "group": row.get("group"),
                 "provenance": row.get("provenance"), "left_context": context,
                 "reading": reading, "answers": row["answers"], "d5_item": is_d5_item(row),
                 "azookey": az_texts, "gen": gen_texts, "gen_beam_scores": gen_beam_scores,
@@ -291,7 +297,7 @@ def evaluate_arm(checkpoint, tokenizer, kana_pool_dir, standard_pool_dir, out_di
             lm_sc = lm_scores_safe(model, sp, context, az_texts, device=device)
             shown = rank_lm_only(az_texts, lm_sc)
             kana_out.append({
-                "id": row["id"], "source": row.get("source"), "author": row.get("author"),
+                "id": row["id"], "source": row.get("source"), "group": row.get("group"),
                 "provenance": row.get("provenance"), "left_context": context,
                 "reading": reading, "answers": row["answers"], "d5_item": is_d5_item(row),
                 "azookey": az_texts, "union": az_texts, "union_lm_scores": lm_sc, "shown": shown,
@@ -306,7 +312,7 @@ def evaluate_arm(checkpoint, tokenizer, kana_pool_dir, standard_pool_dir, out_di
         lm_sc = lm_scores_safe(model, sp, context, az_texts, device=device)
         shown = rank_lm_only(az_texts, lm_sc)
         std_out.append({
-            "id": row["id"], "source": row.get("source"), "author": row.get("author"),
+            "id": row["id"], "source": row.get("source"), "group": row.get("group"),
             "provenance": row.get("provenance"), "left_context": context,
             "answers": row["answers"], "azookey": az_texts, "lm_scores": lm_sc, "shown": shown,
         })

@@ -156,8 +156,9 @@ class TestJaGenStage2(unittest.TestCase):
                 load_dev_pool(sdir)
 
     def test_d5_and_stage21_decision(self):
+        self.assertTrue(is_d5_item({"query": "ワタクシハ", "answers": ["私は"]}))
         self.assertTrue(is_d5_item({"input_hiragana": "わたくしは", "answers": ["私は"]}))
-        self.assertFalse(is_d5_item({"input_hiragana": "わたしは", "answers": ["私は"]}))
+        self.assertFalse(is_d5_item({"query": "ワタシハ", "answers": ["私は"]}))
         read_s = [{"kana_development": {"notation_lenient_top1": {"rate": 86.5}},
                    "standard_development": {"exact_top1": {"hits": 510}}}] * 4
         lm_s = [{"kana_development": {"notation_lenient_top1": {"rate": 85.0}},
