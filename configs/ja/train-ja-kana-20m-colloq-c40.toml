@@ -26,7 +26,7 @@ mix = { plain = 97, chat = 17, span = 114, sentence = 76 }
 
 [[data.extra]]
 directory = "artifacts/training-data/ja-colloq-v1-12k"
-manifest_sha256 = "PIN_AFTER_COLLOQ_ENCODE"
+manifest_sha256 = "b824b16c2c43bc7f502000cf60a6a96969870f46bfc4aa266244ba41fdcca256"
 mix = { plain = 78, span = 78, sentence = 52 }
 
 [model]

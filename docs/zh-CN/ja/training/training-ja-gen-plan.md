@@ -232,7 +232,7 @@ web train 处理 7.59 亿段落；span 平均 13.1 字、读音 16.4 假名，81
 
 **3.3 训练臂与判定规则**：
 
-- **起点**：第 2.3 阶段 `20m-kd-cont` 的 `final.pt`；继续训练 30,000 步，200M 教师蒸馏（`α = 0.5, T = 1.0`），余弦 `1e-4 → 1e-5`，warmup 1,000，seed `20261201`，每次更新 512 条（`plain 175 / chat 17 / span 192 / sentence 128`，`per_kind`）。
+- **起点**：第 2.3 阶段 `20m-kd-cont` 的 `final.pt`；继续训练 30,000 步，200M 教师蒸馏（`α = 0.5, T = 1.0`），余弦 `1e-4 → 1e-5`，warmup 1,000，seed `20261205`，每次更新 512 条（`plain 175 / chat 17 / span 192 / sentence 128`，`per_kind`）。
 - **三个臂**：
   - `colloq-ctrl`（`configs/ja/train-ja-kana-20m-colloq-ctrl.toml`）：0 条口语（续训对照）；
   - `colloq-c40`（`configs/ja/train-ja-kana-20m-colloq-c40.toml`，`p70` 组）：每次 208 条口语（约 40.6%），取自 `ja-colloq-v1-12k`；
@@ -240,3 +240,17 @@ web train 处理 7.59 亿段落；span 平均 13.1 字、读音 16.4 假名，81
 - **主指标**：`ime-kana-ja-colloq-v1` development 自重排后书写形式宽松 Top-1（`生成分 + λ × LM 分`，λ 沿用第 2.3 阶段冻结值）；同时按 4 个规则分档（`zero/low/mid/high`）分开报告。
 - **守门条件**：(a) `ime-kana-ja-v1` development 宽松 Top-1 不显著低于 `kd-cont`（按作者/对话聚类配对符号翻转，`p < 0.05`）；(b) Standard development 重排不低于 V4.2 配方 seed 带下沿 501 且不显著低于 `kd-cont`。
 - **判定**：默认口语臂为 `colloq-c40`（`p70`）；仅当 `colloq-c40-p85` 在主指标上显著高于 `colloq-c40`（聚类配对符号翻转，`p < 0.05`）且通过全部守门条件时，才改用 `p85`。胜出臂还需在主指标上显著高于 `colloq-ctrl` 并通过全部守门条件，才替换 `kd-cont` 进入第 4 阶段确认；否则保留 `kd-cont`。
+
+**3.1 完成记录（2026-11-26）：**
+
+- **质量抽检**：2,000 条导出样本均由 DeepSeek Flash 完成复核（`ok 1,934 / bad 66`，不合格率 `3.30%`：`sexual 24`、`junk 15`、`abuse 13`、`political 9`、`illegal 3`、`hate 2`；其中 `p_chat ≥ 0.85` 子集 `844` 条里 `bad 25`，不合格率 `2.96%`），无需补规则重编。
+- **双口语 token 库构建完成**（经 `encode_ja_colloq.py` 排除 509,310 条验证行）：
+  - `ja-colloq-v1-12k`（`p70`，manifest SHA256 `b824b16c2c43bc7f502000cf60a6a96969870f46bfc4aa266244ba41fdcca256`）：训练集 `plain 7,379,112 / span 9,238,622 / sentence 3,598,323`；验证集 `plain 160,070 / span 197,183 / sentence 77,514`。
+  - `ja-colloq-v1-p85-12k`（`p85`，manifest SHA256 `8cf9ab8e722749ed1e4181390b000902fc5a24f023bc1de93fdcbfb77e83a5bc`）：训练集 `plain 3,158,150 / span 3,870,936 / sentence 1,453,397`；验证集 `plain 68,190 / span 82,886 / sentence 31,145`。
+  - 以上两项 `manifest_sha256` 已回填至 `configs/ja/train-ja-kana-20m-colloq-c40.toml` 与 `configs/ja/train-ja-kana-20m-colloq-c40-p85.toml`。
+
+**3.2 冻结记录（2026-11-26）：**
+
+- **4,000 条候选打标**（DeepSeek Flash，标签 SHA256 `3d1d1917eb01b58e06677c70787b9f7154e318bcb64dfd3aa3368b1838f2c5f1`）：`label=0` 391、`label=1` 683、`label=2` 953（`chat 750 / fiction 173 / formal 16 / marketing 14`）、`label=3` 1,973（`chat 1,972 / fiction 1`）。
+- **严格仅收 `label == 3`**（未触发对白回退）：4,000 条候选池重叠扫描共剔除 275 条（其中 `label=3` 剔除 144 条），按 `split_seed = 20261202` 划得去重后可用 `label=3`：`development 911`（`zero 187 / low 202 / mid 235 / high 287`）、`test 918`（`zero 172 / low 216 / mid 270 / high 260`）。
+- **冻结产物**：`ime-kana-ja-colloq-v1` release_id `f0db62b9b21443e39ef38cbb0c296ead`，manifest SHA256 `6538b128474cb938cc942aa645b18ea8282d3218e43a33a77ba0186e6dc66e9f`，`development 600`（`zero 151 / low 134 / mid 141 / high 174`）、`test 600`（`zero 142 / low 136 / mid 148 / high 174`），文档级与组级零重叠，**`test` 封存**。
