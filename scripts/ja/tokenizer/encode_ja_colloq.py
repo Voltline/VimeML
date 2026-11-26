@@ -183,7 +183,7 @@ def init_worker(config, exclude):
 
     ks._state["config"] = config
     ks._state["reader"] = DualReading()
-    ks._state["table"] = load_table(config["table_path"])
+    ks._state["table"] = load_table(Path(config["table_path"]))
     _state.update(
         config=config,
         exclude=exclude,

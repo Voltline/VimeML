@@ -285,6 +285,23 @@ class TestJaColloqPipeline(unittest.TestCase):
             audit_rows = [json.loads(l) for l in audit_out.read_text("utf-8").splitlines() if l.strip()]
             self.assertEqual(len(audit_rows), 10)
 
+    def test_init_worker_accepts_str_table_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tdir = Path(tmp)
+            tsv_path = tdir / "table.tsv"
+            tsv_path.write_text("# header\n私\tワタクシ\tワタシ\tワタシ\thand\t10\n", encoding="utf-8")
+            fake_tok = tdir / "tokenizer.model"
+            fake_tok.write_bytes(b"")
+            cfg = {"table_path": str(tsv_path), "tokenizer_path": str(fake_tok)}
+            with mock.patch("vimeml.benchmarks.readings.DualReading", return_value="dummy_reader"), \
+                 mock.patch("sentencepiece.SentencePieceProcessor", return_value="dummy_sp"), \
+                 mock.patch.dict(ejc.ks._state, {}, clear=True), \
+                 mock.patch.dict(ejc._state, {}, clear=True):
+                ejc.init_worker(cfg, set())
+                self.assertEqual(ejc.ks._state["table"], {("私", "ワタクシ", "ワタシ"): "ワタシ"})
+                self.assertEqual(ejc.ks._state["reader"], "dummy_reader")
+                self.assertEqual(ejc._state["sp"], "dummy_sp")
+
 
 if __name__ == "__main__":
     unittest.main()
