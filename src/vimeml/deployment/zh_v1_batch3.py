@@ -549,7 +549,8 @@ def merge(packages, output):
     files = v2.inventory(output / "model.mlpackage")
     separate = sum(m["package_bytes"] for m in manifests.values())
     write_json(output / "manifest.json", {"format": MERGED_FORMAT, "status": "complete",
-        "architecture": zh_v1.ARCHITECTURE, "release_name": zh_v1.RELEASE, "kind": first["kind"],
+        "architecture": zh_v1.ARCHITECTURE,
+        "release_name": first.get("bundle", {}).get("release_name", zh_v1.RELEASE), "kind": first["kind"],
         "bundle": first["bundle"], "minimum_ios": 18, "compute_units": "CPU_ONLY", "batch_range": [1, MAX_BATCH],
         "functions": {f: {"source_manifest_sha256": file_sha(Path(packages[f]) / "manifest.json"),
                           "vocab_chunks": m["vocab_chunks"], "interface": m["interface"]} for f, m in manifests.items()},

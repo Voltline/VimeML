@@ -33,7 +33,7 @@ from vimeml.training.model_zh13 import GPTZh13Config, TinyGPTZh13
 
 RELEASE = "vimeml-tiny-zh-v1"
 # Releases sharing this contract (same 12K tokenizer, nine-layer d384 block); the bundle names its own.
-RELEASES = (RELEASE, "vimeml-zh-v2-20m")
+RELEASES = (RELEASE, "vimeml-zh-v2-20m", "vimeml-ja-v2-20m")
 VOCAB = 12288
 LAYERS = 9
 CACHE_SHAPE = (LAYERS, 1, 6, 128, 64)
