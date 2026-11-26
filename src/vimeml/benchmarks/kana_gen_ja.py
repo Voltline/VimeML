@@ -235,15 +235,19 @@ def summarize_rows(rows, shown_fn):
     return out
 
 
-def evaluate_arm(checkpoint, tokenizer, kana_pool_dir, standard_pool_dir, out_dir,
+def evaluate_arm(checkpoint, tokenizer, kana_pool_dir, standard_pool_dir=None, out_dir=None,
                  mode="read", index_path=None, device="cuda", beam=16, topk=10,
                  lam=1.6, lambdas=DEFAULT_LAMBDAS, search_mode="constrained",
-                 fallback_free=True, limit=0):
-    """Run Stage 2 evaluation for one checkpoint on both development pools."""
+                 fallback_free=True, limit=0, shard_index=0, num_shards=1):
+    """Run Stage 2 evaluation for one checkpoint on development pool(s), with optional sharding."""
     from vimeml.deployment.ja_search import KanaIndex
 
     if mode not in ("read", "lm"):
         raise ValueError(f"Unknown mode {mode!r}; expected 'read' or 'lm'")
+    if num_shards < 1 or not (0 <= shard_index < num_shards):
+        raise ValueError(f"Invalid shard {shard_index}/{num_shards}")
+    if out_dir is None:
+        raise ValueError("out_dir is required")
     out = Path(out_dir)
     if out.exists() and any(out.iterdir()):
         raise ValueError(f"Use an empty output directory: {out}")
@@ -256,9 +260,15 @@ def evaluate_arm(checkpoint, tokenizer, kana_pool_dir, standard_pool_dir, out_di
         torch.set_float32_matmul_precision("highest")
 
     kana_manifest, kana_rows = load_dev_pool(kana_pool_dir)
-    std_manifest, std_rows = load_dev_pool(standard_pool_dir)
+    if standard_pool_dir is not None:
+        std_manifest, std_rows = load_dev_pool(standard_pool_dir)
+    else:
+        std_manifest, std_rows = None, []
     if limit:
         kana_rows, std_rows = kana_rows[:limit], std_rows[:limit]
+
+    kana_indexed = [(i, r) for i, r in enumerate(kana_rows) if i % num_shards == shard_index]
+    std_indexed = [(i, r) for i, r in enumerate(std_rows) if i % num_shards == shard_index]
 
     model, sp, meta = load_zh_model(checkpoint, tokenizer, device)
     model.float().eval()
@@ -270,7 +280,7 @@ def evaluate_arm(checkpoint, tokenizer, kana_pool_dir, standard_pool_dir, out_di
     started = time.time()
     kana_out = []
     fallbacks = 0
-    for idx, row in enumerate(kana_rows, 1):
+    for pos, (orig_idx, row) in enumerate(kana_indexed, 1):
         az_texts = [c["text"] for c in row["candidates"]]
         context = row.get("left_context") or ""
         reading = row_reading(row)
@@ -284,7 +294,7 @@ def evaluate_arm(checkpoint, tokenizer, kana_pool_dir, standard_pool_dir, out_di
             union_gen_scores = task_scores(model, sp, reading, context, union, device=device)
             union_lm_scores = lm_scores_safe(model, sp, context, union, device=device)
             shown_default = merge_and_rank(az_texts, gen_texts, union_gen_scores, union_lm_scores, lam=lam)
-            kana_out.append({
+            rec = {
                 "id": row["id"], "source": row.get("source"), "group": row.get("group"),
                 "provenance": row.get("provenance"), "left_context": context,
                 "reading": reading, "answers": row["answers"], "d5_item": is_d5_item(row),
@@ -292,34 +302,42 @@ def evaluate_arm(checkpoint, tokenizer, kana_pool_dir, standard_pool_dir, out_di
                 "union": union, "union_gen_scores": union_gen_scores, "union_lm_scores": union_lm_scores,
                 "shown": shown_default, "search_calls": stats.calls, "search_rows": stats.rows,
                 "search_mode": stats.mode, "search_fallback": stats.fallback,
-            })
+            }
         else:
             lm_sc = lm_scores_safe(model, sp, context, az_texts, device=device)
             shown = rank_lm_only(az_texts, lm_sc)
-            kana_out.append({
+            rec = {
                 "id": row["id"], "source": row.get("source"), "group": row.get("group"),
                 "provenance": row.get("provenance"), "left_context": context,
                 "reading": reading, "answers": row["answers"], "d5_item": is_d5_item(row),
                 "azookey": az_texts, "union": az_texts, "union_lm_scores": lm_sc, "shown": shown,
-            })
-        if idx % 100 == 0 or idx == len(kana_rows):
-            print(f"[kana {idx}/{len(kana_rows)}] {time.time() - started:.1f}s", flush=True)
+            }
+        if num_shards > 1:
+            rec["_orig_idx"] = orig_idx
+        kana_out.append(rec)
+        if pos % 100 == 0 or pos == len(kana_indexed):
+            tag = f" s{shard_index}/{num_shards}" if num_shards > 1 else ""
+            print(f"[kana{tag} {pos}/{len(kana_indexed)}] {time.time() - started:.1f}s", flush=True)
 
     std_out = []
-    for idx, row in enumerate(std_rows, 1):
+    for orig_idx, row in std_indexed:
         az_texts = [c["text"] for c in row["candidates"]]
         context = row.get("left_context") or ""
         lm_sc = lm_scores_safe(model, sp, context, az_texts, device=device)
         shown = rank_lm_only(az_texts, lm_sc)
-        std_out.append({
+        rec = {
             "id": row["id"], "source": row.get("source"), "group": row.get("group"),
             "provenance": row.get("provenance"), "left_context": context,
             "answers": row["answers"], "azookey": az_texts, "lm_scores": lm_sc, "shown": shown,
-        })
+        }
+        if num_shards > 1:
+            rec["_orig_idx"] = orig_idx
+        std_out.append(rec)
 
     out.mkdir(parents=True, exist_ok=True)
     write_jsonl(out / "kana-development-rows.jsonl", kana_out)
-    write_jsonl(out / "standard-development-rows.jsonl", std_out)
+    if standard_pool_dir is not None:
+        write_jsonl(out / "standard-development-rows.jsonl", std_out)
 
     lambda_sweep = {}
     if mode == "read":
@@ -329,7 +347,6 @@ def evaluate_arm(checkpoint, tokenizer, kana_pool_dir, standard_pool_dir, out_di
                 kana_out,
                 lambda r, v=lv: merge_and_rank(r["azookey"], r["gen"], r["union_gen_scores"], r["union_lm_scores"], lam=v),
             )
-        # Also record generation-only (top-10 beam without AzooKey union) for diagnostics
         gen_only_summary = summarize_rows(kana_out, lambda r: r["gen"])
     else:
         gen_only_summary = None
@@ -343,18 +360,128 @@ def evaluate_arm(checkpoint, tokenizer, kana_pool_dir, standard_pool_dir, out_di
         "arm": meta.get("arm"),
         "tokenizer_sha256": meta["tokenizer_model_sha256"],
         "kana_pool_manifest": kana_manifest.get("release_id") or file_sha(Path(kana_pool_dir) / "manifest.json"),
-        "standard_pool_manifest": std_manifest.get("release_id") or file_sha(Path(standard_pool_dir) / "manifest.json"),
+        "standard_pool_manifest": (
+            (std_manifest.get("release_id") or file_sha(Path(standard_pool_dir) / "manifest.json"))
+            if std_manifest is not None else None
+        ),
         "search": {"mode": search_mode, "beam": beam, "topk": topk, "lambda": lam,
                    "fallback_free": fallback_free, "fallbacks": fallbacks,
                    "index_sha256": file_sha(index_path) if index_path else None} if mode == "read" else None,
         "kana_development": summarize_rows(kana_out, lambda r: r["shown"]),
         "kana_generation_only": gen_only_summary,
         "kana_lambda_sweep": lambda_sweep,
-        "standard_development": summarize_rows(std_out, lambda r: r["shown"]),
+        "standard_development": summarize_rows(std_out, lambda r: r["shown"]) if standard_pool_dir is not None else None,
         "seconds": round(time.time() - started, 1),
     }
+    if num_shards > 1:
+        summary["shard"] = {"index": shard_index, "total": num_shards}
     write_json(out / "summary.json", summary)
     return summary
+
+
+def merge_arm_shards(shard_dirs, out_dir, lam=None, lambdas=DEFAULT_LAMBDAS):
+    """Merge sharded `evaluate_arm` outputs into one complete arm directory in original row order."""
+    dirs = [Path(d) for d in shard_dirs]
+    if not dirs:
+        raise ValueError("No shard directories supplied")
+    out = Path(out_dir)
+    if out.exists() and any(out.iterdir()):
+        raise ValueError(f"Use an empty output directory: {out}")
+
+    summaries = [json.loads((d / "summary.json").read_text("utf-8")) for d in dirs]
+    first = summaries[0]
+    shard_info = first.get("shard")
+    if not shard_info:
+        raise ValueError(f"{dirs[0]} is not a sharded evaluation output")
+    total = int(shard_info["total"])
+    if len(dirs) != total:
+        raise ValueError(f"Expected {total} shards, got {len(dirs)}")
+
+    seen = set()
+    for d, s in zip(dirs, summaries):
+        si = s.get("shard") or {}
+        if si.get("total") != total or si.get("index") in seen:
+            raise ValueError(f"Duplicate or mismatched shard metadata in {d}")
+        seen.add(si["index"])
+        for field in ("mode", "checkpoint_sha256", "tokenizer_sha256", "kana_pool_manifest", "standard_pool_manifest"):
+            if s.get(field) != first.get(field):
+                raise ValueError(f"Shard {d} differs on {field}")
+    if seen != set(range(total)):
+        raise ValueError(f"Incomplete shard indices: {sorted(seen)} vs 0..{total - 1}")
+
+    mode = first["mode"]
+    eff_lam = lam if lam is not None else (first["search"]["lambda"] if first.get("search") else 1.6)
+
+    kana_all, std_all = [], []
+    has_std = first.get("standard_pool_manifest") is not None
+    for d in dirs:
+        kana_all.extend(read_jsonl(d / "kana-development-rows.jsonl"))
+        if has_std:
+            std_all.extend(read_jsonl(d / "standard-development-rows.jsonl"))
+
+    kana_all.sort(key=lambda r: r.get("_orig_idx", 0))
+    std_all.sort(key=lambda r: r.get("_orig_idx", 0))
+    for r in kana_all:
+        r.pop("_orig_idx", None)
+        if mode == "read" and lam is not None:
+            r["shown"] = merge_and_rank(r["azookey"], r["gen"], r["union_gen_scores"], r["union_lm_scores"], lam=eff_lam)
+    for r in std_all:
+        r.pop("_orig_idx", None)
+
+    out.mkdir(parents=True, exist_ok=True)
+    write_jsonl(out / "kana-development-rows.jsonl", kana_all)
+    if has_std:
+        write_jsonl(out / "standard-development-rows.jsonl", std_all)
+
+    lambda_sweep = {}
+    if mode == "read":
+        for lv in lambdas:
+            key = f"{lv:.2f}"
+            lambda_sweep[key] = summarize_rows(
+                kana_all,
+                lambda r, v=lv: merge_and_rank(r["azookey"], r["gen"], r["union_gen_scores"], r["union_lm_scores"], lam=v),
+            )
+        gen_only_summary = summarize_rows(kana_all, lambda r: r["gen"])
+        search_meta = dict(first["search"])
+        search_meta["lambda"] = eff_lam
+        search_meta["fallbacks"] = sum(int((s.get("search") or {}).get("fallbacks", 0)) for s in summaries)
+    else:
+        gen_only_summary = None
+        search_meta = None
+
+    merged = {
+        "test_read": False,
+        "mode": mode,
+        "checkpoint": first["checkpoint"],
+        "checkpoint_sha256": first["checkpoint_sha256"],
+        "step": first["step"],
+        "arm": first.get("arm"),
+        "tokenizer_sha256": first["tokenizer_sha256"],
+        "kana_pool_manifest": first["kana_pool_manifest"],
+        "standard_pool_manifest": first["standard_pool_manifest"],
+        "search": search_meta,
+        "kana_development": summarize_rows(kana_all, lambda r: r["shown"]),
+        "kana_generation_only": gen_only_summary,
+        "kana_lambda_sweep": lambda_sweep,
+        "standard_development": summarize_rows(std_all, lambda r: r["shown"]) if has_std else None,
+        "seconds": round(max(float(s.get("seconds", 0.0)) for s in summaries), 1),
+        "merged_shards": total,
+    }
+    write_json(out / "summary.json", merged)
+    return merged
+
+
+def best_lambda(summary):
+    """Return (lambda_float, rate) achieving the highest kana lenient Top-1 in kana_lambda_sweep."""
+    sweep = summary.get("kana_lambda_sweep") or {}
+    if not sweep:
+        return None, None
+    best_k, best_rate = None, -1.0
+    for k, metrics in sorted(sweep.items(), key=lambda kv: float(kv[0])):
+        rate = metrics["notation_lenient_top1"]["rate"]
+        if rate > best_rate:
+            best_k, best_rate = float(k), rate
+    return best_k, best_rate
 
 
 def evaluate_stage21_decision(read_summaries, lm_summaries, v42_kana_lenient=V42_KANA_LENIENT_TOP1,

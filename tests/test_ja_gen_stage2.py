@@ -2,16 +2,21 @@
 import json
 from pathlib import Path
 import tempfile
+import tomllib
 import unittest
+from unittest import mock
 
 import numpy as np
 import torch
 
 from vimeml.benchmarks.kana_gen_ja import (
+    best_lambda,
+    evaluate_arm,
     evaluate_stage21_decision,
     is_d5_item,
     load_dev_pool,
     merge_and_rank,
+    merge_arm_shards,
     rank_lm_only,
     task_scores,
 )
@@ -29,6 +34,8 @@ from vimeml.deployment.ja_search import (
 )
 from vimeml.deployment.zh_torch_backend import ModelBatchBackend
 from vimeml.training.model_v2 import GPTV2Config, TinyGPTV2
+from vimeml.training.model_zh200m import GPTZh200mConfig, TinyGPTZh200m
+from vimeml.training.zh_desktop import desktop_family
 
 
 class ToySP:
@@ -168,6 +175,65 @@ class TestJaGenStage2(unittest.TestCase):
         read_low_std = [{"kana_development": {"notation_lenient_top1": {"rate": 87.0}},
                          "standard_development": {"exact_top1": {"hits": 495}}}] * 4
         self.assertFalse(evaluate_stage21_decision(read_low_std, lm_s)["keep_reading_recipe"])
+
+    def test_200m_family_dispatch_and_config_shape(self):
+        saved = {"format": "vimeml_tiny_gpt_zh200m", "architecture": "tiny_gpt_zh200m"}
+        cfg_cls, mod_cls = desktop_family(saved)
+        self.assertIs(cfg_cls, GPTZh200mConfig)
+        self.assertIs(mod_cls, TinyGPTZh200m)
+        cfg = cfg_cls(vocab_size=12288, context_length=128, n_layers=15)
+        self.assertEqual((cfg.d_model, cfg.n_heads, cfg.d_ff), (1024, 16, 2560))
+
+    def test_sharded_evaluate_arm_matches_unsharded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fake_manifest = {"split": "development", "sealed": False, "release_id": "rel1"}
+            fake_rows = [
+                {"id": f"case-{i}", "query": "キョウハ", "left_context": "", "source": "wrime",
+                 "group": f"g{i % 2}", "answers": ["今日は"],
+                 "candidates": [{"text": "今日は"}, {"text": "きょうは"}]}
+                for i in range(4)
+            ]
+            idx_path = root / "index.json"
+            self.index.save(idx_path)
+            fake_meta = {"checkpoint_sha256": "a" * 64, "step": 100, "arm": "200m-joint", "tokenizer_model_sha256": "b" * 64}
+
+            with mock.patch("vimeml.benchmarks.kana_gen_ja.load_dev_pool", return_value=(fake_manifest, fake_rows)), \
+                 mock.patch("vimeml.benchmarks.kana_gen_ja.load_zh_model", return_value=(self.model, self.sp, fake_meta)), \
+                 mock.patch("vimeml.benchmarks.kana_gen_ja.lenient_match", side_effect=lambda c, a: c in a):
+                full = evaluate_arm("ckpt.pt", "tok.model", root, standard_pool_dir=root, out_dir=root / "full",
+                                    mode="read", index_path=idx_path, device="cpu", beam=4, topk=3, lam=1.6)
+                s0 = evaluate_arm("ckpt.pt", "tok.model", root, standard_pool_dir=root, out_dir=root / "s0",
+                                  mode="read", index_path=idx_path, device="cpu", beam=4, topk=3, lam=1.6,
+                                  shard_index=0, num_shards=2)
+                s1 = evaluate_arm("ckpt.pt", "tok.model", root, standard_pool_dir=root, out_dir=root / "s1",
+                                  mode="read", index_path=idx_path, device="cpu", beam=4, topk=3, lam=1.6,
+                                  shard_index=1, num_shards=2)
+                self.assertEqual(s0["shard"], {"index": 0, "total": 2})
+                self.assertEqual(s1["shard"], {"index": 1, "total": 2})
+                merged = merge_arm_shards([root / "s0", root / "s1"], root / "merged")
+                self.assertEqual(merged["kana_development"], full["kana_development"])
+                self.assertEqual(merged["standard_development"], full["standard_development"])
+                self.assertEqual(merged["kana_lambda_sweep"], full["kana_lambda_sweep"])
+                bl, br = best_lambda(merged)
+                self.assertIsNotNone(bl)
+                self.assertGreaterEqual(br, 0.0)
+
+    def test_stage23_and_stage3_configs_valid_mixes(self):
+        cfg_dir = Path(__file__).resolve().parents[1] / "configs/ja"
+        for name in ("train-ja-kana-20m-kd-cont.toml",
+                     "train-ja-kana-20m-colloq-ctrl.toml",
+                     "train-ja-kana-20m-colloq-c40.toml"):
+            cfg = tomllib.loads((cfg_dir / name).read_text("utf-8"))
+            self.assertEqual(cfg["stage"], "ja-kana")
+            self.assertEqual(cfg["architecture"], "tiny_gpt_zh13")
+            self.assertEqual(cfg["distillation"]["alpha"], 0.5)
+            totals = dict(cfg["data"]["mix"])
+            for ex in cfg["data"].get("extra", []):
+                for k, v in ex["mix"].items():
+                    totals[k] = totals.get(k, 0) + v
+            self.assertEqual(totals, {"plain": 175, "chat": 17, "span": 192, "sentence": 128}, name)
+            self.assertEqual(sum(totals.values()), 512, name)
 
 
 if __name__ == "__main__":
