@@ -44,6 +44,8 @@ from vimeml.training.data import write_json  # noqa: E402
 
 VERSION = "ime-kana-ja-colloq-v1"
 SEED = 20261201
+SPLIT_SEED = 20261202
+BLIND_SHUFFLE_SEED = 20261203
 ROLES = ("development", "test")
 DEFAULT_P_CHAT = 0.5
 DEFAULT_SAMPLE_CFG = {
@@ -77,6 +79,29 @@ def to_katakana(text):
 def assign_role(group_id, seed=SEED):
     h = ks.doc_hash(f"{VERSION}/role/{seed}", group_id)
     return ROLES[h % 2]
+
+
+def assign_role_by_id(case_id, split_seed=SPLIT_SEED):
+    h = ks.doc_hash(f"{VERSION}/id-split/{split_seed}", str(case_id))
+    return ROLES[h % 2]
+
+
+def write_blind_llm_cases(pool, out_path, shuffle_seed=BLIND_SHUFFLE_SEED):
+    """Write shuffled (id, text)-only candidate JSONL for blinded LLM labeling."""
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    rows = [
+        {"id": row["provenance"]["case_id"], "text": row["provenance"]["cleaned_message"]}
+        for row in pool
+    ]
+    random.Random(shuffle_seed).shuffle(rows)
+    part = out_path.with_name(out_path.name + ".part")
+    with open(part, "w", encoding="utf-8", newline="\n") as f:
+        for row in rows:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    part.replace(out_path)
+    digest = hashlib.sha256(out_path.read_bytes()).hexdigest()
+    return len(rows), digest
 
 
 def extract_colloquial_case(record, rng, sample_cfg=DEFAULT_SAMPLE_CFG, analyser=None):
@@ -453,7 +478,7 @@ def select_balanced(pool, excluded, per_split=600, seed=SEED + 1):
 
 
 def freeze_benchmark(pool, excluded, out_dir, per_split=600, seed=SEED + 1,
-                     llm_labels=None, include_label2_dialogue=False):
+                     llm_labels=None, include_label2_dialogue=False, split_by_id_seed=None):
     from standard_ime import track_files
 
     out = Path(out_dir)
@@ -484,11 +509,25 @@ def freeze_benchmark(pool, excluded, out_dir, per_split=600, seed=SEED + 1,
             new_pool.append(r_copy)
         filtered_pool, filtered_excluded = new_pool, new_excluded
 
+    if split_by_id_seed is not None:
+        reassigned_pool = []
+        for row in filtered_pool:
+            p = row["provenance"]
+            cid = p.get("case_id") or f"{p['document_id']}#0"
+            r_copy = dict(row)
+            r_copy["provenance"] = dict(p, role=assign_role_by_id(cid, split_by_id_seed))
+            reassigned_pool.append(r_copy)
+        filtered_pool = reassigned_pool
+
     tracks = select_balanced(filtered_pool, filtered_excluded, per_split=per_split, seed=seed)
     dev_groups = {r["provenance"]["group_id"] for r in tracks["development"]}
     test_groups = {r["provenance"]["group_id"] for r in tracks["test"]}
     if dev_groups & test_groups:
         raise ValueError("Development and test groups overlap")
+    dev_docs = {r["provenance"]["document_id"] for r in tracks["development"]}
+    test_docs = {r["provenance"]["document_id"] for r in tracks["test"]}
+    if dev_docs & test_docs:
+        raise ValueError("Development and test documents overlap")
 
     out.mkdir(parents=True)
     for role, rows in tracks.items():
@@ -526,6 +565,9 @@ def freeze_benchmark(pool, excluded, out_dir, per_split=600, seed=SEED + 1,
         "models_scored": False,
         "candidates_exported": False,
     }
+    if split_by_id_seed is not None:
+        manifest["split_seed"] = int(split_by_id_seed)
+        manifest["split_rule"] = f"doc_hash('{VERSION}/id-split/{int(split_by_id_seed)}', case_id) % 2"
     write_json(out / "manifest.json", manifest)
     sums = {
         str(p.relative_to(out)).replace("\\", "/"): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -551,18 +593,10 @@ def cmd_build(args):
     )
     write_json(out / "candidate-pool.json", pool)
     llm_cases_path = out / "llm-cases.jsonl"
-    part = llm_cases_path.with_name(llm_cases_path.name + ".part")
-    with open(part, "w", encoding="utf-8", newline="\n") as f:
-        for row in pool:
-            p = row["provenance"]
-            f.write(json.dumps({
-                "id": p["case_id"],
-                "band": p["rule_band"],
-                "score": p["rule_score"],
-                "text": p["cleaned_message"],
-            }, ensure_ascii=False) + "\n")
-    part.replace(llm_cases_path)
+    blind_count, blind_sha256 = write_blind_llm_cases(pool, llm_cases_path, shuffle_seed=BLIND_SHUFFLE_SEED)
     write_json(out / "build-stats.json", {"records_loaded": len(records), **stats,
+                                          "llm_cases_count": blind_count,
+                                          "llm_cases_sha256": blind_sha256,
                                           "dictionary_versions": ks._state["reader"].versions})
     print(json.dumps({"records_loaded": len(records), "pool": len(pool), **stats}, ensure_ascii=False))
 
@@ -582,9 +616,13 @@ def cmd_freeze(args):
     if not audit_path.is_file() and not args.allow_unscreened:
         raise SystemExit(f"Missing {audit_path}; run `screen` first (or pass --allow-unscreened)")
     excluded = set(json.loads(audit_path.read_text("utf-8"))["excluded_pool_positions"]) if audit_path.is_file() else set()
+    split_by_id_seed = None if args.split_seed == 0 else (
+        args.split_seed if args.split_seed is not None else (SPLIT_SEED if args.llm_labels is not None else None)
+    )
     manifest, m_sha = freeze_benchmark(
         pool, excluded, args.out, per_split=args.per_split, seed=args.seed + 1,
         llm_labels=args.llm_labels, include_label2_dialogue=args.include_label2_dialogue,
+        split_by_id_seed=split_by_id_seed,
     )
     print(json.dumps({"release_id": manifest["release_id"], "splits": manifest["splits"],
                       "by_rule_band": manifest["by_rule_band"], "strata": manifest["strata"],
@@ -619,6 +657,12 @@ def main():
     f.add_argument("--seed", type=int, default=SEED)
     f.add_argument("--llm-labels", type=Path, default=None)
     f.add_argument("--include-label2-dialogue", action="store_true")
+    f.add_argument(
+        "--split-seed",
+        type=int,
+        default=None,
+        help="Post-label ID-hash split seed; defaults to SPLIT_SEED when --llm-labels is set; pass 0 to disable",
+    )
     f.add_argument("--allow-unscreened", action="store_true")
     f.set_defaults(fn=cmd_freeze)
 

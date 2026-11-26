@@ -1,5 +1,6 @@
 """Targeted unit tests for Stage 3 colloquial token encoding and benchmark preparation."""
 from collections import Counter
+import hashlib
 import json
 from pathlib import Path
 import random
@@ -209,6 +210,47 @@ class TestJaColloqPipeline(unittest.TestCase):
             self.assertGreater(sum(m_llm["by_rule_band"]["development"].values()), 0)
             llm_dev = json.loads((frozen_llm / "development/evaluation_items.json").read_text("utf-8"))
             self.assertTrue(all(r["provenance"]["llm_label"] == 3 for r in llm_dev))
+
+            # Test blinded shuffled llm-cases export and post-label ID-hash split
+            blind_path = tdir / "blind.jsonl"
+            blind_count, blind_sha = pkc.write_blind_llm_cases(pool, blind_path, shuffle_seed=pkc.BLIND_SHUFFLE_SEED)
+            self.assertEqual(blind_count, len(pool))
+            blind_lines = blind_path.read_text("utf-8").splitlines()
+            self.assertEqual(len(blind_lines), len(pool))
+            blind_rows = [json.loads(line) for line in blind_lines]
+            self.assertTrue(all(set(row.keys()) == {"id", "text"} for row in blind_rows))
+            self.assertEqual({row["id"] for row in blind_rows}, {row["provenance"]["case_id"] for row in pool})
+            self.assertNotEqual([row["id"] for row in blind_rows], [row["provenance"]["case_id"] for row in pool])
+            self.assertEqual(blind_sha, hashlib.sha256(blind_path.read_bytes()).hexdigest())
+
+            llm_split_path = tdir / "llm-labels-id-split.jsonl"
+            split_lines = []
+            for row in pool:
+                cid = row["provenance"]["case_id"]
+                idx = int(cid.split("-")[1].split("#")[0])
+                lbl = 1 if idx == 3 else 3
+                kind = "chat" if lbl >= 2 else "formal"
+                split_lines.append(json.dumps({"id": cid, "label": lbl, "kind": kind}))
+            llm_split_path.write_text("\n".join(split_lines) + "\n", encoding="utf-8")
+            frozen_id_split = tdir / "ime-kana-ja-colloq-id-split"
+            m_id, _ = pkc.freeze_benchmark(
+                pool, excluded, frozen_id_split, per_split=4, seed=45,
+                llm_labels=llm_split_path, include_label2_dialogue=False,
+                split_by_id_seed=pkc.SPLIT_SEED,
+            )
+            self.assertEqual(m_id["split_seed"], pkc.SPLIT_SEED)
+            self.assertEqual(m_id["split_rule"], f"doc_hash('{pkc.VERSION}/id-split/{pkc.SPLIT_SEED}', case_id) % 2")
+            id_dev = json.loads((frozen_id_split / "development/evaluation_items.json").read_text("utf-8"))
+            id_test = json.loads((frozen_id_split / "test/evaluation_items.json").read_text("utf-8"))
+            self.assertEqual({r["provenance"]["document_id"] for r in id_dev} & {r["provenance"]["document_id"] for r in id_test}, set())
+            self.assertEqual({r["provenance"]["group_id"] for r in id_dev} & {r["provenance"]["group_id"] for r in id_test}, set())
+            self.assertNotIn("doc-003#0", {r["provenance"]["case_id"] for r in id_dev + id_test})
+            for r in id_dev:
+                self.assertEqual(r["provenance"]["role"], "development")
+                self.assertEqual(pkc.assign_role_by_id(r["provenance"]["case_id"], pkc.SPLIT_SEED), "development")
+            for r in id_test:
+                self.assertEqual(r["provenance"]["role"], "test")
+                self.assertEqual(pkc.assign_role_by_id(r["provenance"]["case_id"], pkc.SPLIT_SEED), "test")
 
     def test_export_chat_fraction_and_audit_sample(self):
         try:

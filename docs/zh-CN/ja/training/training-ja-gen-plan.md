@@ -212,3 +212,31 @@ web train 处理 7.59 亿段落；span 平均 13.1 字、读音 16.4 假名，81
 - 随机初始化，中文 200M 的预算 845,000 次更新，余弦 6e-4 → 6e-5，warmup 1,000，seed 20261126，`per_kind`。
 - 每次 832 条：纯文本 512（`web` 464、`plain` 24、`chat` 24）+ 读音 320（`web_span` 176 + `span` 16，`web_sentence` 112 + `sentence` 16，即 1.3 的 span:sentence 3:2）。按 1.3 的存量，`web_span` 约过 0.41 遍、`web_sentence` 约 0.76 遍；`web` 的遍数随 1.5 的窗口数登记。
 - 评测与 2.1 相同（用自己的生成分和 LM 分），另报 Standard 重排。它是 20M 蒸馏（2.3，另行登记）的教师。
+
+## 第 3 阶段登记（2026-11-26）
+
+**3.1 口语数据**（`ja-colloq-v1-12k`、`ja-colloq-v1-p85-12k`）：
+
+- **分类器训练**：沿用中文 `zh_colloq.py` 规则预扫与哈希 char 1–3-gram 逻辑回归分类器（`scripts/ja/corpus/ja_colloq.py`），在 `ja-gen-export-v1` 的 `train` 划分按 4 个规则分档（`zero/low/mid/high`）各等概率抽 1,000 段共 4,000 段，由 DeepSeek Flash 标注（`label=3` 共 1,189 条：zero 123 / low 140 / mid 347 / high 579；`spoken` 正类 2,011 条）。
+- **导出**：在 `train` 划分取 `p_chat ≥ 0.70` 并按 `doc_hash("ja-colloq-chat-sub", doc_id)` 均匀抽 `1/3`（`spoken_units = 0`），得 25,702,238 段 / 6.51 亿日文字符（验证集 531,653 段 / 1,345 万字）。留出集 `heldout`（2% 文档级留出）绝不进入训练。
+- **质量抽检**：从导出训练集均匀抽 2,000 段（seed `20261126`）按中文复筛口径（仇恨 / 辱骂 / 色情 / 政治 / 低质垃圾）抽检，不做全量 LLM 复筛；若不合格率偏高且集中在某类，针对该类补规则或小分类器后再重编。
+- **编码**（`configs/ja/data-ja-colloq-v1.toml`，`scripts/ja/tokenizer/encode_ja_colloq.py`）：单遍读音分析同步构建两个 `vimeml_ja_kana_v1` token 库——完整 `1/3` 池 `ja-colloq-v1-12k`（`p_chat ≥ 0.70`）与高阈值子集 `ja-colloq-v1-p85-12k`（`p_chat ≥ 0.85`），30% 纯文本 / 70% 读音（`span:sentence = 3:2`，沿用 D4/D5 规则）；manifest SHA256 在构建后、训练前填入配置。
+
+**3.2 口语评测集 `ime-kana-ja-colloq-v1`（打标前预注册）**：
+
+- **来源**：`ja-gen-export-v1` 的 `heldout` 划分中 `p_chat ≥ 0.50` 的段落（与分类器训练阈值脱钩），每篇文档至多 1 段，按 4 个规则分档（`zero/low/mid/high`）各抽 1,000 条共 4,000 条候选（`scripts/ja/benchmarks/prepare_kana_colloq_ja.py`，构建 seed `20261201`）。不从 WRIME / JMultiWOZ 抽题，避免与 `ime-kana-ja-v1` 重叠。
+- **LLM 确认**：候选文件仅保留 `(id, text)` 两列并整体打乱（打乱 seed `20261203`，不含分档、分数或划分信息），使用与 `ja-colloq label-v1` 相同的 DeepSeek Flash prompt 与配置打标。
+- **收录标准**：只收 `label == 3`（真人日常聊天，`include_label2_dialogue = false`）；仅当去掉重叠后任一划分不足 600 条时，才回退补收 `label == 2` 且 `kind in {chat, fiction}` 的对白句并记作偏差。
+- **打标后划分规则（与标签无关）**：固定划分种子 `split_seed = 20261202`，按 `doc_hash("ime-kana-ja-colloq-v1/id-split/20261202", case_id) % 2` 将条目确定性划为 `development`（0）与 `test`（1）；因每篇文档至多 1 条，保证文档级零重叠。
+- **重叠检查与冻结**：对训练语料（`corpus-fast-v1` 训练集与口语导出训练集）做 12 字规范化锚点包含及相似度 `≥ 0.85` 扫描（跳过自身文档），命中条目在冻结前剔除；再按 `rule_band × 有无左文 × 长度档` 分层轮流抽取（`selection_seed = 20261202`），`development` 与 `test` 各 600 条。**`test` 封存**，只在第 4 阶段预注册确认时读一次。
+
+**3.3 训练臂与判定规则**：
+
+- **起点**：第 2.3 阶段 `20m-kd-cont` 的 `final.pt`；继续训练 30,000 步，200M 教师蒸馏（`α = 0.5, T = 1.0`），余弦 `1e-4 → 1e-5`，warmup 1,000，seed `20261201`，每次更新 512 条（`plain 175 / chat 17 / span 192 / sentence 128`，`per_kind`）。
+- **三个臂**：
+  - `colloq-ctrl`（`configs/ja/train-ja-kana-20m-colloq-ctrl.toml`）：0 条口语（续训对照）；
+  - `colloq-c40`（`configs/ja/train-ja-kana-20m-colloq-c40.toml`，`p70` 组）：每次 208 条口语（约 40.6%），取自 `ja-colloq-v1-12k`；
+  - `colloq-c40-p85`（`configs/ja/train-ja-kana-20m-colloq-c40-p85.toml`，`p85` 组）：每次 208 条口语（约 40.6%），取自 `ja-colloq-v1-p85-12k`。
+- **主指标**：`ime-kana-ja-colloq-v1` development 自重排后书写形式宽松 Top-1（`生成分 + λ × LM 分`，λ 沿用第 2.3 阶段冻结值）；同时按 4 个规则分档（`zero/low/mid/high`）分开报告。
+- **守门条件**：(a) `ime-kana-ja-v1` development 宽松 Top-1 不显著低于 `kd-cont`（按作者/对话聚类配对符号翻转，`p < 0.05`）；(b) Standard development 重排不低于 V4.2 配方 seed 带下沿 501 且不显著低于 `kd-cont`。
+- **判定**：默认口语臂为 `colloq-c40`（`p70`）；仅当 `colloq-c40-p85` 在主指标上显著高于 `colloq-c40`（聚类配对符号翻转，`p < 0.05`）且通过全部守门条件时，才改用 `p85`。胜出臂还需在主指标上显著高于 `colloq-ctrl` 并通过全部守门条件，才替换 `kd-cont` 进入第 4 阶段确认；否则保留 `kd-cont`。
