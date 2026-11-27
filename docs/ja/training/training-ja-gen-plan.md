@@ -233,3 +233,48 @@ Trainer `src/vimeml/training/joint_ja_kana.py` (entry `scripts/ja/training/train
   - reading 320: `web_span` 176 + `span` 16, `web_sentence` 112 + `sentence` 16 (the 3:2 span:sentence of 1.3).
 - From the 1.3 counts, about 0.41 passes over `web_span` and 0.76 over `web_sentence`. `web` passes are recorded with the 1.5 window count.
 - Evaluated as in 2.1 (with its own generation and LM scores), plus Standard reranking. It is the teacher of the 20M distillation (2.3, registered later).
+
+## Stage 3 registration (2026-11-26)
+
+**3.1 Colloquial data** (`ja-colloq-v1-12k`, `ja-colloq-v1-p85-12k`):
+
+- **Classifier**: the zh `zh_colloq.py` rule pre-scan and hashed char 1–3-gram logistic regression (`scripts/ja/corpus/ja_colloq.py`). From the `train` split of `ja-gen-export-v1`, 1,000 paragraphs are drawn at equal probability from each of the four rule bands (`zero/low/mid/high`), 4,000 in all, and labeled by DeepSeek Flash: 1,189 `label=3` (zero 123 / low 140 / mid 347 / high 579), 2,011 `spoken` positives.
+- **Export**: from the `train` split, paragraphs with `p_chat ≥ 0.70`, thinned uniformly to 1/3 by `doc_hash("ja-colloq-chat-sub", doc_id)` (`spoken_units = 0`): 25,702,238 paragraphs, 651M Japanese characters (validation 531,653 paragraphs, 13.45M characters). The `heldout` split (2% of documents) never enters training.
+- **Quality audit**: 2,000 paragraphs drawn uniformly from the exported train set (seed `20261126`) and checked against the zh quality-screen categories (hate / abuse / sexual / political / junk); no full LLM screen. If the not-ok rate is high and concentrated in one category, a rule or small classifier for that category is added and the store re-encoded.
+- **Encoding** (`configs/ja/data-ja-colloq-v1.toml`, `scripts/ja/tokenizer/encode_ja_colloq.py`): one reading pass builds two `vimeml_ja_kana_v1` stores, the full 1/3 pool `ja-colloq-v1-12k` (`p_chat ≥ 0.70`) and its high-threshold subset `ja-colloq-v1-p85-12k` (`p_chat ≥ 0.85`), 30% plain text / 70% readings (`span:sentence = 3:2`, D4/D5 rules). Manifest SHA256 values go into the configs after the build, before training.
+
+**3.2 Colloquial benchmark `ime-kana-ja-colloq-v1`** (registered before labeling):
+
+- **Source**: paragraphs with `p_chat ≥ 0.50` in the `heldout` split of `ja-gen-export-v1` (decoupled from the training threshold), at most one per document, 1,000 candidates from each of the four rule bands, 4,000 in all (`scripts/ja/benchmarks/prepare_kana_colloq_ja.py`, build seed `20261201`). Nothing is drawn from WRIME / JMultiWOZ, so the set does not overlap `ime-kana-ja-v1`.
+- **LLM confirmation**: the candidate file keeps only `(id, text)` and is shuffled as a whole (seed `20261203`, no band, score or split), and is labeled with the same DeepSeek Flash prompt and settings as `ja-colloq label-v1`.
+- **Inclusion**: `label == 3` only (everyday chat, `include_label2_dialogue = false`). Only if a split has fewer than 600 items after overlap removal are `label == 2` dialogue lines with `kind in {chat, fiction}` added, recorded as a deviation.
+- **Split after labeling, independent of labels**: fixed `split_seed = 20261202`; `doc_hash("ime-kana-ja-colloq-v1/id-split/20261202", case_id) % 2` assigns `development` (0) and `test` (1). With at most one item per document, the splits share no document.
+- **Overlap check and freeze**: 12-character normalized anchor containment and similarity `≥ 0.85` scans against training text (`corpus-fast-v1` train and the colloquial export train set, skipping the item's own document); hits are removed before freezing. Items are then drawn round-robin by `rule_band × left context × length band` (`selection_seed = 20261202`), 600 each for `development` and `test`. **`test` is sealed** and read once, in the stage 4 preregistered confirmation.
+
+**3.3 Arms and decision rules**:
+
+- **Start**: `final.pt` of the 2.3 `20m-kd-cont`; 30,000 more updates with 200M teacher distillation (`α = 0.5, T = 1.0`), cosine `1e-4 → 1e-5`, warmup 1,000, seed `20261205`, 512 samples per update (`plain 175 / chat 17 / span 192 / sentence 128`, `per_kind`).
+- **Three arms**:
+  - `colloq-ctrl` (`configs/ja/train-ja-kana-20m-colloq-ctrl.toml`): no colloquial data (continuation control);
+  - `colloq-c40` (`configs/ja/train-ja-kana-20m-colloq-c40.toml`, `p70`): 208 colloquial samples per update (about 40.6%) from `ja-colloq-v1-12k`;
+  - `colloq-c40-p85` (`configs/ja/train-ja-kana-20m-colloq-c40-p85.toml`, `p85`): 208 colloquial samples per update (about 40.6%) from `ja-colloq-v1-p85-12k`.
+  - In the two colloquial arms the 512 per update are 304 from `ja-kana-v1-12k` (`plain 97 / chat 17 / span 114 / sentence 76`) + 208 from the colloquial store (`plain 78 / span 78 / sentence 52`).
+- **Primary metric**: notation-lenient Top-1 on `ime-kana-ja-colloq-v1` development after self-reranking (`generation score + λ × LM score`, λ frozen at its 2.3 value), also reported by the four rule bands (`zero/low/mid/high`).
+- **Guards**: (a) `ime-kana-ja-v1` development lenient Top-1 not significantly below `kd-cont` (author/dialogue-clustered paired sign-flip, `p < 0.05`); (b) Standard development reranking at least 501 (the low end of the V4.2 seed band) and not significantly below `kd-cont`.
+- **Decision**: the default colloquial arm is `colloq-c40` (`p70`). `p85` replaces it only if `colloq-c40-p85` is significantly above `colloq-c40` on the primary metric (clustered paired sign-flip, `p < 0.05`) and passes every guard. The chosen arm replaces `kd-cont` for the stage 4 confirmation only if it is significantly above `colloq-ctrl` on the primary metric and passes every guard; otherwise `kd-cont` stays.
+
+**3.1 record (2026-11-26):**
+
+- **Quality audit**: all 2,000 sampled export rows checked by DeepSeek Flash: ok 1,934 / not ok 66, 3.30% (sexual 24, junk 15, abuse 13, political 9, illegal 3, hate 2). In the `p_chat ≥ 0.85` subset, 25 of 844 (2.96%). No rule added, no re-encoding.
+- **Two colloquial stores built** (`encode_ja_colloq.py`, 509,310 validation lines excluded):
+  - `ja-colloq-v1-12k` (`p70`, manifest SHA256 `b824b16c2c43bc7f502000cf60a6a96969870f46bfc4aa266244ba41fdcca256`): train `plain 7,379,112 / span 9,238,622 / sentence 3,598,323`; validation `plain 160,070 / span 197,183 / sentence 77,514`.
+  - `ja-colloq-v1-p85-12k` (`p85`, manifest SHA256 `8cf9ab8e722749ed1e4181390b000902fc5a24f023bc1de93fdcbfb77e83a5bc`): train `plain 3,158,150 / span 3,870,936 / sentence 1,453,397`; validation `plain 68,190 / span 82,886 / sentence 31,145`.
+  - Both `manifest_sha256` values are pinned in `configs/ja/train-ja-kana-20m-colloq-c40.toml` and `configs/ja/train-ja-kana-20m-colloq-c40-p85.toml`.
+
+**3.2 freeze record (2026-11-26):**
+
+- **4,000 candidates labeled** (DeepSeek Flash, labels SHA256 `3d1d1917eb01b58e06677c70787b9f7154e318bcb64dfd3aa3368b1838f2c5f1`): `label=0` 391, `label=1` 683, `label=2` 953 (`chat 750 / fiction 173 / formal 16 / marketing 14`), `label=3` 1,973 (`chat 1,972 / fiction 1`).
+- **`label == 3` only** (the dialogue fallback was not needed): the overlap scan removed 275 of the 4,000 candidates (144 of them `label=3`). With `split_seed = 20261202` the usable `label=3` items are `development 911` (`zero 187 / low 202 / mid 235 / high 287`) and `test 918` (`zero 172 / low 216 / mid 270 / high 260`).
+- **Frozen**: `ime-kana-ja-colloq-v1` release_id `f0db62b9b21443e39ef38cbb0c296ead`, manifest SHA256 `6538b128474cb938cc942aa645b18ea8282d3218e43a33a77ba0186e6dc66e9f`; `development 600` (`zero 151 / low 134 / mid 141 / high 174`), `test 600` (`zero 142 / low 136 / mid 148 / high 174`); no shared document or group; **`test` sealed**.
+- **Development candidate pool** (2026-11-27): Mac handoff for development only, AzooKey export settings as for `ime-kana-ja-v1` (converter `d59a28e4c7ca`, N-best 20, typo off, Zenzai off), all 600 items; pool `kana-ja-colloq-v1-development-n20`, manifest SHA256 `2cfc6f4f76a006a9891dbf317aff39379a969361b47d96e2782563ea98d59759`. No candidates were exported for test.
+- **AzooKey order baseline** (development): mean pool size 14.71, exact Top-1 55.50, lenient Top-1 72.83; pool ceiling exact 82.83, lenient 93.50.

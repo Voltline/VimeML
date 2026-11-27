@@ -237,6 +237,7 @@ web train 处理 7.59 亿段落；span 平均 13.1 字、读音 16.4 假名，81
   - `colloq-ctrl`（`configs/ja/train-ja-kana-20m-colloq-ctrl.toml`）：0 条口语（续训对照）；
   - `colloq-c40`（`configs/ja/train-ja-kana-20m-colloq-c40.toml`，`p70` 组）：每次 208 条口语（约 40.6%），取自 `ja-colloq-v1-12k`；
   - `colloq-c40-p85`（`configs/ja/train-ja-kana-20m-colloq-c40-p85.toml`，`p85` 组）：每次 208 条口语（约 40.6%），取自 `ja-colloq-v1-p85-12k`。
+  - 两个口语臂每次更新的 512 条为 `ja-kana-v1-12k` 304 条（`plain 97 / chat 17 / span 114 / sentence 76`）+ 口语库 208 条（`plain 78 / span 78 / sentence 52`）。
 - **主指标**：`ime-kana-ja-colloq-v1` development 自重排后书写形式宽松 Top-1（`生成分 + λ × LM 分`，λ 沿用第 2.3 阶段冻结值）；同时按 4 个规则分档（`zero/low/mid/high`）分开报告。
 - **守门条件**：(a) `ime-kana-ja-v1` development 宽松 Top-1 不显著低于 `kd-cont`（按作者/对话聚类配对符号翻转，`p < 0.05`）；(b) Standard development 重排不低于 V4.2 配方 seed 带下沿 501 且不显著低于 `kd-cont`。
 - **判定**：默认口语臂为 `colloq-c40`（`p70`）；仅当 `colloq-c40-p85` 在主指标上显著高于 `colloq-c40`（聚类配对符号翻转，`p < 0.05`）且通过全部守门条件时，才改用 `p85`。胜出臂还需在主指标上显著高于 `colloq-ctrl` 并通过全部守门条件，才替换 `kd-cont` 进入第 4 阶段确认；否则保留 `kd-cont`。
@@ -254,3 +255,5 @@ web train 处理 7.59 亿段落；span 平均 13.1 字、读音 16.4 假名，81
 - **4,000 条候选打标**（DeepSeek Flash，标签 SHA256 `3d1d1917eb01b58e06677c70787b9f7154e318bcb64dfd3aa3368b1838f2c5f1`）：`label=0` 391、`label=1` 683、`label=2` 953（`chat 750 / fiction 173 / formal 16 / marketing 14`）、`label=3` 1,973（`chat 1,972 / fiction 1`）。
 - **严格仅收 `label == 3`**（未触发对白回退）：4,000 条候选池重叠扫描共剔除 275 条（其中 `label=3` 剔除 144 条），按 `split_seed = 20261202` 划得去重后可用 `label=3`：`development 911`（`zero 187 / low 202 / mid 235 / high 287`）、`test 918`（`zero 172 / low 216 / mid 270 / high 260`）。
 - **冻结产物**：`ime-kana-ja-colloq-v1` release_id `f0db62b9b21443e39ef38cbb0c296ead`，manifest SHA256 `6538b128474cb938cc942aa645b18ea8282d3218e43a33a77ba0186e6dc66e9f`，`development 600`（`zero 151 / low 134 / mid 141 / high 174`）、`test 600`（`zero 142 / low 136 / mid 148 / high 174`），文档级与组级零重叠，**`test` 封存**。
+- **开发集候选池**（2026-11-27）：只给 development 做 Mac 交接，AzooKey 导出设置与 `ime-kana-ja-v1` 相同（转换器 `d59a28e4c7ca`，N-best 20，typo 关，Zenzai 关），600 条齐全；候选池 `kana-ja-colloq-v1-development-n20` manifest SHA256 `2cfc6f4f76a006a9891dbf317aff39379a969361b47d96e2782563ea98d59759`。test 没有导出候选。
+- **AzooKey 原序基线**（development）：平均池大小 14.71，严格 Top-1 55.50，宽松 Top-1 72.83；池上限严格 82.83、宽松 93.50。
