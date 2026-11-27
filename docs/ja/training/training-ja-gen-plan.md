@@ -178,6 +178,27 @@ Web train covered 759M paragraphs; spans average 13.1 characters and 16.4 kana o
 
 Following 1.1, the 20M builds on the V4 LM and chat corpora, so it uses the first four kinds only; the three web kinds are for the 200M. The 20M's `plain` 192 in the 1.3 table is split into LM 175 + chat 17 (V4.2 had about 9% chat windows). LM and chat train lines identical to any validation line are dropped. Validation reading samples are thinned by `doc_hash` (LM and web 5%, chat all).
 
+**1.4 record (2026-11-26): tokenizer `ja-unigram-12288`.** `scripts/ja/tokenizer/train_kana.py`, model SHA256 `61d71460606eed32f0a976611e5fde0dca12efeecb413c516838911a49d3aa53`.
+
+- **Vocabulary**: 12,288 with the registered reserved ids, 256 byte pieces and 181 single-kana pieces.
+- **Training sample**: seed 20261128; web 1,200,000 lines, LM 300,000, chat 80,000 and readings 400,004; 73,018,345 characters, 7,513,344 of them readings.
+- **Check**: all 945,577 lines round-trip losslessly (`skipped_meta_space` 0).
+- **Compression**: validation documents 34,896,184 characters → 19,550,174 tokens, about 1.785 characters per token; validation readings 990,683 characters → 516,321 tokens, about 1.919.
+
+**1.5 record (2026-11-26): token store `ja-kana-v1-12k`.** `scripts/ja/tokenizer/encode_kana.py`, manifest SHA256 `f5ec6fa71caa410029e9956ea0c4ab5d564eef2d042835660408b047cf6eeab1`. 265,308 validation lines were used for exclusion; 16 `plain` train lines matched and were dropped.
+
+| Kind | Train rows / windows | Train tokens | Validation rows | Passes in 845,000 200M updates |
+| --- | ---: | ---: | ---: | ---: |
+| `plain` | 25,200,351 | 627,842,532 | 260,496 | 0.805 |
+| `chat` | 468,424 | 5,871,887 | 4,980 | 43.3 |
+| `web` | 782,198,431 | 19,887,552,580 | 389,838 | 0.501 |
+| `span` | 14,899,631 | 476,724,257 | 10,147 | 0.907 |
+| `sentence` | 3,437,232 | 119,777,945 | 3,292 | 3.93 |
+| `web_span` | 359,005,743 | 10,539,878,249 | 8,818 | 0.414 |
+| `web_sentence` | 125,499,579 | 3,615,066,517 | 3,129 | 0.754 |
+
+`web` (the half of the `ja-gen-export-v1` paragraphs not selected for reading samples) is 19.89B tokens.
+
 ## Stage 2 registration (2026-11-26)
 
 Trainer `src/vimeml/training/joint_ja_kana.py` (entry `scripts/ja/training/train_ja_kana.py`):
@@ -202,6 +223,7 @@ Trainer `src/vimeml/training/joint_ja_kana.py` (entry `scripts/ja/training/train
   - (b) its four-seed mean Standard reranking is at least 501.
 
   Otherwise the result is recorded and a fix is registered before the 20M distillation. The 200M is unaffected.
+- **2.1 result (2026-11-27): the reading recipe is kept.** The reading arm's four-seed mean lenient Top-1 on kana development is 87.17 (V4.2 reranking 85.2, LM control 85.79, higher at 4 of 4 seeds when paired). Standard reranking mean 504.50 (seeds 501–508); LM control 515.25. See the [2.1 report](../reports/ja-gen-stage2-20m-20261127/report.md).
 
 **2.2 200M joint reading pretraining** (`configs/ja/train-ja-kana-200m-joint.toml`, the zh 200M shape 12K / L15 / c128, 193.6M parameters).
 

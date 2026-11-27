@@ -136,6 +136,7 @@ Mac 任务说明（交给 macOS 会话的任务书，上面每份报告对应其
 | V4.5 集成蒸馏（预注册） | [四 seed 集成蒸馏进 15M student](ja/training/training-v45-plan.md)（2026-11-25 撤下，从未执行；由生成路线中的 200M 老师取代） |
 | 生成路线（ja-gen） | [计划](ja/training/training-ja-gen-plan.md)：2026-11-25 注册第 0–1 阶段：新公开集 `ime-kana-ja-v1`（test 封存）、候选池覆盖率、Sudachi/UniDic 一致读音、12K 词表；之后 20M 后训练、200M 老师与蒸馏、口语后训练、确认、Vime 合并 |
 | 生成路线第 0 阶段 | [覆盖率与基线](ja/reports/ja-gen-stage0-20261125/report.md)：`ime-kana-ja-v1` 冻结（600 + 600）；Standard 开发集池外 98 条中 N-best 100 补回 40 条，58 条只能靠生成；V4.2 在新开发集宽松 Top-1 85.2 |
+| 生成路线 2.1 | [20M 读音后训练](ja/reports/ja-gen-stage2-20m-20261127/report.md)：读音配方保留，`ime-kana-ja-v1` 开发集 4-seed 宽松 Top-1 87.17（V4.2 85.2，LM 对照 85.79）；Standard 重排 504.5（LM 对照 515.25） |
 | IME 错误分解 | [瓶颈不在 LM 容量](ja/reports/analysis-20261021/ime-errors.md)：池外 48%、书写形式 35–44%、语义 8% |
 | 免训练重打分 | [PMI、长度与引擎分融合](ja/reports/analysis-20261021/rescoring.md)：均未通过独立检验，部署保持纯 LM 打分 |
 | V4.2 Apple 部署 | [Core ML、INT8、分段 KV、Mac 与 iPhone 测量](ja/reports/mac-20261020/v42-coreml.md)；Mac 任务说明：[V4.2](ja/mac/mac-v42-coreml.md)、[V4.3](ja/mac/mac-v43-coreml.md) |
