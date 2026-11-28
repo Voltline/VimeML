@@ -329,3 +329,5 @@ In 3.3 the colloquial data did not change lenient Top-1 but raised kana developm
 ## Stage 4 registration (2026-11-28)
 
 The confirmation plan is the [ja-gen test confirmation plan](../benchmarks/confirmation-ja-gen-plan.md), committed before any test result. Primary hypothesis H1: on `ime-kana-ja-v1` test, `colloq-c40` lenient Top-1 is significantly above V4.2 reranking; H2 (fixed sequence): exact Top-1 significantly above `kd-cont`; guards: lenient Top-1 not significantly below `kd-cont` on either the kana or the `ime-kana-ja-colloq-v1` test split. Standard blind is not used. If H2 fails, `colloq-c40` is still released.
+
+- **Stage 4 result (2026-11-28): pass.** kana test lenient Top-1, V4.2 reranking 510 → `colloq-c40` 528 (+18, p 0.0024); the lenient Top-1 guards against `kd-cont` hold on both the kana and colloquial test splits (+2 / +3); H2, exact Top-1 against `kd-cont`, +3 (p 0.73), not passed. `colloq-c40` is released as `vimeml-ja-v2-20m` and replaces V4.2. See the [confirmation report](../reports/ja-gen-confirmation-20261128/report.md).

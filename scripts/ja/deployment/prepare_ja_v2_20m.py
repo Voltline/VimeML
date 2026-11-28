@@ -80,12 +80,12 @@ MODELS = {
     },
     "colloq-c40": {
         "model_dir": "artifacts/models/ja-kana-20m-colloq-c40",
-        "checkpoint_sha256": "PIN_AFTER_STAGE3",
+        "checkpoint_sha256": "19b04ddfe0f98041ffe50511cab9d64d2f2a20b2918f5e78cc78c0768981d15f",
         "reference": "outputs/deployment/vimeml-ja-v2-20m-c40-fp32-input",
         "bundle": f"artifacts/releases/{RELEASE}/inference",
         "fixture": "outputs/vime-fixtures/ja-generation-v2-20m-c40-task-r1",
         "arm": "20m-colloq-c40",
-        "phase": "ja-gen Stage 3 colloquial 20M (c40): task mode with self rescoring",
+        "phase": "ja-gen Stage 3 colloquial 20M (c40), confirmed on test in stage 4: task mode with self rescoring",
     },
 }
 

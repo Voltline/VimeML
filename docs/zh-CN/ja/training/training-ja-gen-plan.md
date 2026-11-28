@@ -308,3 +308,5 @@ web train 处理 7.59 亿段落；span 平均 13.1 字、读音 16.4 假名，81
 ## 第 4 阶段登记（2026-11-28）
 
 确认计划见 [ja-gen test 确认计划](../benchmarks/confirmation-ja-gen-plan.md)，在任何 test 结果出来之前提交。主假设 H1：`ime-kana-ja-v1` test 上 `colloq-c40` 的宽松 Top-1 显著高于 V4.2 重排；H2（固定顺序）：严格 Top-1 显著高于 `kd-cont`；守门：kana 与 `ime-kana-ja-colloq-v1` 两个 test 上宽松 Top-1 都不显著低于 `kd-cont`。不使用 Standard blind。H2 不通过时仍发布 `colloq-c40`。
+
+- **第 4 阶段结果（2026-11-28）：通过。** kana test 宽松 Top-1 V4.2 重排 510 → `colloq-c40` 528（+18，p 0.0024）；对 `kd-cont` 的宽松 Top-1 守门在 kana 和口语 test 上都满足（+2 / +3）；H2 严格 Top-1 对 `kd-cont` +3（p 0.73）不通过。`colloq-c40` 发布为 `vimeml-ja-v2-20m`，替换 V4.2。见[确认报告](../reports/ja-gen-confirmation-20261128/report.md)。
