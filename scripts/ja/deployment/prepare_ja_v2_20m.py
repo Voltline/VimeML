@@ -62,7 +62,7 @@ HANDWRITTEN_CASES = (
 MODELS = {
     "read-s1": {
         "model_dir": "artifacts/models/ja-kana-20m-read-s1",
-        "checkpoint_sha256": "PIN_AFTER_STAGE21",
+        "checkpoint_sha256": "35ac57685062601d59c94e4c8f67f738cd7a51eb47e9a1ad9acb62ba0ed0924e",
         "reference": "outputs/deployment/vimeml-ja-v2-20m-read-s1-fp32-input",
         "bundle": f"artifacts/releases/{RELEASE}-read-s1/inference",
         "fixture": "outputs/vime-fixtures/ja-generation-v2-20m-read-s1-task-r1",
@@ -71,7 +71,7 @@ MODELS = {
     },
     "kd-cont": {
         "model_dir": "artifacts/models/ja-kana-20m-kd-cont",
-        "checkpoint_sha256": "PIN_AFTER_STAGE23",
+        "checkpoint_sha256": "5a44839657569b34dea57fae4a45a2050506f892a441e38715756727fe46a92f",
         "reference": "outputs/deployment/vimeml-ja-v2-20m-kd-fp32-input",
         "bundle": f"artifacts/releases/{RELEASE}-kd/inference",
         "fixture": "outputs/vime-fixtures/ja-generation-v2-20m-kd-task-r1",

@@ -260,6 +260,7 @@ Trainer `src/vimeml/training/joint_ja_kana.py` (entry `scripts/ja/training/train
   5. **Pass and fallback**:
      - If 1 and 2 both hold, `20m-kd-cont` (s1) is the 3.3 start.
      - Otherwise 3.3 continues from `read-s1`, and no higher-scoring seed from s2–s4 is substituted. The 3.3 arms' start and guard reference then change from `kd-cont` to `read-s1`, recorded as a deviation.
+- **2.3 result (2026-11-28): pass.** The main arm `20m-kd-cont` (final.pt SHA256 `5a44839657569b34dea57fae4a45a2050506f892a441e38715756727fe46a92f`) reaches kana development lenient Top-1 88.50, +7 against `read-s1` (p 0.039) and +20 against V4.2 reranking (p 0.0049). Four-seed mean 87.92, with 3 of 4 seeds above their start. Standard: 514 for the main arm, mean 512.00. λ is frozen at 1.6 (2.0 is only 0.04 points higher). 3.3 starts from `20m-kd-cont`. See the [2.3 report](../reports/ja-gen-stage2-kd-20261128/report.md).
 
 ## Stage 3 registration (2026-11-26)
 

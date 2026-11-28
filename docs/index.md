@@ -121,6 +121,7 @@ Mac briefs, the task descriptions handed to the macOS session (each report above
 | [ja-gen stage 0](ja/reports/ja-gen-stage0-20261125/report.md) | `ime-kana-ja-v1` frozen (600 + 600); of 98 Standard development pool misses, N-best 100 recovers 40, 58 need generation; V4.2 lenient Top-1 85.2 on the new development set |
 | [ja-gen stage 2.1](ja/reports/ja-gen-stage2-20m-20261127/report.md) | 20M reading post-training kept: four-seed lenient Top-1 87.17 on `ime-kana-ja-v1` development (V4.2 85.2, LM control 85.79); Standard reranking 504.5 (LM control 515.25) |
 | [ja-gen stage 2.2](ja/reports/ja-gen-stage2-200m-20261128/report.md) | 200M joint reading pretraining: lenient Top-1 89.33 on `ime-kana-ja-v1` development and 89.67 on `ime-kana-ja-colloq-v1` development, Standard reranking 517; colloquial baselines of the 2.1 arms |
+| [ja-gen stage 2.3](ja/reports/ja-gen-stage2-kd-20261128/report.md) | 20M distillation from the 200M, four seeds: main arm lenient Top-1 88.50 on `ime-kana-ja-v1` development (four-seed mean 87.92), Standard reranking 514 (mean 512.00); pass, λ frozen at 1.6, 3.3 starts from kd-cont |
 | [IME error decomposition](ja/reports/analysis-20261021/ime-errors.md) | Remaining Top-1 errors: candidate-pool misses, notation variants, few semantic errors |
 | [Training-free rescoring](ja/reports/analysis-20261021/rescoring.md) | PMI, length and engine-score fusion; none passes held-out tracks |
 
