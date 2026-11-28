@@ -10,11 +10,11 @@ log_dir = "runs/training/ja-kana-20m-read-s2"
 [initialization]
 mode = "checkpoint"
 checkpoint = "artifacts/models/ja-kana-20m-pt-s2/final.pt"
-checkpoint_sha256 = "PIN_AFTER_PRETRAINING"
+checkpoint_sha256 = "6d4c161726ab342f8d493994bc064d90b9d8edda96999cd212b7a8637da0a203"
 
 [data]
 directory = "artifacts/training-data/ja-kana-v1-12k"
-manifest_sha256 = "PIN_AFTER_ENCODE"
+manifest_sha256 = "f5ec6fa71caa410029e9956ea0c4ab5d564eef2d042835660408b047cf6eeab1"
 mix = { plain = 175, chat = 17, span = 192, sentence = 128 }
 
 [model]

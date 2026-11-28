@@ -14,7 +14,7 @@ mode = "random"
 
 [data]
 directory = "artifacts/training-data/ja-kana-v1-12k"
-manifest_sha256 = "PIN_AFTER_ENCODE"
+manifest_sha256 = "f5ec6fa71caa410029e9956ea0c4ab5d564eef2d042835660408b047cf6eeab1"
 mix = { web = 464, plain = 24, chat = 24, web_span = 176, span = 16, web_sentence = 112, sentence = 16 }
 
 [model]
