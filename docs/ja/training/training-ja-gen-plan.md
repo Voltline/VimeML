@@ -2,6 +2,8 @@
 
 > The plan is registered in Chinese, and the [Chinese version](../../zh-CN/ja/training/training-ja-gen-plan.md) is authoritative.
 
+> Naming, 2026-11-28: the ja-gen batch is named vimeml-ja-v6 (20M and 200M; see the [v6 release scope](../release-ja-v6-plan.md)); earlier revisions of this plan used `vimeml-ja-v2-20m`.
+
 Drafted 2026-11-25. Committing this page registers stages 0 and 1. Those stages build the benchmark, data, readings and tokenizer only; they train no model. For stage 2 onward, this page sets the route. Each stage's arms, configs and decision rules are added here before that stage trains. Registered content is not edited; later changes are recorded as deviations at the end.
 
 ## Goals
@@ -118,7 +120,7 @@ V4.1 fell from 505 to 461 on Standard ([V4.1 record](training-v41.md)). In stage
 2. **200M**: joint reading pretraining and rescoring with its own scores; then distillation into 20M with the kd-cont recipe.
 3. **Colloquial post-training**: c40 recipe. Its data and colloquial development set are registered in that stage.
 4. **Confirmation**: preregistered; `ime-kana-ja-v1` test is read once, against the current deployment (AzooKey plus V4.2 reranking).
-5. **Mac / Vime**: rerun the batched-KV v4 pipeline. Vime merges AzooKey and generated candidates and scores them together. Generation does not block keystrokes, following the Chinese product decision of 2026-11-21 (show the reranked list at once, generate after a pause or in the background). Handoff written 2026-11-28: [Mac / Vime task](../mac/mac-ja-v2-20m.md).
+5. **Mac / Vime**: rerun the batched-KV v4 pipeline. Vime merges AzooKey and generated candidates and scores them together. Generation does not block keystrokes, following the Chinese product decision of 2026-11-21 (show the reranked list at once, generate after a pause or in the background). Handoff written 2026-11-28: [Mac / Vime task](../mac/mac-ja-v6-20m.md).
 6. **Last**: the Chinese–Japanese–English 800M, under its own plan.
 
 ## Deviations
@@ -330,4 +332,4 @@ In 3.3 the colloquial data did not change lenient Top-1 but raised kana developm
 
 The confirmation plan is the [ja-gen test confirmation plan](../benchmarks/confirmation-ja-gen-plan.md), committed before any test result. Primary hypothesis H1: on `ime-kana-ja-v1` test, `colloq-c40` lenient Top-1 is significantly above V4.2 reranking; H2 (fixed sequence): exact Top-1 significantly above `kd-cont`; guards: lenient Top-1 not significantly below `kd-cont` on either the kana or the `ime-kana-ja-colloq-v1` test split. Standard blind is not used. If H2 fails, `colloq-c40` is still released.
 
-- **Stage 4 result (2026-11-28): pass.** kana test lenient Top-1, V4.2 reranking 510 → `colloq-c40` 528 (+18, p 0.0024); the lenient Top-1 guards against `kd-cont` hold on both the kana and colloquial test splits (+2 / +3); H2, exact Top-1 against `kd-cont`, +3 (p 0.73), not passed. `colloq-c40` is released as `vimeml-ja-v2-20m` and replaces V4.2. See the [confirmation report](../reports/ja-gen-confirmation-20261128/report.md).
+- **Stage 4 result (2026-11-28): pass.** kana test lenient Top-1, V4.2 reranking 510 → `colloq-c40` 528 (+18, p 0.0024); the lenient Top-1 guards against `kd-cont` hold on both the kana and colloquial test splits (+2 / +3); H2, exact Top-1 against `kd-cont`, +3 (p 0.73), not passed. `colloq-c40` is released as `vimeml-ja-v6-20m` and replaces V4.2. See the [confirmation report](../reports/ja-gen-confirmation-20261128/report.md).

@@ -2,9 +2,11 @@
 
 [English version](../../../../ja/reports/ja-gen-confirmation-20261128/report.md)
 
+> 命名（2026-11-28）：ja-gen 这一批模型统一称为 vimeml-ja-v6（20M 与 200M，见 [v6 发布范围](../../release-ja-v6-plan.md)）；本报告最初用的名称是 `vimeml-ja-v2-20m`。
+
 2026-11-28。按 [ja-gen test 确认计划](../../benchmarks/confirmation-ja-gen-plan.md)（提交 `8eb7bc6`，在任何 test 结果出来之前注册）执行，只运行一次（run-01）。`ime-kana-ja-v1` 与 `ime-kana-ja-colloq-v1` 的 test 在这次运行中第一次被模型打分。
 
-**结论：通过。** `colloq-c40`（`19b04ddf…`）作为 `vimeml-ja-v2-20m` 发布，替换 V4.2。
+**结论：通过。** `colloq-c40`（`19b04ddf…`）作为 `vimeml-ja-v6-20m` 发布，替换 V4.2。
 
 - **H1**：kana test 宽松 Top-1，V4.2 重排 510（85.00%）→ `colloq-c40` 528（88.00%），+18 条（+30 / −12），聚类符号翻转 p 0.0024。通过。
 - **守门**：`colloq-c40` 对 `kd-cont` 的宽松 Top-1，kana test +2（p 0.82），口语 test +3（p 0.65），都没有下降。满足。
@@ -83,5 +85,5 @@
 
 ## 下一步
 
-- **发布 `vimeml-ja-v2-20m`**：`colloq-c40` 进入 Mac Core ML 对齐和 iOS 集成，交接脚本 `scripts/ja/deployment/prepare_ja_v2_20m.py` 的模型改为 `colloq-c40`。
+- **发布 `vimeml-ja-v6-20m`**：`colloq-c40` 进入 Mac Core ML 对齐和 iOS 集成，交接脚本 `scripts/ja/deployment/prepare_ja_v6_20m.py` 的模型改为 `colloq-c40`。
 - **test 状态**：两个 test 已使用，此后不再称为未使用的集合。

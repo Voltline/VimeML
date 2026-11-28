@@ -1,4 +1,4 @@
-"""vimeml-ja-v2-20m handoff for the Mac (Core ML) and Vime (iOS): weights, bundle, fixtures and ZIP.
+"""vimeml-ja-v6-20m handoff for the Mac (Core ML) and Vime (iOS): weights, bundle, fixtures and ZIP.
 
 Shares the 12K / d384 / 9-layer / context-128 block contract of vimeml-zh-v2-20m, so the
 zh-v1 Core ML stateless and batched KV v4 (`prefix`, `score`, `scored`) exporters are reused
@@ -18,7 +18,7 @@ generation decoding contract (task mode with self rescoring) differ.
             SHA256SUMS and CRC check
 
 usage:
-  python -X utf8 scripts/ja/deployment/prepare_ja_v2_20m.py <stage> \\
+  python -X utf8 scripts/ja/deployment/prepare_ja_v6_20m.py <stage> \\
       [--model kd-cont|colloq-c40|read-s1] [--checkpoint PATH] [--output ZIP]
 """
 import argparse
@@ -33,7 +33,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "src"))
 
-RELEASE = "vimeml-ja-v2-20m"
+RELEASE = "vimeml-ja-v6-20m"
 TOKENIZER_DIR = "artifacts/tokenizers/ja-kana-v1/ja-unigram-12288"
 TOKENIZER_SHA256 = "61d71460606eed32f0a976611e5fde0dca12efeecb413c516838911a49d3aa53"
 READING_TABLE = "configs/ja/ja-reading-table.tsv"
@@ -67,27 +67,27 @@ MODELS = {
     "read-s1": {
         "model_dir": "artifacts/models/ja-kana-20m-read-s1",
         "checkpoint_sha256": "35ac57685062601d59c94e4c8f67f738cd7a51eb47e9a1ad9acb62ba0ed0924e",
-        "reference": "outputs/deployment/vimeml-ja-v2-20m-read-s1-fp32-input",
+        "reference": "outputs/deployment/vimeml-ja-v6-20m-read-s1-fp32-input",
         "bundle": f"artifacts/releases/{RELEASE}-read-s1/inference",
-        "fixture": "outputs/vime-fixtures/ja-generation-v2-20m-read-s1-task-r1",
+        "fixture": "outputs/vime-fixtures/ja-generation-v6-20m-read-s1-task-r1",
         "arm": "20m-read-s1",
         "phase": "ja-gen Stage 2.1 reading arm: task mode with self rescoring",
     },
     "kd-cont": {
         "model_dir": "artifacts/models/ja-kana-20m-kd-cont",
         "checkpoint_sha256": "5a44839657569b34dea57fae4a45a2050506f892a441e38715756727fe46a92f",
-        "reference": "outputs/deployment/vimeml-ja-v2-20m-kd-fp32-input",
+        "reference": "outputs/deployment/vimeml-ja-v6-20m-kd-fp32-input",
         "bundle": f"artifacts/releases/{RELEASE}-kd/inference",
-        "fixture": "outputs/vime-fixtures/ja-generation-v2-20m-kd-task-r1",
+        "fixture": "outputs/vime-fixtures/ja-generation-v6-20m-kd-task-r1",
         "arm": "20m-kd-cont",
         "phase": "ja-gen Stage 2.3 distilled 20M: task mode with self rescoring",
     },
     "colloq-c40": {
         "model_dir": "artifacts/models/ja-kana-20m-colloq-c40",
         "checkpoint_sha256": "19b04ddfe0f98041ffe50511cab9d64d2f2a20b2918f5e78cc78c0768981d15f",
-        "reference": "outputs/deployment/vimeml-ja-v2-20m-c40-fp32-input",
+        "reference": "outputs/deployment/vimeml-ja-v6-20m-c40-fp32-input",
         "bundle": f"artifacts/releases/{RELEASE}/inference",
-        "fixture": "outputs/vime-fixtures/ja-generation-v2-20m-c40-task-r1",
+        "fixture": "outputs/vime-fixtures/ja-generation-v6-20m-c40-task-r1",
         "arm": "20m-colloq-c40",
         "phase": "ja-gen Stage 3 colloquial 20M (c40), confirmed on test in stage 4: task mode with self rescoring",
     },

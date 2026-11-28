@@ -1,9 +1,9 @@
-"""vimeml-ja-v2-20m on the Mac: generation search and the merged display list of a KV v4 package against the FP32 fixture.
+"""vimeml-ja-v6-20m on the Mac: generation search and the merged display list of a KV v4 package against the FP32 fixture.
 
 Core ML conversion, alignment, INT8 compression, the batched KV v4 build, its plumbing fixture, `measure` and the
 iOS resource are the Chinese tools run with `--bundle` (scripts/zh/deployment/coreml_zh_v1.py and
 coreml_zh_kvbatch4.py: same 12K / d384 / 9-layer / context-128 block). This script replaces only their pinyin
-`search` stage. Per fixture case (prepare_ja_v2_20m.py `fixture`), on one merged KV v4 package:
+`search` stage. Per fixture case (prepare_ja_v6_20m.py `fixture`), on one merged KV v4 package:
 
   generation  kana-position-bucketed constrained beam 16, top 10 (`ja_search`, `logits` function), against the
               fixture's generated top 10 (`top`, beam_score)
@@ -15,8 +15,8 @@ coreml_zh_kvbatch4.py: same 12K / d384 / 9-layer / context-128 block). This scri
               against rescored[0]
 
 usage (Mac, KV v4 env):
-  python scripts/ja/deployment/coreml_ja_v2_20m.py search <int8-merged> <output> --bundle B \\
-      [--cases outputs/vime-fixtures/ja-generation-v2-20m-c40-task-r1/cases.jsonl] \\
+  python scripts/ja/deployment/coreml_ja_v6_20m.py search <int8-merged> <output> --bundle B \\
+      [--cases outputs/vime-fixtures/ja-generation-v6-20m-c40-task-r1/cases.jsonl] \\
       [--index outputs/ja-gen-stage2/kana-index.json] [--reference <src-merged>]
   --torch runs the same checks on the bundle's PyTorch FP32 KV graphs (self-test, no Core ML; <package> unused).
 """
@@ -31,7 +31,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from prepare_ja_v2_20m import DEFAULT_INDEX, MODELS, lm_score_inputs, task_score_inputs  # noqa: E402
+from prepare_ja_v6_20m import DEFAULT_INDEX, MODELS, lm_score_inputs, task_score_inputs  # noqa: E402
 from vimeml.benchmarks.kana_gen_ja import merge_and_rank  # noqa: E402
 from vimeml.deployment import ja_search as js, zh_v1, zh_v1_batch3 as z3, zh_v1_batch4 as z4  # noqa: E402
 from vimeml.deployment.bundle import environment, read_json, write_json  # noqa: E402
@@ -137,8 +137,8 @@ def stage_search(a):
         raise SystemExit(f"{out} exists; choose a new directory")
     bundle = Path(a.bundle)
     lm = zh_v1.BundleLMZh(bundle)
-    if lm.metadata["release_name"] != "vimeml-ja-v2-20m":
-        raise SystemExit(f"Bundle release_name={lm.metadata['release_name']!r} is not vimeml-ja-v2-20m")
+    if lm.metadata["release_name"] != "vimeml-ja-v6-20m":
+        raise SystemExit(f"Bundle release_name={lm.metadata['release_name']!r} is not vimeml-ja-v6-20m")
     sp = spm.SentencePieceProcessor(model_file=str(bundle / "tokenizer.model"))
     meta = read_json(Path(a.cases).parent / "meta.json")
     if meta["model"]["bundle_manifest_sha256"] != lm.metadata["bundle_manifest_sha256"]:

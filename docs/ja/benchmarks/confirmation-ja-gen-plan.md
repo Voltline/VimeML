@@ -4,6 +4,8 @@
 
 > Run on 2026-11-28 (run-01): pass. H1 +18 (p 0.0024), guards met, H2 +3 (p 0.73) not passed; `colloq-c40` is released as `vimeml-ja-v2-20m`. See the [confirmation report](../reports/ja-gen-confirmation-20261128/report.md).
 
+> Naming, 2026-11-28: the ja-gen batch is named vimeml-ja-v6 (20M and 200M; see the [v6 release scope](../release-ja-v6-plan.md)). `vimeml-ja-v2-20m` in this plan is `vimeml-ja-v6-20m`.
+
 Drafted 2026-11-28. The plan counts as registered only once it and the execution code are committed; until then neither the `ime-kana-ja-v1` test split nor the `ime-kana-ja-colloq-v1` test split is opened. This is stage 4 of the [ja-gen plan](../training/training-ja-gen-plan.md).
 
 The entry point is [confirm_ja_gen.py](../../../scripts/ja/benchmarks/confirm_ja_gen.py); every fixed setting is a constant in [ja_gen_confirm.py](../../../src/vimeml/benchmarks/ja_gen_confirm.py). Search, reranking and scoring are those of the 2.3 / 3.x development evaluations (`kana_gen_ja.evaluate_arm`, as used by [evaluate_ja_gen_stage2.py](../../../scripts/ja/benchmarks/evaluate_ja_gen_stage2.py)).

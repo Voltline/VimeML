@@ -1,5 +1,7 @@
 # 日文生成路线（ja-gen）计划
 
+> 命名（2026-11-28）：ja-gen 这一批模型统一称为 vimeml-ja-v6（20M 与 200M，见 [v6 发布范围](../release-ja-v6-plan.md)）；本计划早先的版本写作 `vimeml-ja-v2-20m`。
+
 2026-11-25 起草。本计划提交即注册第 0、1 阶段：这两个阶段只做评测集、数据、读音和词表，不训练模型。第 2 阶段以后在这里先定路线，每一阶段的臂、配置和判定规则在该阶段训练开始前补进本页；已注册的内容不改，之后的改动作为偏差记在页末。
 
 ## 目标
@@ -116,7 +118,7 @@ V4.1 在 Standard 上从 505 掉到 461（[V4.1 记录](training-v41.md)）。�
 2. **200M**：联合读音预训练，用自己的分数重排；然后按 kd-cont 配方蒸馏到 20M。
 3. **口语后训练**：c40 配方，口语数据和口语开发集在本阶段登记。
 4. **确认**：预注册，`ime-kana-ja-v1` test 读一次，对照 V4.2 现有部署方式（AzooKey + V4.2 重排）。
-5. **Mac / Vime**：重跑批量 KV v4 流程；Vime 合并 AzooKey 与生成候选并统一打分；生成不阻塞按键，沿用中文 2026-11-21 的产品决定（先显示重排结果，停顿后或在后台生成）。 2026-11-28 交接：[Mac / Vime 任务](../mac/mac-ja-v2-20m.md)。
+5. **Mac / Vime**：重跑批量 KV v4 流程；Vime 合并 AzooKey 与生成候选并统一打分；生成不阻塞按键，沿用中文 2026-11-21 的产品决定（先显示重排结果，停顿后或在后台生成）。 2026-11-28 交接：[Mac / Vime 任务](../mac/mac-ja-v6-20m.md)。
 6. **最后**：中日英多语 800M，单独计划。
 
 ## 偏差
@@ -309,4 +311,4 @@ web train 处理 7.59 亿段落；span 平均 13.1 字、读音 16.4 假名，81
 
 确认计划见 [ja-gen test 确认计划](../benchmarks/confirmation-ja-gen-plan.md)，在任何 test 结果出来之前提交。主假设 H1：`ime-kana-ja-v1` test 上 `colloq-c40` 的宽松 Top-1 显著高于 V4.2 重排；H2（固定顺序）：严格 Top-1 显著高于 `kd-cont`；守门：kana 与 `ime-kana-ja-colloq-v1` 两个 test 上宽松 Top-1 都不显著低于 `kd-cont`。不使用 Standard blind。H2 不通过时仍发布 `colloq-c40`。
 
-- **第 4 阶段结果（2026-11-28）：通过。** kana test 宽松 Top-1 V4.2 重排 510 → `colloq-c40` 528（+18，p 0.0024）；对 `kd-cont` 的宽松 Top-1 守门在 kana 和口语 test 上都满足（+2 / +3）；H2 严格 Top-1 对 `kd-cont` +3（p 0.73）不通过。`colloq-c40` 发布为 `vimeml-ja-v2-20m`，替换 V4.2。见[确认报告](../reports/ja-gen-confirmation-20261128/report.md)。
+- **第 4 阶段结果（2026-11-28）：通过。** kana test 宽松 Top-1 V4.2 重排 510 → `colloq-c40` 528（+18，p 0.0024）；对 `kd-cont` 的宽松 Top-1 守门在 kana 和口语 test 上都满足（+2 / +3）；H2 严格 Top-1 对 `kd-cont` +3（p 0.73）不通过。`colloq-c40` 发布为 `vimeml-ja-v6-20m`，替换 V4.2。见[确认报告](../reports/ja-gen-confirmation-20261128/report.md)。

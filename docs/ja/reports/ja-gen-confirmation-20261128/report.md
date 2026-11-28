@@ -2,9 +2,11 @@
 
 > [Chinese version](../../../zh-CN/ja/reports/ja-gen-confirmation-20261128/report.md)
 
+> Naming, 2026-11-28: the ja-gen batch is named vimeml-ja-v6 (20M and 200M; see the [v6 release scope](../../release-ja-v6-plan.md)); this report was first written with the name `vimeml-ja-v2-20m`.
+
 2026-11-28. Run once (run-01) under the [ja-gen test confirmation plan](../../benchmarks/confirmation-ja-gen-plan.md) (commit `8eb7bc6`, registered before any test result). This run was the first time any model scored the `ime-kana-ja-v1` or `ime-kana-ja-colloq-v1` test split.
 
-**Result: pass.** `colloq-c40` (`19b04ddf…`) is released as `vimeml-ja-v2-20m` and replaces V4.2.
+**Result: pass.** `colloq-c40` (`19b04ddf…`) is released as `vimeml-ja-v6-20m` and replaces V4.2.
 
 - **H1**: kana test lenient Top-1, V4.2 reranking 510 (85.00%) → `colloq-c40` 528 (88.00%), +18 items (+30 / −12), clustered sign-flip p 0.0024. Passed.
 - **Guards**: `colloq-c40` against `kd-cont` in lenient Top-1 is +2 on kana test (p 0.82) and +3 on colloquial test (p 0.65); no drop. Met.
@@ -83,5 +85,5 @@ Lenient / exact Top-1 by rule band:
 
 ## Next
 
-- **Release `vimeml-ja-v2-20m`**: `colloq-c40` goes to Mac Core ML alignment and iOS integration; the handoff script `scripts/ja/deployment/prepare_ja_v2_20m.py` switches to `colloq-c40`.
+- **Release `vimeml-ja-v6-20m`**: `colloq-c40` goes to Mac Core ML alignment and iOS integration; the handoff script `scripts/ja/deployment/prepare_ja_v6_20m.py` switches to `colloq-c40`.
 - **Test status**: both test splits are used and are no longer described as unused.

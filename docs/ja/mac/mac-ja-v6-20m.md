@@ -1,8 +1,8 @@
-# vimeml-ja-v2-20m: Core ML build (Mac) and device test (Vime)
+# vimeml-ja-v6-20m: Core ML build (Mac) and device test (Vime)
 
-> [Chinese version](../../zh-CN/ja/mac/mac-ja-v2-20m.md) (reference text)
+> [Chinese version](../../zh-CN/ja/mac/mac-ja-v6-20m.md) (reference text)
 
-A self-contained task for the Mac session and Vime: stage 5 of the [ja-gen plan](../training/training-ja-gen-plan.md). The stage 4 [test confirmation](../reports/ja-gen-confirmation-20261128/report.md) passed, so `colloq-c40` is released as `vimeml-ja-v2-20m` and replaces the deployed V4.2 (AzooKey N-best + V4.2 reranking). Kana test lenient Top-1 rose from 510 to 528 (p 0.0024); colloquial test from 509 to 537.
+A self-contained task for the Mac session and Vime: stage 5 of the [ja-gen plan](../training/training-ja-gen-plan.md). The stage 4 [test confirmation](../reports/ja-gen-confirmation-20261128/report.md) passed, so `colloq-c40` is released as `vimeml-ja-v6-20m` and replaces the deployed V4.2 (AzooKey N-best + V4.2 reranking). Kana test lenient Top-1 rose from 510 to 528 (p 0.0024); colloquial test from 509 to 537.
 
 What was confirmed is a whole setup, not just a model:
 
@@ -22,14 +22,14 @@ Three things differ: Japanese weights and tokenizer; search bucketed by hiragana
 
 | Item | Value |
 | --- | --- |
-| Release | `vimeml-ja-v2-20m` (arm `20m-colloq-c40`) |
+| Release | `vimeml-ja-v6-20m` (arm `20m-colloq-c40`) |
 | Source checkpoint | `artifacts/models/ja-kana-20m-colloq-c40/final.pt`, SHA256 `19b04ddf…d15f` (not in the package) |
-| Inference bundle | `artifacts/releases/vimeml-ja-v2-20m/inference/` (`weights.pt`, `config.json`, `tokenizer.model`, `manifest.json`) |
+| Inference bundle | `artifacts/releases/vimeml-ja-v6-20m/inference/` (`weights.pt`, `config.json`, `tokenizer.model`, `manifest.json`) |
 | Tokenizer | `ja-unigram-12288`, SHA256 `61d71460…aa53`; pad 0, unk 1, bos 2, eos 3; task ids CTX 4, READ 5, OUT 6; byte fallback |
 | Architecture | vocabulary 12,288, d384, nine layers, six heads, SwiGLU 960, context 128 |
 | Reading index | `outputs/ja-gen-stage2/kana-index.json`, SHA256 `b60c485d…de5b`: hiragana reading → allowed token ids |
-| FP32 fixtures | `outputs/deployment/vimeml-ja-v2-20m-c40-fp32-input/` (logits and KV steps) |
-| Generation fixture | `outputs/vime-fixtures/ja-generation-v2-20m-c40-task-r1/` (`cases.jsonl` + `meta.json`, 125 cases) |
+| FP32 fixtures | `outputs/deployment/vimeml-ja-v6-20m-c40-fp32-input/` (logits and KV steps) |
+| Generation fixture | `outputs/vime-fixtures/ja-generation-v6-20m-c40-task-r1/` (`cases.jsonl` + `meta.json`, 125 cases) |
 
 The 125 generation fixture cases:
 
@@ -45,7 +45,7 @@ Each case records:
 
 `meta.json` states the search and merge contract.
 
-The handoff ZIP holds these files and the reading table at their repository paths, with a `SHA256SUMS` file (name, size and SHA256 under "Handoff package" below). Code is from `main`; `scripts/ja/deployment/prepare_ja_v2_20m.py` rebuilds every file in the ZIP.
+The handoff ZIP holds these files and the reading table at their repository paths, with a `SHA256SUMS` file (name, size and SHA256 under "Handoff package" below). Code is from `main`; `scripts/ja/deployment/prepare_ja_v6_20m.py` rebuilds every file in the ZIP.
 
 ## Mac task
 
@@ -53,22 +53,22 @@ Work in the existing kvbatch checkout:
 
 1. `git pull` on `main`.
 2. Unzip the handoff package at the repository root and run `shasum -a 256 -c SHA256SUMS`.
-3. Use the Chinese v4 environment and set `B=artifacts/releases/vimeml-ja-v2-20m/inference`.
+3. Use the Chinese v4 environment and set `B=artifacts/releases/vimeml-ja-v6-20m/inference`.
 
-All package names start with `tiny-ja-v2-20m-`, so nothing Chinese is overwritten.
+All package names start with `tiny-ja-v6-20m-`, so nothing Chinese is overwritten.
 
 1. **Stateless package** (`scripts/zh/deployment/coreml_zh_v1.py`):
-   - `convert --bundle $B --output artifacts/deployment/tiny-ja-v2-20m-fp32-v1`.
-   - `align --bundle $B --model artifacts/deployment/tiny-ja-v2-20m-fp32-v1 --reference-fixtures outputs/deployment/vimeml-ja-v2-20m-c40-fp32-input --output outputs/deployment/ja-v2-20m-align-fp32`. Must pass at 3e-4.
-   - `compress --source artifacts/deployment/tiny-ja-v2-20m-fp32-v1 --alignment outputs/deployment/ja-v2-20m-align-fp32/alignment.json --output artifacts/deployment/tiny-ja-v2-20m-int8-b32-v1`, deployed recipe `int8-b32` unchanged.
+   - `convert --bundle $B --output artifacts/deployment/tiny-ja-v6-20m-fp32-v1`.
+   - `align --bundle $B --model artifacts/deployment/tiny-ja-v6-20m-fp32-v1 --reference-fixtures outputs/deployment/vimeml-ja-v6-20m-c40-fp32-input --output outputs/deployment/ja-v6-20m-align-fp32`. Must pass at 3e-4.
+   - `compress --source artifacts/deployment/tiny-ja-v6-20m-fp32-v1 --alignment outputs/deployment/ja-v6-20m-align-fp32/alignment.json --output artifacts/deployment/tiny-ja-v6-20m-int8-b32-v1`, deployed recipe `int8-b32` unchanged.
    - Skip `evaluate`: it is the Chinese Standard evaluation.
 2. **Batched KV v4** (`scripts/zh/deployment/coreml_zh_kvbatch4.py`, every stage with `--bundle $B`):
-   - `check`, then `build --variant fp32kv --stateless artifacts/deployment/tiny-ja-v2-20m-int8-b32-v1` with output `artifacts/deployment/tiny-ja-v2-20m-kvbatch-v4`. Source alignment and INT8-vs-stateless alignment must pass as in the Chinese v4 report.
-   - `fixture <int8-merged> <out> --stateless artifacts/deployment/tiny-ja-v2-20m-int8-b32-v1`. This is the generic KV plumbing fixture (`prefix` in one and two calls, `logits`, `scored`, `score`) on the Chinese v4 sentences. The Japanese tokenizer has byte fallback and round-trips all of them; it checks the KV plumbing, not Japanese quality.
-3. **Japanese search check** (`scripts/ja/deployment/coreml_ja_v2_20m.py`, replacing the Chinese pinyin `search` stage):
+   - `check`, then `build --variant fp32kv --stateless artifacts/deployment/tiny-ja-v6-20m-int8-b32-v1` with output `artifacts/deployment/tiny-ja-v6-20m-kvbatch-v4`. Source alignment and INT8-vs-stateless alignment must pass as in the Chinese v4 report.
+   - `fixture <int8-merged> <out> --stateless artifacts/deployment/tiny-ja-v6-20m-int8-b32-v1`. This is the generic KV plumbing fixture (`prefix` in one and two calls, `logits`, `scored`, `score`) on the Chinese v4 sentences. The Japanese tokenizer has byte fallback and round-trips all of them; it checks the KV plumbing, not Japanese quality.
+3. **Japanese search check** (`scripts/ja/deployment/coreml_ja_v6_20m.py`, replacing the Chinese pinyin `search` stage):
 
    ```bash
-   python scripts/ja/deployment/coreml_ja_v2_20m.py search <int8-merged> outputs/deployment/ja-v2-20m-search-int8 \
+   python scripts/ja/deployment/coreml_ja_v6_20m.py search <int8-merged> outputs/deployment/ja-v6-20m-search-int8 \
        --bundle $B --reference <src-merged>
    ```
 
@@ -87,19 +87,19 @@ All package names start with `tiny-ja-v2-20m-`, so nothing Chinese is overwritte
 
    ```bash
    python scripts/zh/deployment/coreml_zh_kvbatch4.py ios <int8-merged> <out> --bundle $B \
-       --alignment <int8-merged-align.json> --search outputs/deployment/ja-v2-20m-search-int8 --fixture <fixture out>
+       --alignment <int8-merged-align.json> --search outputs/deployment/ja-v6-20m-search-int8 --fixture <fixture out>
    ```
 
-   The resource is `TinyJapaneseV2KVBatchV4FP32KVINT8.mlmodelc` with manifest `VimeLMManifestJaKVBatchV4-fp32kv.json`, so it sits beside the Chinese resources.
+   The resource is `TinyJapaneseV6KVBatchV4FP32KVINT8.mlmodelc` with manifest `VimeLMManifestJaKVBatchV4-fp32kv.json`, so it sits beside the Chinese resources.
 5. **Latency**: in one session run `measure` on the Chinese `vimeml-zh-v2-20m` (c40) v4 INT8 package and the Japanese one, `--prompt 48` and `--prompt 80`. Same block, so latency should match; report any difference beyond noise. Also report `p50_search_ms` / `p50_score_ms` from the Japanese search check (Mac Python, including input conversion).
 6. **Report** in the v4 format: sizes, alignment, search check, latency and any failure. Do not change recipe, variant, search, λ or candidate counts to pass a gate.
 
-## Vime: replace V4.2 with vimeml-ja-v2-20m
+## Vime: replace V4.2 with vimeml-ja-v6-20m
 
 Today's Japanese flow is AzooKey N-best plus V4.2 reranking. The new flow uses one model for two jobs: generating candidates, and scoring AzooKey and generated candidates alike. V4.2 resources stay as the fallback.
 
 1. **Resources**:
-   - `TinyJapaneseV2KVBatchV4FP32KVINT8.mlmodelc` and its manifest;
+   - `TinyJapaneseV6KVBatchV4FP32KVINT8.mlmodelc` and its manifest;
    - the bundle's `tokenizer.model` under a resource name that does not clash with the V4.2 tokenizer;
    - `kana-index.json`, reading → token ids; it may be converted to a more compact format at build time, but the content must be identical.
 2. **Inputs**:
@@ -132,7 +132,7 @@ Today's Japanese flow is AzooKey N-best plus V4.2 reranking. The new flow uses o
    - with the phone's own generation plus the fixture's AzooKey list, display top 1 equal to `shown[0]` in at least 123/125 cases.
 
    List every differing case.
-7. **Device test** (iPhone 13 Pro and iPhone 16 Pro Max, V4.2 and v2 side by side in one build, end to end per keystroke in the keyboard extension, method of the Chinese [v2 report](../../zh/reports/mac-20261121/zh-v2-20m.md)):
+7. **Device test** (iPhone 13 Pro and iPhone 16 Pro Max, V4.2 and v6 side by side in one build, end to end per keystroke in the keyboard extension, method of the Chinese [v2 report](../../zh/reports/mac-20261121/zh-v2-20m.md)):
    - reranked list (first part of step 5): p50/p95 and the share of keystrokes within 60 ms;
    - full flow (generation + merge + scoring): p50/p95 per keystroke and once after a pause;
    - load time, peak memory and the keyboard extension's memory headroom;
@@ -151,7 +151,7 @@ Today's Japanese flow is AzooKey N-best plus V4.2 reranking. The new flow uses o
 
 - **Mac**:
   - a report (Chinese);
-  - `outputs/deployment/ja-v2-20m-align-fp32/`, the KV v4 `*-align.json`, `outputs/deployment/ja-v2-20m-search-int8/` (`summary.json`, `cases.jsonl`), the `measure` output;
+  - `outputs/deployment/ja-v6-20m-align-fp32/`, the KV v4 `*-align.json`, `outputs/deployment/ja-v6-20m-search-int8/` (`summary.json`, `cases.jsonl`), the `measure` output;
   - the manifest from the `ios` output.
 
   Zip these together; do not commit them to VimeML.
@@ -162,11 +162,11 @@ Today's Japanese flow is AzooKey N-best plus V4.2 reranking. The new flow uses o
 
 ## Handoff package
 
-`ja-v2-20m-c40-handoff-20261128.zip`, 97,917,499 bytes, SHA256 `05d6f57c…9325`. It holds 10 files and `SHA256SUMS`, built with the `weights`, `bundle`, `fixture` and `package` stages of `prepare_ja_v2_20m.py` (default `--model colloq-c40`) on Windows PyTorch CPU FP32.
+`ja-v6-20m-c40-handoff-20261128.zip`, 97,917,502 bytes, SHA256 `769ec34f…0545`. It holds 10 files and `SHA256SUMS`, built with the `weights`, `bundle`, `fixture` and `package` stages of `prepare_ja_v6_20m.py` (default `--model colloq-c40`) on Windows PyTorch CPU FP32.
 
 - **Weights**: source checkpoint `19b04ddf…`, step 30,000, 20,036,736 parameters.
-  - `deployment.pt` is `16e798c2…`, with no optimizer state.
-  - The bundle manifest is `325c6aa8…`.
+  - `deployment.pt` is `fa928411…`, with no optimizer state.
+  - The bundle manifest is `29d140ce…`.
   - KV steps differ from stateless by at most 1.9e-5.
 - **Generation fixture** (`cases.jsonl` `9cf4c102…`):
   - 125 cases, 0 generation fallbacks, 0 LM-scoring fallbacks.
@@ -176,6 +176,6 @@ Today's Japanese flow is AzooKey N-best plus V4.2 reranking. The new flow uses o
   - display order identical in 120/120;
   - generated top 10 also identical in 120/120;
   - `gen_score` differs by at most 1.8e-4.
-- **Search-check self-test**: `coreml_ja_v2_20m.py search --torch` on the PyTorch FP32 KV graphs:
+- **Search-check self-test**: `coreml_ja_v6_20m.py search --torch` on the PyTorch FP32 KV graphs:
   - generation, scores and pipeline all 125/125;
   - largest score difference 1.9e-4.

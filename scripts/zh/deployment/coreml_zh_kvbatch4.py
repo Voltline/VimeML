@@ -372,9 +372,9 @@ def stage_ios(a):
         raise ValueError("Search check and fixture must belong to this package.")
     variant = manifest["variant"]["name"]
     # v1 keeps its resource name; v2-20m gets its own so both can ship side by side; the Japanese
-    # vimeml-ja-v2-20m (same block) gets a Japanese name and manifest.
+    # vimeml-ja-v6-20m (same block) gets a Japanese name and manifest.
     release = manifest["bundle"].get("release_name", zh_v1.RELEASE)
-    family = {zh_v1.RELEASE: "TinyChinese", "vimeml-ja-v2-20m": "TinyJapaneseV2"}.get(release, "TinyChineseV2")
+    family = {zh_v1.RELEASE: "TinyChinese", "vimeml-ja-v6-20m": "TinyJapaneseV6"}.get(release, "TinyChineseV2")
     lang = "Ja" if release.startswith("vimeml-ja") else "Zh"
     resource = f"{family}KVBatchV4{variant.replace('-', '').upper()}INT8.mlmodelc"
     fresh_directory(fresh(output))

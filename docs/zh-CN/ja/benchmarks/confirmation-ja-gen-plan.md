@@ -4,6 +4,8 @@
 
 > 已于 2026-11-28 执行（run-01），判定通过：H1 +18（p 0.0024），守门满足，H2 +3（p 0.73）不通过；`colloq-c40` 发布为 `vimeml-ja-v2-20m`。结果见[确认报告](../reports/ja-gen-confirmation-20261128/report.md)。
 
+> 命名（2026-11-28）：ja-gen 这一批模型统一称为 vimeml-ja-v6（20M 与 200M，见 [v6 发布范围](../release-ja-v6-plan.md)）。本计划中的 `vimeml-ja-v2-20m` 即 `vimeml-ja-v6-20m`。
+
 2026-11-28 起草。本计划和执行代码提交后才算注册；提交之前，`ime-kana-ja-v1` 和 `ime-kana-ja-colloq-v1` 的 test 都不打开。对应 [ja-gen 计划](../training/training-ja-gen-plan.md) 的第 4 阶段。
 
 执行入口是 [confirm_ja_gen.py](../../../../scripts/ja/benchmarks/confirm_ja_gen.py)，所有固定项都写在 [ja_gen_confirm.py](../../../../src/vimeml/benchmarks/ja_gen_confirm.py) 中。搜索、重排和评分与 2.3 / 3.x 的开发集评测相同（[evaluate_ja_gen_stage2.py](../../../../scripts/ja/benchmarks/evaluate_ja_gen_stage2.py) 使用的 `kana_gen_ja.evaluate_arm`）。
