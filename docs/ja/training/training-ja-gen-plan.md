@@ -233,6 +233,7 @@ Trainer `src/vimeml/training/joint_ja_kana.py` (entry `scripts/ja/training/train
   - reading 320: `web_span` 176 + `span` 16, `web_sentence` 112 + `sentence` 16 (the 3:2 span:sentence of 1.3).
 - From the 1.3 counts, about 0.41 passes over `web_span` and 0.76 over `web_sentence`. `web` passes are recorded with the 1.5 window count.
 - Evaluated as in 2.1 (with its own generation and LM scores), plus Standard reranking. It is the teacher of the 20M distillation (2.3, registered later).
+- **2.2 result (2026-11-28)**: all 845,000 updates in one run, final.pt SHA256 `47721ddd357cb3a720d7108e4aeaa60f671d83167504fd9f649365b37d70a843`. kana development lenient Top-1 89.33 (2.1 reading mean 87.17), colloquial development 89.67 (87.12), Standard reranking 517. See the [2.2 report](../reports/ja-gen-stage2-200m-20261128/report.md).
 
 ## Stage 3 registration (2026-11-26)
 

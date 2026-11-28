@@ -120,6 +120,7 @@ Mac briefs, the task descriptions handed to the macOS session (each report above
 | [Generation line plan (ja-gen)](ja/training/training-ja-gen-plan.md) | 2026-11-25, stages 0–1 registered: new public set `ime-kana-ja-v1` (test sealed), pool coverage, Sudachi/UniDic-agreed readings, 12K tokenizer; then 20M post-training, 200M teacher and distillation, colloquial post-training, confirmation, Vime merge |
 | [ja-gen stage 0](ja/reports/ja-gen-stage0-20261125/report.md) | `ime-kana-ja-v1` frozen (600 + 600); of 98 Standard development pool misses, N-best 100 recovers 40, 58 need generation; V4.2 lenient Top-1 85.2 on the new development set |
 | [ja-gen stage 2.1](ja/reports/ja-gen-stage2-20m-20261127/report.md) | 20M reading post-training kept: four-seed lenient Top-1 87.17 on `ime-kana-ja-v1` development (V4.2 85.2, LM control 85.79); Standard reranking 504.5 (LM control 515.25) |
+| [ja-gen stage 2.2](ja/reports/ja-gen-stage2-200m-20261128/report.md) | 200M joint reading pretraining: lenient Top-1 89.33 on `ime-kana-ja-v1` development and 89.67 on `ime-kana-ja-colloq-v1` development, Standard reranking 517; colloquial baselines of the 2.1 arms |
 | [IME error decomposition](ja/reports/analysis-20261021/ime-errors.md) | Remaining Top-1 errors: candidate-pool misses, notation variants, few semantic errors |
 | [Training-free rescoring](ja/reports/analysis-20261021/rescoring.md) | PMI, length and engine-score fusion; none passes held-out tracks |
 

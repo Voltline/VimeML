@@ -15,7 +15,7 @@ checkpoint_sha256 = "PIN_AFTER_STAGE21"
 
 [distillation]
 teacher = "artifacts/models/ja-kana-200m-joint/final.pt"
-teacher_sha256 = "PIN_AFTER_200M"
+teacher_sha256 = "47721ddd357cb3a720d7108e4aeaa60f671d83167504fd9f649365b37d70a843"
 alpha = 0.5
 temperature = 1.0
 
