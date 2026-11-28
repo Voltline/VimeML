@@ -306,3 +306,21 @@ Trainer `src/vimeml/training/joint_ja_kana.py` (entry `scripts/ja/training/train
 - **Frozen**: `ime-kana-ja-colloq-v1` release_id `f0db62b9b21443e39ef38cbb0c296ead`, manifest SHA256 `6538b128474cb938cc942aa645b18ea8282d3218e43a33a77ba0186e6dc66e9f`; `development 600` (`zero 151 / low 134 / mid 141 / high 174`), `test 600` (`zero 142 / low 136 / mid 148 / high 174`); no shared document or group; **`test` sealed**.
 - **Development candidate pool** (2026-11-27): Mac handoff for development only, AzooKey export settings as for `ime-kana-ja-v1` (converter `d59a28e4c7ca`, N-best 20, typo off, Zenzai off), all 600 items; pool `kana-ja-colloq-v1-development-n20`, manifest SHA256 `2cfc6f4f76a006a9891dbf317aff39379a969361b47d96e2782563ea98d59759`. No candidates were exported for test.
 - **AzooKey order baseline** (development): mean pool size 14.71, exact Top-1 55.50, lenient Top-1 72.83; pool ceiling exact 82.83, lenient 93.50.
+
+**3.3 result (2026-11-28): `kd-cont` is kept.** All three arms ran 30,000 updates from `20m-kd-cont`: `colloq-ctrl` `3c0c7dd8…`, `colloq-c40` `19b04ddfe0f98041ffe50511cab9d64d2f2a20b2918f5e78cc78c0768981d15f`, `colloq-c40-p85` `7dbca92b…`. Colloquial development lenient Top-1: kd-cont 89.17, ctrl 88.83, c40 88.83, c40-p85 89.17. p85 against c40 is +2 (p 0.77), so p85 is not adopted; c40 against ctrl is 0 (p 1.00), not significantly higher, so it does not replace kd-cont. All three arms pass the guards (Standard 513 / 518 / 515). On kana development exact Top-1, c40 is +16 against ctrl (p 0.002) and +12 against kd-cont (p 0.032), which led to the 3.4 registration. See the [3.3 report](../reports/ja-gen-stage3-colloq-20261128/report.md).
+
+## 3.4 registration (2026-11-28, after the 3.3 results, before any replica result)
+
+In 3.3 the colloquial data did not change lenient Top-1 but raised kana development exact Top-1. That metric was chosen as the 3.4 primary after seeing the single-seed 3.3 results, and the s1 results are known; 3.4 tests with new seeds whether the gain holds.
+
+- **Arms**: `colloq-ctrl-s{2,3,4}` and `colloq-c40-s{2,3,4}` (`configs/ja/train-ja-kana-20m-colloq-{ctrl,c40}-s{n}.toml`). They differ from 3.3's `colloq-ctrl` / `colloq-c40` only in seed (2026120{6,7,8}) and output directories, and all start from `20m-kd-cont` (s1, `5a448396…`). The two 3.3 arms count as s1. p85 is not continued.
+- **Evaluation**: as in 3.3, on the three development sets with λ = 1.6. Each seed is reported. Paired differences: `c40-s{n}` against `ctrl-s{n}`, and each arm against `kd-cont` (author/dialogue-clustered sign-flip on kana and Standard, item-level on the colloquial set).
+- **Decision**: `colloq-c40` (s1, `19b04ddf…`) replaces `kd-cont` for the stage 4 confirmation only if all of the following hold:
+  1. **Primary** (`ime-kana-ja-v1` development exact Top-1):
+     - the c40 four-seed mean is above the ctrl four-seed mean, and paired by seed at least 3 of 4 `c40-s{n}` are above `ctrl-s{n}`;
+     - the c40 four-seed mean is above `kd-cont`'s 71.33, and at least 3 of 4 c40 seeds are above 71.33.
+  2. **Guards**:
+     - no c40 seed is significantly below `kd-cont` (p < 0.05) in lenient Top-1 on `ime-kana-ja-v1` development or `ime-kana-ja-colloq-v1` development;
+     - every c40 seed scores at least 501 on Standard development and is not significantly below `kd-cont` (514).
+  3. **Reference** (does not decide): colloquial exact Top-1 and bands, generation alone, D5 items, Standard means.
+- **The replacing model** is fixed as 3.3's `colloq-c40` (s1). s2–s4 only decide; no higher-scoring seed is substituted. If the rule fails, `kd-cont` is kept and stage 4 confirms `kd-cont`.

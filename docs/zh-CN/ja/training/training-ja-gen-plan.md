@@ -285,3 +285,21 @@ web train 处理 7.59 亿段落；span 平均 13.1 字、读音 16.4 假名，81
 - **冻结产物**：`ime-kana-ja-colloq-v1` release_id `f0db62b9b21443e39ef38cbb0c296ead`，manifest SHA256 `6538b128474cb938cc942aa645b18ea8282d3218e43a33a77ba0186e6dc66e9f`，`development 600`（`zero 151 / low 134 / mid 141 / high 174`）、`test 600`（`zero 142 / low 136 / mid 148 / high 174`），文档级与组级零重叠，**`test` 封存**。
 - **开发集候选池**（2026-11-27）：只给 development 做 Mac 交接，AzooKey 导出设置与 `ime-kana-ja-v1` 相同（转换器 `d59a28e4c7ca`，N-best 20，typo 关，Zenzai 关），600 条齐全；候选池 `kana-ja-colloq-v1-development-n20` manifest SHA256 `2cfc6f4f76a006a9891dbf317aff39379a969361b47d96e2782563ea98d59759`。test 没有导出候选。
 - **AzooKey 原序基线**（development）：平均池大小 14.71，严格 Top-1 55.50，宽松 Top-1 72.83；池上限严格 82.83、宽松 93.50。
+
+**3.3 结果（2026-11-28）：保留 `kd-cont`。** 三臂都从 `20m-kd-cont` 跑完 30,000 步：`colloq-ctrl` `3c0c7dd8…`，`colloq-c40` `19b04ddfe0f98041ffe50511cab9d64d2f2a20b2918f5e78cc78c0768981d15f`，`colloq-c40-p85` `7dbca92b…`。口语开发集宽松 Top-1：kd-cont 89.17，ctrl 88.83，c40 88.83，c40-p85 89.17。p85 对 c40 +2（p 0.77），不改用 p85；c40 对 ctrl 为 0（p 1.00），未显著高于 ctrl，不替换。守门三臂都通过（Standard 513 / 518 / 515）。kana 开发集严格 Top-1 上 c40 对 ctrl +16（p 0.002）、对 kd-cont +12（p 0.032），由此登记 3.4。见 [3.3 报告](../reports/ja-gen-stage3-colloq-20261128/report.md)。
+
+## 3.4 登记（2026-11-28，3.3 结果之后、复现结果出来之前）
+
+3.3 中口语数据没有改变宽松 Top-1，但提高了 kana 开发集严格 Top-1。这一项是看过 3.3 单 seed 结果后才选为 3.4 的主指标，s1 的结果已知；3.4 用新的 seed 检验它是否稳定。
+
+- **训练臂**：`colloq-ctrl-s{2,3,4}` 与 `colloq-c40-s{2,3,4}`（`configs/ja/train-ja-kana-20m-colloq-{ctrl,c40}-s{n}.toml`），与 3.3 的 `colloq-ctrl` / `colloq-c40` 只差 seed（2026120{6,7,8}）和输出目录，都从 `20m-kd-cont`（s1，`5a448396…`）出发。3.3 的两臂记作 s1。p85 不再继续。
+- **评测**：与 3.3 相同，三个开发集，λ = 1.6。每个 seed 单独报告；配对差报告 `c40-s{n}` 对 `ctrl-s{n}`、各臂对 `kd-cont`（kana 与 Standard 按作者 / 对话聚类 sign-flip，口语开发集逐条）。
+- **判定**：以下全部满足时，`colloq-c40`（s1，`19b04ddf…`）替换 `kd-cont` 进入第 4 阶段确认：
+  1. **主指标**（`ime-kana-ja-v1` development 严格 Top-1）：
+     - c40 的 4-seed 均值高于 ctrl 的 4-seed 均值，且按 seed 配对至少 3/4 个 `c40-s{n}` 高于 `ctrl-s{n}`；
+     - c40 的 4-seed 均值高于 `kd-cont` 的 71.33，且至少 3/4 个 c40 seed 高于 71.33。
+  2. **守门**：
+     - 没有一个 c40 seed 在 `ime-kana-ja-v1` development 或 `ime-kana-ja-colloq-v1` development 的宽松 Top-1 上显著低于 `kd-cont`（p < 0.05）；
+     - 每个 c40 seed 的 Standard development 不低于 501，且不显著低于 `kd-cont`（514）。
+  3. **参考**（不决定去留）：口语开发集严格 Top-1 与分档、仅生成、D5 条目、Standard 均值。
+- **替换的模型**固定为 3.3 的 `colloq-c40`（s1），s2–s4 只用于判定，不挑高分 seed 替代。判定不通过时保留 `kd-cont`，第 4 阶段确认 `kd-cont`。
