@@ -120,7 +120,7 @@ V4.1 fell from 505 to 461 on Standard ([V4.1 record](training-v41.md)). In stage
 2. **200M**: joint reading pretraining and rescoring with its own scores; then distillation into 20M with the kd-cont recipe.
 3. **Colloquial post-training**: c40 recipe. Its data and colloquial development set are registered in that stage.
 4. **Confirmation**: preregistered; `ime-kana-ja-v1` test is read once, against the current deployment (AzooKey plus V4.2 reranking).
-5. **Mac / Vime**: rerun the batched-KV v4 pipeline. Vime merges AzooKey and generated candidates and scores them together. Generation does not block keystrokes, following the Chinese product decision of 2026-11-21 (show the reranked list at once, generate after a pause or in the background). Handoff written 2026-11-28: [Mac / Vime task](../mac/mac-ja-v6-20m.md).
+5. **Mac / Vime**: rerun the batched-KV v4 pipeline. Vime merges AzooKey and generated candidates and scores them together. Generation does not block keystrokes, following the Chinese product decision of 2026-11-21 (show the reranked list at once, generate after a pause or in the background). Handoff written 2026-11-28: [Mac / Vime task](../mac/mac-ja-v6-20m.md); passed the same day: [report](../reports/mac-20261128/ja-v6-20m.md).
 6. **Last**: the Chinese–Japanese–English 800M, under its own plan.
 
 ## Deviations

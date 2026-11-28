@@ -16,7 +16,7 @@ v6 的模型都能直接**从假名读音生成文本**：输入假名，模型�
 
 | 发布名称 | 端 | 参数 | 来源 | 状态 |
 | --- | --- | ---: | --- | --- |
-| `vimeml-ja-v6-20m` | 手机 | 20,036,736 | `colloq-c40`：200M 蒸馏的 `kd-cont` 再做口语后训练（[3.4 报告](reports/ja-gen-stage3-seeds-20261128/report.md)），checkpoint `19b04ddf…` | 2026-11-28 test 确认通过：kana test 宽松 Top-1 88.00%，V4.2 部署方式 85.00%（[报告](reports/ja-gen-confirmation-20261128/report.md)）；Mac / Vime 交接 2026-11-28（[任务说明](mac/mac-ja-v6-20m.md)）；待 Mac 与真机结果，然后发布 |
+| `vimeml-ja-v6-20m` | 手机 | 20,036,736 | `colloq-c40`：200M 蒸馏的 `kd-cont` 再做口语后训练（[3.4 报告](reports/ja-gen-stage3-seeds-20261128/report.md)），checkpoint `19b04ddf…` | 2026-11-28 test 确认通过：kana test 宽松 Top-1 88.00%，V4.2 部署方式 85.00%（[报告](reports/ja-gen-confirmation-20261128/report.md)）；Mac 与真机 2026-11-28 通过（[报告](reports/mac-20261128/ja-v6-20m.md)：显示 top 1 124/125，13 Pro 重排逐键 95/95 在 60 ms 内）；待 Vime 合入与 Hugging Face 发布 |
 | `vimeml-ja-v6-200m` | 桌面 | 193,625,088 | 2.2 联合读音预训练，用自己的分数重打分，checkpoint `47721ddd…` | 开发集评测：kana 宽松 Top-1 89.33，口语 89.67，Standard 重排 517（[报告](reports/ja-gen-stage2-200m-20261128/report.md)）；待 test 确认和桌面延迟测试，然后发布 |
 
 - **20M** 是手机端模型，替换 V4.2：Core ML INT8、批量 KV v4、按读音位置分桶的束搜索。手机上只加载一个模型。
@@ -51,4 +51,4 @@ v6 的模型都能直接**从假名读音生成文本**：输入假名，模型�
 
 - `vimeml-ja-v6-200m` 的 [test 确认](benchmarks/confirmation-ja-v6-200m-plan.md)：2026-11-28 注册，待运行。
 - `vimeml-ja-v6-200m` 的 FP32 桌面推理包和 Windows PyTorch 桌面延迟。
-- `vimeml-ja-v6-20m` 的 Mac 与 Vime 结果。
+- `vimeml-ja-v6-20m`：Vime 分支合入；Hugging Face `20m/`。

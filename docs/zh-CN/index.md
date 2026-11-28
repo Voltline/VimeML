@@ -145,6 +145,7 @@ Mac 任务说明（交给 macOS 会话的任务书，上面每份报告对应其
 | 生成路线第 4 阶段 | [test 确认计划](ja/benchmarks/confirmation-ja-gen-plan.md) / [结果](ja/reports/ja-gen-confirmation-20261128/report.md)：预注册，colloq-c40 在 ime-kana-ja-v1 test 上对比 V4.2 部署，H2 为对 kd-cont 的严格 Top-1，kana 与口语 test 上设 kd-cont 守门。2026-11-28 通过：kana test 宽松 Top-1 85.00 → 88.00（+30/−12，p 0.0024）；H2 +3 不显著；c40 成为 vimeml-ja-v6-20m |
 | v6-200m 确认 | [test 确认计划](ja/benchmarks/confirmation-ja-v6-200m-plan.md)：预注册，200M（`47721ddd…`）对 V4.2 部署方式，kana test 宽松 Top-1（H1）；守门：kana 与口语 test 不低于 `vimeml-ja-v6-20m`；H2 高于 20M（固定顺序，只决定说法）；对照用 20M 确认 run-01 的逐条结果；两个 test 的第二次使用，只运行一次 |
 | 生成路线第 5 阶段 | [vimeml-ja-v6-20m Mac / Vime 交接](ja/mac/mac-ja-v6-20m.md)：用中文工具从 c40 推理包构建无状态 INT8 与批量 KV v4；日文搜索检查覆盖生成、合并列表打分和 AzooKey + 生成的完整流程（门槛在结果前写定：显示 top 1 ≥ 123/125）；Vime 替换 V4.2，先显示 AzooKey 重排列表，停顿后合并生成候选；交接 ZIP 2026-11-28 |
+| 生成路线第 5 阶段结果 | [vimeml-ja-v6-20m Mac / Vime 报告](ja/reports/mac-20261128/ja-v6-20m.md)：2026-11-28 通过；对齐通过；Mac 与 Vime Swift 的 scores 和 pipeline 显示 top 1 都是 124/125（门槛 123）；13 Pro 重排列表 95/95 键在 60 ms 内（p50 24.8 ms）；停顿后完整流程 13 Pro p50 121 ms；偏离：合并列表分数差 2.04（约定约 0.6，以 top 1 判定）、导出图检查容差 |
 | IME 错误分解 | [瓶颈不在 LM 容量](ja/reports/analysis-20261021/ime-errors.md)：池外 48%、书写形式 35–44%、语义 8% |
 | 免训练重打分 | [PMI、长度与引擎分融合](ja/reports/analysis-20261021/rescoring.md)：均未通过独立检验，部署保持纯 LM 打分 |
 | V4.2 Apple 部署 | [Core ML、INT8、分段 KV、Mac 与 iPhone 测量](ja/reports/mac-20261020/v42-coreml.md)；Mac 任务说明：[V4.2](ja/mac/mac-v42-coreml.md)、[V4.3](ja/mac/mac-v43-coreml.md) |

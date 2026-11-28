@@ -16,7 +16,7 @@ Every v6 model **generates text directly from a kana reading**: type kana and th
 
 | Release | Target | Parameters | Source | Status |
 | --- | --- | ---: | --- | --- |
-| `vimeml-ja-v6-20m` | phone | 20,036,736 | `colloq-c40`: `kd-cont` (distilled from the 200M) plus colloquial post-training ([3.4 report](reports/ja-gen-stage3-seeds-20261128/report.md)), checkpoint `19b04ddf…` | Test confirmation passed 2026-11-28: kana test lenient Top-1 88.00% against 85.00% for the V4.2 deployment ([report](reports/ja-gen-confirmation-20261128/report.md)); Mac / Vime handoff 2026-11-28 ([brief](mac/mac-ja-v6-20m.md)); release after the Mac and device results |
+| `vimeml-ja-v6-20m` | phone | 20,036,736 | `colloq-c40`: `kd-cont` (distilled from the 200M) plus colloquial post-training ([3.4 report](reports/ja-gen-stage3-seeds-20261128/report.md)), checkpoint `19b04ddf…` | Test confirmation passed 2026-11-28: kana test lenient Top-1 88.00% against 85.00% for the V4.2 deployment ([report](reports/ja-gen-confirmation-20261128/report.md)); Mac and devices passed 2026-11-28 ([report](reports/mac-20261128/ja-v6-20m.md): displayed top 1 124/125, 13 Pro reranking 95/95 keys within 60 ms); awaiting the Vime merge and the Hugging Face release |
 | `vimeml-ja-v6-200m` | desktop | 193,625,088 | 2.2 joint reading pretraining, reranked by its own scores, checkpoint `47721ddd…` | Development evaluation: kana lenient Top-1 89.33, colloquial 89.67, Standard reranking 517 ([report](reports/ja-gen-stage2-200m-20261128/report.md)); release after a test confirmation and a desktop latency test |
 
 - **20M** is the phone model and replaces V4.2: Core ML INT8, batched KV v4, beam search bucketed by reading position. The phone loads one model.
@@ -51,4 +51,4 @@ Principles below. Numbers and tests go into each model's confirmation plan, comm
 
 - `vimeml-ja-v6-200m` [test confirmation](benchmarks/confirmation-ja-v6-200m-plan.md): registered 2026-11-28, not yet run.
 - `vimeml-ja-v6-200m` FP32 desktop bundle and Windows PyTorch desktop latency.
-- Mac and Vime results for `vimeml-ja-v6-20m`.
+- `vimeml-ja-v6-20m`: Vime branch merge; Hugging Face `20m/`.
