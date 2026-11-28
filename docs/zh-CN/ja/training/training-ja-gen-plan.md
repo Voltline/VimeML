@@ -304,3 +304,7 @@ web train 处理 7.59 亿段落；span 平均 13.1 字、读音 16.4 假名，81
   3. **参考**（不决定去留）：口语开发集严格 Top-1 与分档、仅生成、D5 条目、Standard 均值。
 - **替换的模型**固定为 3.3 的 `colloq-c40`（s1），s2–s4 只用于判定，不挑高分 seed 替代。判定不通过时保留 `kd-cont`，第 4 阶段确认 `kd-cont`。
 - **3.4 结果（2026-11-28）：通过。** kana 开发集严格 Top-1 4-seed 均值 c40 73.25、ctrl 71.21、kd-cont 71.33，c40 在 4/4 个 seed 上高于同 seed 的 ctrl 和 kd-cont；宽松 Top-1 与 Standard 守门都通过（c40 Standard 515–521）。`colloq-c40`（s1，`19b04ddf…`）替换 `kd-cont` 进入第 4 阶段确认。见 [3.4 报告](../reports/ja-gen-stage3-seeds-20261128/report.md)。
+
+## 第 4 阶段登记（2026-11-28）
+
+确认计划见 [ja-gen test 确认计划](../benchmarks/confirmation-ja-gen-plan.md)，在任何 test 结果出来之前提交。主假设 H1：`ime-kana-ja-v1` test 上 `colloq-c40` 的宽松 Top-1 显著高于 V4.2 重排；H2（固定顺序）：严格 Top-1 显著高于 `kd-cont`；守门：kana 与 `ime-kana-ja-colloq-v1` 两个 test 上宽松 Top-1 都不显著低于 `kd-cont`。不使用 Standard blind。H2 不通过时仍发布 `colloq-c40`。

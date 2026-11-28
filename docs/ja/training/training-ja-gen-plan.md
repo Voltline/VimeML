@@ -325,3 +325,7 @@ In 3.3 the colloquial data did not change lenient Top-1 but raised kana developm
   3. **Reference** (does not decide): colloquial exact Top-1 and bands, generation alone, D5 items, Standard means.
 - **The replacing model** is fixed as 3.3's `colloq-c40` (s1). s2–s4 only decide; no higher-scoring seed is substituted. If the rule fails, `kd-cont` is kept and stage 4 confirms `kd-cont`.
 - **3.4 result (2026-11-28): pass.** kana development exact Top-1 four-seed mean: c40 73.25, ctrl 71.21, kd-cont 71.33; c40 is above the same-seed ctrl and above kd-cont at 4 of 4 seeds. The lenient Top-1 and Standard guards hold (c40 Standard 515–521). `colloq-c40` (s1, `19b04ddf…`) replaces `kd-cont` for the stage 4 confirmation. See the [3.4 report](../reports/ja-gen-stage3-seeds-20261128/report.md).
+
+## Stage 4 registration (2026-11-28)
+
+The confirmation plan is the [ja-gen test confirmation plan](../benchmarks/confirmation-ja-gen-plan.md), committed before any test result. Primary hypothesis H1: on `ime-kana-ja-v1` test, `colloq-c40` lenient Top-1 is significantly above V4.2 reranking; H2 (fixed sequence): exact Top-1 significantly above `kd-cont`; guards: lenient Top-1 not significantly below `kd-cont` on either the kana or the `ime-kana-ja-colloq-v1` test split. Standard blind is not used. If H2 fails, `colloq-c40` is still released.
