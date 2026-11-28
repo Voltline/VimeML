@@ -36,7 +36,7 @@ Every v6 model **generates text directly from a kana reading**: type kana and th
 Principles below. Numbers and tests go into each model's confirmation plan, committed before test is opened.
 
 1. **Kana conversion is the primary metric.** Lenient Top-1 on `ime-kana-ja-v1` test, with the final list AzooKey N-best 20 plus the generated top 10, ordered by the model's own scores. Exact Top-1 and the colloquial `ime-kana-ja-colloq-v1` test are reported alongside.
-2. **Baselines.** 20M against the deployed V4.2 setup (AzooKey N-best 20 + V4.2 reranking). 200M against `vimeml-ja-v6-20m`.
+2. **Baselines.** 20M against the deployed V4.2 setup (AzooKey N-best 20 + V4.2 reranking). 200M also against V4.2, guarded by `vimeml-ja-v6-20m` (not significantly below the 20M); on development the 200M is only 7 items ahead of the 20M, so it is not required to beat it ([confirmation plan](benchmarks/confirmation-ja-v6-200m-plan.md)).
 3. **Reranking guard.** Standard development reranking at or above 501, the low end of the V4.2 recipe seed band (the ja-gen stage 2 guard).
 4. **Latency.** 20M measured per keystroke on iPhone (see the handoff brief); 200M full-flow p50/p95 with PyTorch on Windows.
 5. **Confirm once.** Settings fixed on development (λ 1.6, beam 16, top 10, AzooKey top 20) stay frozen. Both test splits were used once by the 20M confirmation; the 200M confirmation also runs once on them, as the Chinese v2-200m was confirmed on the same public test after the 20M.
@@ -49,5 +49,6 @@ Principles below. Numbers and tests go into each model's confirmation plan, comm
 
 ## Open items
 
-- `vimeml-ja-v6-200m` test confirmation plan: draft, commit, then run once.
+- `vimeml-ja-v6-200m` [test confirmation](benchmarks/confirmation-ja-v6-200m-plan.md): registered 2026-11-28, not yet run.
+- `vimeml-ja-v6-200m` FP32 desktop bundle and Windows PyTorch desktop latency.
 - Mac and Vime results for `vimeml-ja-v6-20m`.
