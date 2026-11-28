@@ -140,6 +140,7 @@ Mac 任务说明（交给 macOS 会话的任务书，上面每份报告对应其
 | 生成路线 2.2 | [200M 联合读音预训练](ja/reports/ja-gen-stage2-200m-20261128/report.md)：`ime-kana-ja-v1` 开发集宽松 Top-1 89.33，`ime-kana-ja-colloq-v1` 开发集 89.67，Standard 重排 517；含 2.1 各臂的口语开发集基线 |
 | 生成路线 2.3 | [20M 蒸馏](ja/reports/ja-gen-stage2-kd-20261128/report.md)：200M 教师、4 个 seed，主臂 `ime-kana-ja-v1` 开发集宽松 Top-1 88.50（4-seed 均值 87.92），Standard 重排 514（均值 512.00）；判定通过，λ 冻结 1.6，3.3 从 kd-cont 出发 |
 | 生成路线 3.3 | [20M 口语后训练](ja/reports/ja-gen-stage3-colloq-20261128/report.md)：ctrl / c40 / c40-p85 从 kd-cont 出发，口语开发集宽松 Top-1 88.83 / 88.83 / 89.17（kd-cont 89.17），保留 kd-cont；c40 的 kana 开发集严格 Top-1 比 ctrl 高 16 条（p 0.002），已登记 3.4 seed 复现 |
+| 生成路线 3.4 | [口语后训练 seed 复现](ja/reports/ja-gen-stage3-seeds-20261128/report.md)：kana 开发集严格 Top-1 4-seed 均值 c40 73.25，ctrl 71.21，kd-cont 71.33（4/4 个 seed），宽松 Top-1 与 Standard 守门通过；colloq-c40（s1）进入第 4 阶段 |
 | IME 错误分解 | [瓶颈不在 LM 容量](ja/reports/analysis-20261021/ime-errors.md)：池外 48%、书写形式 35–44%、语义 8% |
 | 免训练重打分 | [PMI、长度与引擎分融合](ja/reports/analysis-20261021/rescoring.md)：均未通过独立检验，部署保持纯 LM 打分 |
 | V4.2 Apple 部署 | [Core ML、INT8、分段 KV、Mac 与 iPhone 测量](ja/reports/mac-20261020/v42-coreml.md)；Mac 任务说明：[V4.2](ja/mac/mac-v42-coreml.md)、[V4.3](ja/mac/mac-v43-coreml.md) |
