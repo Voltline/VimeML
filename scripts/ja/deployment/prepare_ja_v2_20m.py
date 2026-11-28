@@ -8,8 +8,12 @@ generation decoding contract (task mode with self rescoring) differ.
   weights   deployment.pt (FP32 tensors, provenance) and PyTorch FP32 logits + KV fixtures
   bundle    inference bundle from deployment.pt (`zh_v1.export_bundle`)
   fixture   Vime generation fixture: task mode, constrained beam 16 per reading position,
-            top 10, self rescoring at lambda (default 1.6); 120 development cases from
-            ime-kana-ja-v1 + 5 hand-written Japanese conversational cases (test never read)
+            top 10, self rescoring at lambda (default 1.6); then the confirmed display list:
+            AzooKey N-best 20 + generated top 10, deduplicated, ordered by gen + lambda * lm
+            (`kana_gen_ja.merge_and_rank`), with the token ids of every score so the device can
+            reproduce each one; 120 development cases from ime-kana-ja-v1 (with their exported
+            AzooKey N-best 20) + 5 hand-written Japanese conversational cases (generation only,
+            no AzooKey list); test never read
   package   ZIP of bundle, FP32 fixtures, generation fixture, reading index and table with
             SHA256SUMS and CRC check
 
@@ -272,11 +276,69 @@ def select_fixture_cases(kana_pool_dir, dev_count=FIXTURE_DEV_CASES, seed=FIXTUR
                 "group": r.get("group"),
                 "left_context": r.get("left_context") or "",
                 "reading": row_reading(r),
+                "azookey": [cand["text"] for cand in r["candidates"]],
                 "stratum": f'{"ctx" if r.get("left_context") else "noctx"}/{length_band(r)}',
             })
     for hc in HANDWRITTEN_CASES:
-        selected.append({**hc, "stratum": "handwritten"})
+        selected.append({**hc, "azookey": [], "stratum": "handwritten"})
     return selected
+
+
+def task_score_inputs(sp, reading, context, candidates, max_ctx):
+    """Per candidate, the (prompt ids, output ids + EOS) that `kana_gen_ja.task_scores` scores, or None
+    where it gives None (tokenizer roundtrip failure or longer than the context)."""
+    from vimeml.deployment.ja_search import EOS, prompt_ids
+
+    out = []
+    for cand in candidates:
+        ids = sp.encode(cand) if cand else []
+        if not cand or sp.decode(ids) != cand:
+            out.append(None)
+            continue
+        output = ids + [EOS]
+        base = prompt_ids(sp, reading, context, limit=max_ctx + 1, min_output_room=len(output))
+        out.append(None if len(base) + len(output) - 1 > max_ctx else (base, output))
+    return out
+
+
+def lm_score_inputs(sp, context, candidates, max_ctx):
+    """Per candidate, the (full ids, first scored position) that `kana_gen_ja.lm_scores_safe` scores:
+    one joint `zh13_lm_scores.score_item` call over all candidates, or, when that call is refused, one
+    joint call over the candidates that are accepted alone. None where no score is given."""
+    from vimeml.benchmarks.zh13_lm_scores import SPECIAL, common_prefix
+
+    def joint(cands):
+        context_ids = [SPECIAL["bos"], *sp.encode(context)]
+        sequences = []
+        for cand in cands:
+            content = sp.encode(context + cand)
+            if sp.decode(content) != context + cand:
+                raise ValueError("roundtrip")
+            seq = [SPECIAL["bos"], *content]
+            if not 1 <= len(seq) - 1 <= max_ctx:
+                raise ValueError("length")
+            sequences.append(seq)
+        common = common_prefix([context_ids, *sequences])
+        if common < 1 or any(len(seq) <= common for seq in sequences):
+            raise ValueError("no targets")
+        return [(seq, common) for seq in sequences]
+
+    if not candidates:
+        return [], False
+    try:
+        return joint(candidates), False
+    except ValueError:
+        out, eligible = [None] * len(candidates), []
+        for i, cand in enumerate(candidates):
+            try:
+                joint([cand])
+                eligible.append(i)
+            except ValueError:
+                continue
+        if eligible:
+            for i, item in zip(eligible, joint([candidates[i] for i in eligible])):
+                out[i] = item
+        return out, True
 
 
 def build_generation_fixture(model, sp, index, cases, out_dir, *,
@@ -286,7 +348,7 @@ def build_generation_fixture(model, sp, index, cases, out_dir, *,
                              phase="", beam=BEAM, topk=TOPK, lam=DEFAULT_LAMBDA,
                              device="cpu"):
     """Run constrained kana beam search + self rescoring in FP32 and save Vime alignment fixture."""
-    from vimeml.benchmarks.kana_gen_ja import lm_scores_safe, task_scores
+    from vimeml.benchmarks.kana_gen_ja import lm_scores_safe, merge_and_rank, task_scores
     from vimeml.deployment import ja_search as js
     from vimeml.deployment.zh_torch_backend import ModelBatchBackend
 
@@ -299,6 +361,8 @@ def build_generation_fixture(model, sp, index, cases, out_dir, *,
     results = []
     strata = collections.Counter()
     fallbacks = 0
+    lm_fallback_cases = 0
+    max_ctx = int(model.config.context_length)
 
     for c in cases:
         reading = js.to_hiragana(c["reading"])
@@ -326,6 +390,32 @@ def build_generation_fixture(model, sp, index, cases, out_dir, *,
             range(len(top)),
             key=lambda i: (-(top[i]["final_score"] if top[i]["final_score"] is not None else top[i]["gen_score"]), i),
         )
+
+        azookey = list(c.get("azookey") or [])
+        union = list(dict.fromkeys(azookey + texts))
+        union_gen = task_scores(model, sp, reading, context, union, device=device) if union else []
+        union_lm = lm_scores_safe(model, sp, context, union, device=device) if union else []
+        shown = merge_and_rank(azookey, texts, union_gen, union_lm, lam=lam)
+        gen_inputs = task_score_inputs(sp, reading, context, union, max_ctx)
+        lm_inputs, lm_fallback = lm_score_inputs(sp, context, union, max_ctx)
+        lm_fallback_cases += int(lm_fallback)
+        merged = []
+        for i, text in enumerate(union):
+            gs, ls = union_gen[i], union_lm[i]
+            if (gs is None) != (gen_inputs[i] is None) or (ls is None) != (lm_inputs[i] is None):
+                raise ValueError(f"score inputs disagree with scores for {c['id']} candidate {i}")
+            merged.append({
+                "text": text,
+                "azookey_rank": azookey.index(text) if text in azookey else None,
+                "gen_rank": texts.index(text) if text in texts else None,
+                "gen_score": None if gs is None else round(gs, 5),
+                "lm_score": None if ls is None else round(ls, 5),
+                "final_score": round(gs + lam * ls, 5) if gs is not None and ls is not None else None,
+                "gen_prompt_ids": None if gen_inputs[i] is None else gen_inputs[i][0],
+                "gen_output_ids": None if gen_inputs[i] is None else gen_inputs[i][1],
+                "lm_ids": None if lm_inputs[i] is None else lm_inputs[i][0],
+                "lm_from": None if lm_inputs[i] is None else lm_inputs[i][1],
+            })
         results.append({
             "id": c["id"],
             "source": c.get("source"),
@@ -335,6 +425,10 @@ def build_generation_fixture(model, sp, index, cases, out_dir, *,
             "prompt_ids": js.prompt_ids(sp, reading, context),
             "top": top,
             "rescored": [top[i]["text"] for i in order],
+            "azookey": azookey,
+            "merged": merged,
+            "shown": shown,
+            "lm_fallback": lm_fallback,
             "decode_calls": stats.calls,
             "decode_rows": stats.rows,
             "search_mode": stats.mode,
@@ -376,6 +470,22 @@ def build_generation_fixture(model, sp, index, cases, out_dir, *,
             "lm_score": "same model in lm mode: BOS + context + candidate tokenized jointly, sum of log-probs "
                         "from the first token diverging from context alone, no EOS",
             "final_score": "gen_score + lambda * lm_score; descending, ties keep generation order",
+        },
+        "merge": {
+            "azookey": "the case's AzooKey N-best (20 for development cases, converter d59a28e4c7ca, typo off, "
+                       "Zenzai off; empty for hand-written cases)",
+            "union": "AzooKey N-best in its order, then generated top 10 in generation order; exact-string dedup",
+            "gen_score": "task-mode sum of log P(gen_output_ids | gen_prompt_ids), gen_output_ids = encode(text) + "
+                         "[EOS 3]; the prompt trims left-context tokens so prompt + output - 1 <= 128; null when the "
+                         "text does not roundtrip through the tokenizer or does not fit",
+            "lm_score": "lm mode: sum of log P(lm_ids[t] | lm_ids[:t]) for t >= lm_from; lm_ids = BOS + "
+                        "encode(context + text), lm_from = common prefix of BOS + encode(context) and every "
+                        "candidate's lm_ids in one joint call (one joint call over the candidates accepted alone "
+                        "when the joint call over all is refused: lm_fallback); null when the candidate is refused",
+            "order": "both scores: gen_score + lambda * lm_score; candidates with only one score after all with "
+                     "both, by that score (lambda * lm_score or gen_score); none last; ties keep union order",
+            "shown": "the display order; shown[0] is the first candidate",
+            "lm_fallback_cases": lm_fallback_cases,
         },
         "cases": len(results),
         "strata": dict(sorted(strata.items())),
@@ -488,7 +598,8 @@ def main():
             lam=args.lam,
         )
         print(json.dumps({"cases": meta["cases"], "strata": meta["strata"],
-                          "fallbacks": meta["search"]["fallbacks"]}, ensure_ascii=False))
+                          "fallbacks": meta["search"]["fallbacks"],
+                          "lm_fallback_cases": meta["merge"]["lm_fallback_cases"]}, ensure_ascii=False))
     elif args.stage == "package":
         if not args.output:
             p.error("package requires --output")

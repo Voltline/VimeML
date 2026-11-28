@@ -371,9 +371,11 @@ def stage_ios(a):
     if read_json(search / "summary.json")["package_manifest_sha256"] != sha or read_json(fixture / "meta.json")["package_manifest_sha256"] != sha:
         raise ValueError("Search check and fixture must belong to this package.")
     variant = manifest["variant"]["name"]
-    # v1 keeps its resource name; v2-20m gets its own so both can ship side by side.
+    # v1 keeps its resource name; v2-20m gets its own so both can ship side by side; the Japanese
+    # vimeml-ja-v2-20m (same block) gets a Japanese name and manifest.
     release = manifest["bundle"].get("release_name", zh_v1.RELEASE)
-    family = "TinyChinese" if release == zh_v1.RELEASE else "TinyChineseV2"
+    family = {zh_v1.RELEASE: "TinyChinese", "vimeml-ja-v2-20m": "TinyJapaneseV2"}.get(release, "TinyChineseV2")
+    lang = "Ja" if release.startswith("vimeml-ja") else "Zh"
     resource = f"{family}KVBatchV4{variant.replace('-', '').upper()}INT8.mlmodelc"
     fresh_directory(fresh(output))
     resources = output / "Resources"
@@ -391,7 +393,7 @@ def stage_ios(a):
                "policy": "Caller owns all buffers. `prefix` returns only the new tokens' KV: append it to the prefix's "
                          "valid slots. Masked slots must hold finite values. KV tensors are "
                          + ("float16." if manifest["variant"]["kv"] == "fp16" else "float32.")}
-    write_json(resources / f"VimeLMManifestZhKVBatchV4-{variant}.json", {"format": "vime_ios_lm_zh_kv_batch_v4",
+    write_json(resources / f"VimeLMManifest{lang}KVBatchV4-{variant}.json", {"format": f"vime_ios_lm_{lang.lower()}_kv_batch_v4",
         "bundle_manifest_sha256": manifest["bundle"]["bundle_manifest_sha256"],
         "tokenizer_sha256": manifest["bundle"]["tokenizer_sha256"], "kv_batch_v4": section})
     write_json(output / "manifest.json", {"format": "vimeml_zh_ios_kv_batch_v4_resources_v1", "files": v2.inventory(output),

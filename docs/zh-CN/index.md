@@ -142,6 +142,7 @@ Mac 任务说明（交给 macOS 会话的任务书，上面每份报告对应其
 | 生成路线 3.3 | [20M 口语后训练](ja/reports/ja-gen-stage3-colloq-20261128/report.md)：ctrl / c40 / c40-p85 从 kd-cont 出发，口语开发集宽松 Top-1 88.83 / 88.83 / 89.17（kd-cont 89.17），保留 kd-cont；c40 的 kana 开发集严格 Top-1 比 ctrl 高 16 条（p 0.002），已登记 3.4 seed 复现 |
 | 生成路线 3.4 | [口语后训练 seed 复现](ja/reports/ja-gen-stage3-seeds-20261128/report.md)：kana 开发集严格 Top-1 4-seed 均值 c40 73.25，ctrl 71.21，kd-cont 71.33（4/4 个 seed），宽松 Top-1 与 Standard 守门通过；colloq-c40（s1）进入第 4 阶段 |
 | 生成路线第 4 阶段 | [test 确认计划](ja/benchmarks/confirmation-ja-gen-plan.md) / [结果](ja/reports/ja-gen-confirmation-20261128/report.md)：预注册，colloq-c40 在 ime-kana-ja-v1 test 上对比 V4.2 部署，H2 为对 kd-cont 的严格 Top-1，kana 与口语 test 上设 kd-cont 守门。2026-11-28 通过：kana test 宽松 Top-1 85.00 → 88.00（+30/−12，p 0.0024）；H2 +3 不显著；c40 成为 vimeml-ja-v2-20m |
+| 生成路线第 5 阶段 | [vimeml-ja-v2-20m Mac / Vime 交接](ja/mac/mac-ja-v2-20m.md)：用中文工具从 c40 推理包构建无状态 INT8 与批量 KV v4；日文搜索检查覆盖生成、合并列表打分和 AzooKey + 生成的完整流程（门槛在结果前写定：显示 top 1 ≥ 123/125）；Vime 替换 V4.2，先显示 AzooKey 重排列表，停顿后合并生成候选；交接 ZIP 2026-11-28 |
 | IME 错误分解 | [瓶颈不在 LM 容量](ja/reports/analysis-20261021/ime-errors.md)：池外 48%、书写形式 35–44%、语义 8% |
 | 免训练重打分 | [PMI、长度与引擎分融合](ja/reports/analysis-20261021/rescoring.md)：均未通过独立检验，部署保持纯 LM 打分 |
 | V4.2 Apple 部署 | [Core ML、INT8、分段 KV、Mac 与 iPhone 测量](ja/reports/mac-20261020/v42-coreml.md)；Mac 任务说明：[V4.2](ja/mac/mac-v42-coreml.md)、[V4.3](ja/mac/mac-v43-coreml.md) |
