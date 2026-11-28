@@ -1,6 +1,7 @@
 """ja-gen stage 2 evaluation: kana generation + AzooKey union rescoring and Standard dev guardrail.
 
-Reads development pools only (never test or blind). Evaluates:
+Reads development pools only (never test or blind); the one exception is a preregistered confirmation
+(`confirmation=` in `evaluate_arm`, used by ja_gen_confirm), which may read a test pool. Evaluates:
 - reading arms (`mode="read"`): on ime-kana-ja-v1 development, merges AzooKey N-best 20 with
   beam-16 generated top-10 candidates, scores the union with task-mode `gen_score` and LM-mode
   `lm_score`, and ranks by `gen_score + lam * lm_score`; on Standard development (728 items),
@@ -54,6 +55,22 @@ def load_dev_pool(path):
     manifest, _, rows = load_standard_export(path)
     if manifest.get("sealed") or manifest.get("split") != "development":
         raise ValueError(f"Development pools only; refusing split={manifest.get('split')!r}, sealed={manifest.get('sealed')!r}")
+    return manifest, rows
+
+
+def load_pool(path, confirmation=None):
+    """Development pools as load_dev_pool; a test pool only under a preregistered confirmation, given as
+    {"path": plan, "commit": ...} by ja_gen_confirm. Blind pools are never read."""
+    if confirmation is None:
+        return load_dev_pool(path)
+    path = Path(path)
+    if "blind" in path.name.lower():
+        raise ValueError(f"Blind pools are never read; refusing {path}")
+    if not (confirmation.get("path") and confirmation.get("commit")):
+        raise ValueError("A test pool needs the committed confirmation plan")
+    manifest, _, rows = load_standard_export(path)
+    if manifest.get("split") != "test":
+        raise ValueError(f"Confirmation reads test pools only; got split={manifest.get('split')!r}")
     return manifest, rows
 
 
@@ -241,8 +258,9 @@ def summarize_rows(rows, shown_fn):
 def evaluate_arm(checkpoint, tokenizer, kana_pool_dir, standard_pool_dir=None, out_dir=None,
                  mode="read", index_path=None, device="cuda", beam=16, topk=10,
                  lam=1.6, lambdas=DEFAULT_LAMBDAS, search_mode="constrained",
-                 fallback_free=True, limit=0, shard_index=0, num_shards=1):
-    """Run Stage 2 evaluation for one checkpoint on development pool(s), with optional sharding."""
+                 fallback_free=True, limit=0, shard_index=0, num_shards=1, confirmation=None):
+    """Run Stage 2 evaluation for one checkpoint on development pool(s), with optional sharding.
+    With `confirmation` (ja_gen_confirm only) the kana pool is a test pool; rows go to kana-test-rows.jsonl."""
     from vimeml.deployment.ja_search import KanaIndex
 
     if mode not in ("read", "lm"):
@@ -262,7 +280,10 @@ def evaluate_arm(checkpoint, tokenizer, kana_pool_dir, standard_pool_dir=None, o
         torch.backends.cudnn.allow_tf32 = False
         torch.set_float32_matmul_precision("highest")
 
-    kana_manifest, kana_rows = load_dev_pool(kana_pool_dir)
+    kana_manifest, kana_rows = load_pool(kana_pool_dir, confirmation)
+    if confirmation is not None and (standard_pool_dir is not None or limit or num_shards > 1):
+        raise ValueError("A confirmation run reads the whole kana test pool only, unsharded")
+    split = kana_manifest.get("split")
     if standard_pool_dir is not None:
         std_manifest, std_rows = load_dev_pool(standard_pool_dir)
     else:
@@ -338,7 +359,7 @@ def evaluate_arm(checkpoint, tokenizer, kana_pool_dir, standard_pool_dir=None, o
         std_out.append(rec)
 
     out.mkdir(parents=True, exist_ok=True)
-    write_jsonl(out / "kana-development-rows.jsonl", kana_out)
+    write_jsonl(out / f"kana-{split}-rows.jsonl", kana_out)
     if standard_pool_dir is not None:
         write_jsonl(out / "standard-development-rows.jsonl", std_out)
 
@@ -355,7 +376,9 @@ def evaluate_arm(checkpoint, tokenizer, kana_pool_dir, standard_pool_dir=None, o
         gen_only_summary = None
 
     summary = {
-        "test_read": False,
+        "test_read": split == "test",
+        "split": split,
+        "confirmation": confirmation,
         "mode": mode,
         "checkpoint": str(checkpoint),
         "checkpoint_sha256": meta["checkpoint_sha256"],
