@@ -214,6 +214,32 @@ web train 处理 7.59 亿段落；span 平均 13.1 字、读音 16.4 假名，81
 - 评测与 2.1 相同（用自己的生成分和 LM 分），另报 Standard 重排。它是 20M 蒸馏（2.3，另行登记）的教师。
 - **2.2 结果（2026-11-28）**：845,000 步一次跑完，final.pt SHA256 `47721ddd357cb3a720d7108e4aeaa60f671d83167504fd9f649365b37d70a843`。kana 开发集宽松 Top-1 89.33（2.1 读音组均值 87.17），口语开发集 89.67（87.12），Standard 重排 517。见 [2.2 报告](../reports/ja-gen-stage2-200m-20261128/report.md)。
 
+## 2.3 登记（2026-11-28，蒸馏结果出来之前）
+
+- **配置**：`configs/ja/train-ja-kana-20m-kd-cont.toml`，中文 kd-cont 配方。
+  - 学生从 2.1 读音组 final.pt 继续 30,000 次更新，教师为 200M final.pt（SHA256 `47721ddd…`，冻结），损失为 0.5 × CE + 0.5 × KL（T = 1.0）。
+  - 余弦 1.5e-4 → 1.5e-5，warmup 1,000，每次 `plain` 175 / `chat` 17 / `span` 192 / `sentence` 128，`per_kind`，只用 final.pt。
+- **起点**：主臂 `20m-kd-cont` 固定从 `read-s1`（SHA256 `35ac5768…`，预训练 seed 为 V4.2 的 1219827974）出发，蒸馏 seed 20261201。
+  - 起点事先固定，不按开发集分数挑 seed。2.1 宽松 Top-1 最高的是 s2。
+  - 同时跑 3 个 seed 复现：`kd-cont-s{2,3,4}`（`train-ja-kana-20m-kd-cont-s{n}.toml`），从 `read-s{n}` 出发，蒸馏 seed 2026120{n}。
+- **评测**：与 2.1 相同，只用开发集。
+  - kana 开发集：最终列表为 AzooKey N-best 20 ∪ beam 16 生成，按学生自己的分数排序。
+  - Standard 开发集：用 LM 分重排。
+  - 每个 seed 单独报告，并报 4-seed 均值和对各自起点的配对差（作者 / 对话聚类 sign-flip）。
+- **判定**：
+  1. **主指标**（`ime-kana-ja-v1` development 宽松 Top-1），以下三条都要满足：
+     - 4-seed 均值高于 2.1 读音组均值 87.17；
+     - 按 seed 配对，至少 3/4 个 seed 高于各自的 `read-s{n}`；
+     - 主臂不低于 `read-s1`（87.33），且显著高于 V4.2 重排 85.2（聚类 sign-flip p < 0.05）。
+  2. **守门**（Standard development 严格 Top-1）：主臂不低于 501，且 4-seed 均值不低于 2.1 读音组均值 504.50。
+  3. **参考**（不决定去留）：
+     - `ime-kana-ja-colloq-v1` development 的总体结果和 zero / low / mid / high 分档；
+     - kana 开发集的严格 Top-1、宽松 Top-3 和 D5 条目。
+  4. **λ**：在 {0, 0.8, 1.2, 1.6, 2.0, 2.5} 上扫描，默认冻结 1.6。只有某一档的 4-seed 均值比 1.6 高出 0.5 点以上、且至少 3/4 个 seed 同向更高时，才改冻结值。3.3 沿用冻结值。
+  5. **通过与回退**：
+     - 1、2 都满足时，`20m-kd-cont`（s1）作为 3.3 起点。
+     - 否则 3.3 改从 `read-s1` 继续，不从 s2–s4 中挑高分 seed 替代；3.3 各臂的起点和守门对照随之由 `kd-cont` 换成 `read-s1`，作为偏差记录。
+
 ## 第 3 阶段登记（2026-11-26）
 
 **3.1 口语数据**（`ja-colloq-v1-12k`、`ja-colloq-v1-p85-12k`）：

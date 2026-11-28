@@ -1,7 +1,7 @@
-# ja-gen stage 2.3, 20M distillation arm kd-cont: continue the winning Stage 2.1 reading arm
+# ja-gen stage 2.3, 20M distillation arm kd-cont: continue the Stage 2.1 reading arm read-s1
+# (fixed in advance, not chosen by development score; s2-s4 run alongside as seed replicas)
 # for 30,000 updates with the 200M joint reading model as a frozen teacher
 # (0.5 * CE + 0.5 * KL at T = 1.0), peak LR 1.5e-4, warmup 1,000 (zh kd-cont recipe).
-# Pin checkpoint_sha256 and teacher_sha256 once Stage 2.1 and 2.2 final.pt are complete.
 stage = "ja-kana"
 arm = "20m-kd-cont"
 architecture = "tiny_gpt_zh13"
@@ -11,7 +11,7 @@ log_dir = "runs/training/ja-kana-20m-kd-cont"
 [initialization]
 mode = "checkpoint"
 checkpoint = "artifacts/models/ja-kana-20m-read-s1/final.pt"
-checkpoint_sha256 = "PIN_AFTER_STAGE21"
+checkpoint_sha256 = "35ac57685062601d59c94e4c8f67f738cd7a51eb47e9a1ad9acb62ba0ed0924e"
 
 [distillation]
 teacher = "artifacts/models/ja-kana-200m-joint/final.pt"

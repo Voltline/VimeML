@@ -235,6 +235,32 @@ Trainer `src/vimeml/training/joint_ja_kana.py` (entry `scripts/ja/training/train
 - Evaluated as in 2.1 (with its own generation and LM scores), plus Standard reranking. It is the teacher of the 20M distillation (2.3, registered later).
 - **2.2 result (2026-11-28)**: all 845,000 updates in one run, final.pt SHA256 `47721ddd357cb3a720d7108e4aeaa60f671d83167504fd9f649365b37d70a843`. kana development lenient Top-1 89.33 (2.1 reading mean 87.17), colloquial development 89.67 (87.12), Standard reranking 517. See the [2.2 report](../reports/ja-gen-stage2-200m-20261128/report.md).
 
+## 2.3 registration (2026-11-28, before any distillation result)
+
+- **Configuration**: `configs/ja/train-ja-kana-20m-kd-cont.toml`, the zh kd-cont recipe.
+  - The student continues a 2.1 reading arm's final.pt for 30,000 updates. The teacher is the 200M final.pt (SHA256 `47721ddd…`, frozen). Loss: 0.5 × CE + 0.5 × KL (T = 1.0).
+  - Cosine 1.5e-4 → 1.5e-5, warmup 1,000, each update `plain` 175 / `chat` 17 / `span` 192 / `sentence` 128, `per_kind`, final.pt only.
+- **Start**: the main arm `20m-kd-cont` starts from `read-s1` (SHA256 `35ac5768…`, pretrained with V4.2's seed 1219827974), with distillation seed 20261201.
+  - The start was fixed in advance, not chosen by development score. The highest 2.1 lenient Top-1 was s2.
+  - Three seed replicas run alongside: `kd-cont-s{2,3,4}` (`train-ja-kana-20m-kd-cont-s{n}.toml`) start from `read-s{n}` with distillation seed 2026120{n}.
+- **Evaluation**: as in 2.1, development only.
+  - kana development: the final list is AzooKey N-best 20 ∪ beam-16 generation, ordered by the student's own scores.
+  - Standard development: LM-score reranking.
+  - Each seed is reported, plus the four-seed mean and each seed's paired difference against its start (author/dialogue-clustered sign-flip).
+- **Decision**:
+  1. **Primary** (`ime-kana-ja-v1` development lenient Top-1). All three must hold:
+     - the four-seed mean is above the 2.1 reading mean of 87.17;
+     - paired by seed, at least 3 of 4 seeds are above their `read-s{n}`;
+     - the main arm is not below `read-s1` (87.33) and is significantly above V4.2 reranking 85.2 (clustered sign-flip p < 0.05).
+  2. **Guard** (Standard development exact Top-1): the main arm is at least 501, and the four-seed mean is at least the 2.1 reading mean of 504.50.
+  3. **Reference** (does not decide):
+     - `ime-kana-ja-colloq-v1` development, overall and by zero / low / mid / high band;
+     - kana development exact Top-1, lenient Top-3 and the D5 items.
+  4. **λ**: swept over {0, 0.8, 1.2, 1.6, 2.0, 2.5}; frozen at 1.6 by default. It changes only if one value's four-seed mean beats 1.6 by more than 0.5 points and at least 3 of 4 seeds are higher there. 3.3 uses the frozen value.
+  5. **Pass and fallback**:
+     - If 1 and 2 both hold, `20m-kd-cont` (s1) is the 3.3 start.
+     - Otherwise 3.3 continues from `read-s1`, and no higher-scoring seed from s2–s4 is substituted. The 3.3 arms' start and guard reference then change from `kd-cont` to `read-s1`, recorded as a deviation.
+
 ## Stage 3 registration (2026-11-26)
 
 **3.1 Colloquial data** (`ja-colloq-v1-12k`, `ja-colloq-v1-p85-12k`):
